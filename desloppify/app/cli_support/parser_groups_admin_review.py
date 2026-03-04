@@ -5,22 +5,7 @@ from __future__ import annotations
 import argparse
 
 
-def _add_review_parser(sub) -> None:
-    p_review = sub.add_parser(
-        "review",
-        help="Prepare or import holistic subjective review",
-        description="Run holistic subjective reviews using LLM-based analysis.",
-        epilog="""\
-examples:
-  desloppify review --prepare
-  desloppify review --run-batches --runner codex --parallel --scan-after-import
-  desloppify review --external-start --external-runner claude
-  desloppify review --external-submit --session-id <id> --import issues.json
-  desloppify review --merge --similarity 0.8""",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-
-    # -- core options --
+def _add_core_options(p_review: argparse.ArgumentParser) -> None:
     g_core = p_review.add_argument_group("core options")
     g_core.add_argument("--path", type=str, default=None, help="Project root directory (default: auto-detected)")
     g_core.add_argument("--state", type=str, default=None, help="Path to state file")
@@ -83,7 +68,8 @@ examples:
         help="Bypass the objective-plan-drained gate for review reruns",
     )
 
-    # -- external review --
+
+def _add_external_review_options(p_review: argparse.ArgumentParser) -> None:
     g_external = p_review.add_argument_group("external review")
     g_external.add_argument(
         "--external-start",
@@ -120,7 +106,8 @@ examples:
         help="External review session expiration in hours (default: 24)",
     )
 
-    # -- batch execution --
+
+def _add_batch_execution_options(p_review: argparse.ArgumentParser) -> None:
     g_batch = p_review.add_argument_group("batch execution")
     g_batch.add_argument(
         "--run-batches",
@@ -239,7 +226,8 @@ examples:
         ),
     )
 
-    # -- trust & attestation --
+
+def _add_trust_options(p_review: argparse.ArgumentParser) -> None:
     g_trust = p_review.add_argument_group("trust & attestation")
     g_trust.add_argument(
         "--manual-override",
@@ -269,7 +257,8 @@ examples:
         ),
     )
 
-    # -- post-processing --
+
+def _add_postprocessing_options(p_review: argparse.ArgumentParser) -> None:
     g_post = p_review.add_argument_group("post-processing")
     g_post.add_argument(
         "--merge",
@@ -282,6 +271,28 @@ examples:
         default=0.8,
         help="Summary similarity threshold for merge (0-1, default: 0.8)",
     )
+
+
+def _add_review_parser(sub) -> None:
+    p_review = sub.add_parser(
+        "review",
+        help="Prepare or import holistic subjective review",
+        description="Run holistic subjective reviews using LLM-based analysis.",
+        epilog="""\
+examples:
+  desloppify review --prepare
+  desloppify review --run-batches --runner codex --parallel --scan-after-import
+  desloppify review --external-start --external-runner claude
+  desloppify review --external-submit --session-id <id> --import issues.json
+  desloppify review --merge --similarity 0.8""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    _add_core_options(p_review)
+    _add_external_review_options(p_review)
+    _add_batch_execution_options(p_review)
+    _add_trust_options(p_review)
+    _add_postprocessing_options(p_review)
 
 
 __all__ = ["_add_review_parser"]

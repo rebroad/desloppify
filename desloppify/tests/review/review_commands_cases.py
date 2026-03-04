@@ -831,14 +831,26 @@ class TestCmdReviewPrepare:
             ],
             "investigation_batches": [
                 {
-                    "name": "Batch A",
-                    "dimensions": ["high_level_elegance", "mid_level_elegance"],
+                    "name": "HLE-A",
+                    "dimensions": ["high_level_elegance"],
                     "files_to_read": ["src/a.ts", "src/b.ts"],
                     "why": "A",
                 },
                 {
-                    "name": "Batch B",
-                    "dimensions": ["high_level_elegance", "low_level_elegance"],
+                    "name": "MLE-A",
+                    "dimensions": ["mid_level_elegance"],
+                    "files_to_read": ["src/a.ts", "src/b.ts"],
+                    "why": "A",
+                },
+                {
+                    "name": "HLE-B",
+                    "dimensions": ["high_level_elegance"],
+                    "files_to_read": ["src/c.ts", "src/d.ts"],
+                    "why": "B",
+                },
+                {
+                    "name": "LLE-B",
+                    "dimensions": ["low_level_elegance"],
                     "files_to_read": ["src/c.ts", "src/d.ts"],
                     "why": "B",
                 },
@@ -871,12 +883,9 @@ class TestCmdReviewPrepare:
             _ = timeout, cwd
             out_path = Path(cmd[cmd.index("-o") + 1])
             out_path.parent.mkdir(parents=True, exist_ok=True)
-            if out_path.name == "batch-1.raw.txt":
-                payload = {
-                    "assessments": {
-                        "high_level_elegance": 70,
-                        "mid_level_elegance": 65,
-                    },
+            payloads = {
+                "batch-1.raw.txt": {
+                    "assessments": {"high_level_elegance": 70},
                     "dimension_notes": {
                         "high_level_elegance": {
                             "evidence": ["shared orchestration crosses module seams"],
@@ -884,13 +893,6 @@ class TestCmdReviewPrepare:
                             "fix_scope": "multi_file_refactor",
                             "confidence": "high",
                             "issues_preventing_higher_score": "Cross-cutting regression risk remains.",
-                        },
-                        "mid_level_elegance": {
-                            "evidence": ["handoff adapters are inconsistent"],
-                            "impact_scope": "module",
-                            "fix_scope": "single_edit",
-                            "confidence": "medium",
-                            "issues_preventing_higher_score": "",
                         },
                     },
                     "issues": [
@@ -905,6 +907,20 @@ class TestCmdReviewPrepare:
                             "impact_scope": "subsystem",
                             "fix_scope": "multi_file_refactor",
                         },
+                    ],
+                },
+                "batch-2.raw.txt": {
+                    "assessments": {"mid_level_elegance": 65},
+                    "dimension_notes": {
+                        "mid_level_elegance": {
+                            "evidence": ["handoff adapters are inconsistent"],
+                            "impact_scope": "module",
+                            "fix_scope": "single_edit",
+                            "confidence": "medium",
+                            "issues_preventing_higher_score": "",
+                        },
+                    },
+                    "issues": [
                         {
                             "dimension": "mid_level_elegance",
                             "identifier": "handoff_adapter_drift",
@@ -917,13 +933,9 @@ class TestCmdReviewPrepare:
                             "fix_scope": "single_edit",
                         },
                     ],
-                }
-            else:
-                payload = {
-                    "assessments": {
-                        "high_level_elegance": 90,
-                        "low_level_elegance": 80,
-                    },
+                },
+                "batch-3.raw.txt": {
+                    "assessments": {"high_level_elegance": 90},
                     "dimension_notes": {
                         "high_level_elegance": {
                             "evidence": ["orchestration seams mostly consistent"],
@@ -931,13 +943,6 @@ class TestCmdReviewPrepare:
                             "fix_scope": "single_edit",
                             "confidence": "medium",
                             "issues_preventing_higher_score": "Some edge seams are still brittle.",
-                        },
-                        "low_level_elegance": {
-                            "evidence": ["local internals remain concise"],
-                            "impact_scope": "local",
-                            "fix_scope": "single_edit",
-                            "confidence": "medium",
-                            "issues_preventing_higher_score": "",
                         },
                     },
                     "issues": [
@@ -952,6 +957,20 @@ class TestCmdReviewPrepare:
                             "impact_scope": "module",
                             "fix_scope": "single_edit",
                         },
+                    ],
+                },
+                "batch-4.raw.txt": {
+                    "assessments": {"low_level_elegance": 80},
+                    "dimension_notes": {
+                        "low_level_elegance": {
+                            "evidence": ["local internals remain concise"],
+                            "impact_scope": "local",
+                            "fix_scope": "single_edit",
+                            "confidence": "medium",
+                            "issues_preventing_higher_score": "",
+                        },
+                    },
+                    "issues": [
                         {
                             "dimension": "low_level_elegance",
                             "identifier": "new",
@@ -964,7 +983,9 @@ class TestCmdReviewPrepare:
                             "fix_scope": "single_edit",
                         },
                     ],
-                }
+                },
+            }
+            payload = payloads.get(out_path.name, payloads["batch-4.raw.txt"])
             out_path.write_text(json.dumps(payload))
             return MagicMock(returncode=0, stdout="ok", stderr="")
 
@@ -1011,7 +1032,7 @@ class TestCmdReviewPrepare:
         assert payload["reviewed_files"] == ["src/a.ts", "src/b.ts", "src/c.ts", "src/d.ts"]
         assert "dimension_notes" in payload
         assert "review_quality" in payload
-        assert payload["review_quality"]["dimension_coverage"] == 0.667
+        assert payload["review_quality"]["dimension_coverage"] == 0.333
         assert len(payload["issues"]) == 3
         provenance = payload.get("provenance", {})
         assert provenance.get("kind") == "blind_review_batch_import"
@@ -1028,7 +1049,7 @@ class TestCmdReviewPrepare:
         assert len(summary_files) == 1
         summary_payload = json.loads(summary_files[0].read_text())
         assert summary_payload["failed_batches"] == []
-        assert summary_payload["successful_batches"] == [1, 2]
+        assert summary_payload["successful_batches"] == [1, 2, 3, 4]
 
     def test_do_run_batches_forwards_allow_partial_when_enabled(
         self, empty_state, tmp_path

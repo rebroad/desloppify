@@ -104,9 +104,9 @@ def test_batch_prompt_requires_score_and_issue_consistency():
             "files_to_read": ["core.py", "scan.py"],
         },
     )
-    assert "Score/issue consistency is required" in prompt
     assert "Seed files (start here):" in prompt
-    assert "Start with the seed files, then freely explore additional repository files" in prompt
+    assert "Start from the seed files" in prompt
+    assert "blind packet's `system_prompt`" in prompt
     assert "Evaluate ONLY listed files and ONLY listed dimensions" not in prompt
 
 

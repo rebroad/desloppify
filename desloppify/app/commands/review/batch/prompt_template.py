@@ -13,6 +13,7 @@ from ..prompt_sections import (
     PromptBatchContext,
     build_batch_context,
     join_non_empty_sections,
+    render_dimension_prompts_block,
     render_historical_focus,
     render_mechanical_concern_signals,
     render_scan_evidence_note,
@@ -36,7 +37,6 @@ def _render_metadata_block(
         f"Blind packet: {packet_path}\n"
         f"Batch index: {batch_index + 1}\n"
         f"Batch name: {context.name}\n"
-        f"Batch dimensions: {context.dimensions_text}\n"
         f"Batch rationale: {context.rationale}\n\n"
     )
 
@@ -79,6 +79,17 @@ def _render_output_schema(context: PromptBatchContext, batch_index: int) -> str:
     )
 
 
+def _extract_dimension_prompts(batch: dict[str, object]) -> dict[str, dict[str, object]]:
+    """Extract dimension prompts embedded by explode_to_single_dimension."""
+    prompt = batch.get("_dimension_prompt")
+    if not isinstance(prompt, dict):
+        return {}
+    dims = batch.get("dimensions", [])
+    if isinstance(dims, list) and len(dims) == 1:
+        return {str(dims[0]): prompt}
+    return {}
+
+
 def render_batch_prompt(
     *,
     repo_root: Path,
@@ -88,6 +99,7 @@ def render_batch_prompt(
 ) -> str:
     """Render one subagent prompt for a holistic investigation batch."""
     context = build_batch_context(batch, batch_index)
+    dim_prompts = _extract_dimension_prompts(batch)
     return join_non_empty_sections(
         _render_metadata_block(
             repo_root=repo_root,
@@ -95,6 +107,7 @@ def render_batch_prompt(
             batch_index=batch_index,
             context=context,
         ),
+        render_dimension_prompts_block(context.dimensions, dim_prompts),
         render_scoring_frame(),
         render_scan_evidence_note(),
         render_seed_files_block(context),

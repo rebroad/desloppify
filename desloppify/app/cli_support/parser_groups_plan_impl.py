@@ -5,56 +5,7 @@ from __future__ import annotations
 import argparse
 
 
-def add_plan_parser(sub) -> None:
-    p_plan = sub.add_parser(
-        "plan",
-        help="Living plan: generate, show, resolve, skip, cluster, triage",
-        description="""\
-Manage the living plan — a persistent layer on top of the work queue.
-Track custom ordering, clusters, skips, and per-issue annotations.
-Run with no subcommand to generate a full prioritized markdown plan.""",
-        epilog="""\
-typical workflow:
-  desloppify scan                       # detect issues
-  desloppify plan                       # full prioritized markdown
-  desloppify plan queue                 # compact table of all items
-  desloppify plan cluster create ...    # group related issues
-  desloppify plan focus <cluster>       # narrow scope
-  desloppify next                       # work on the next item
-  desloppify plan resolve <id> --attest .. # mark as fixed
-
-patterns (used by reorder, skip, resolve, describe, note, etc.):
-  Patterns match issues by detector, file, ID prefix, glob, or name.
-  Cluster names also work as patterns — they expand to all member IDs.
-  Examples: "security", "src/foo.py", "unused::*React*", "my-cluster"
-
-subcommands:
-  show       Show plan metadata summary
-  queue      Compact table of upcoming queue items
-  reset      Reset plan to empty
-  reorder    Reposition issues or clusters in the queue
-  resolve    Mark issues as fixed (score movement + next-step)
-  describe   Set augmented description
-  note       Set note on issues
-  skip       Skip issues (temporary/permanent/false_positive)
-  unskip     Bring skipped issues back to queue
-  reopen     Reopen resolved issues
-  focus      Set or clear active cluster focus
-  cluster    Manage issue clusters
-  triage     Staged triage workflow (after review)""",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    p_plan.add_argument("--state", type=str, default=None, help="Path to state file")
-    p_plan.add_argument(
-        "--output", type=str, metavar="FILE", help="Write to file instead of stdout"
-    )
-
-    plan_sub = p_plan.add_subparsers(dest="plan_action")
-
-    # plan show
-    plan_sub.add_parser("show", help="Show plan metadata summary")
-
-    # plan queue
+def _add_queue_subparser(plan_sub) -> None:
     p_queue = plan_sub.add_parser("queue", help="Compact table of upcoming queue items")
     p_queue.add_argument("--top", type=int, default=30, help="Max items (default: 30, 0=all)")
     p_queue.add_argument("--cluster", type=str, default=None, metavar="NAME",
@@ -64,10 +15,8 @@ subcommands:
     p_queue.add_argument("--sort", choices=["priority", "recent"], default="priority",
                          help="Sort order (default: priority)")
 
-    # plan reset
-    plan_sub.add_parser("reset", help="Reset plan to empty")
 
-    # plan reorder <patterns> <position> [--target TARGET]
+def _add_reorder_subparser(plan_sub) -> None:
     p_move = plan_sub.add_parser(
         "reorder",
         help="Reposition issues in the queue",
@@ -99,6 +48,8 @@ examples:
         help="Required for before/after (issue ID or cluster name) and up/down (integer offset)",
     )
 
+
+def _add_annotation_subparsers(plan_sub) -> None:
     # plan describe <patterns> "<text>"
     p_describe = plan_sub.add_parser("describe", help="Set augmented description")
     p_describe.add_argument(
@@ -115,6 +66,8 @@ examples:
     )
     p_note.add_argument("text", type=str, help="Note text")
 
+
+def _add_skip_subparsers(plan_sub) -> None:
     # plan skip <patterns> [--reason] [--review-after N] [--permanent] [--false-positive] [--note] [--attest]
     p_skip = plan_sub.add_parser(
         "skip",
@@ -152,6 +105,8 @@ examples:
         help="Issue ID(s), detector, file path, glob, or cluster name",
     )
 
+
+def _add_resolve_subparser(plan_sub) -> None:
     # plan reopen <patterns>
     p_reopen = plan_sub.add_parser(
         "reopen", help="Reopen resolved issues and move back to queue"
@@ -203,6 +158,8 @@ examples:
         help="Bypass triage guardrail when new issues are pending triage",
     )
 
+
+def _add_cluster_subparser(plan_sub) -> None:
     # plan focus <cluster> | --clear
     p_focus = plan_sub.add_parser("focus", help="Set or clear active cluster focus")
     p_focus.add_argument("cluster_name", nargs="?", default=None, help="Cluster name")
@@ -238,7 +195,7 @@ examples:
     p_cd = cluster_sub.add_parser("delete", help="Delete a cluster")
     p_cd.add_argument("cluster_name", type=str, help="Cluster name")
 
-    # plan cluster reorder <cluster[,cluster…]> <position> [target]
+    # plan cluster reorder <cluster[,cluster...]> <position> [target]
     p_cm = cluster_sub.add_parser("reorder", help="Reorder cluster(s) as a block")
     p_cm.add_argument("cluster_names", type=str, help="Cluster name(s), comma-separated for multiple")
     p_cm.add_argument(
@@ -271,71 +228,70 @@ examples:
     p_cu.add_argument("--description", type=str, default=None, help="Cluster description")
     p_cu.add_argument("--steps", nargs="+", metavar="STEP", default=None, help="Action steps list")
 
-    def _add_triage_flags(parser: argparse.ArgumentParser) -> None:
-        parser.add_argument(
-            "--stage",
-            type=str,
-            choices=["observe", "reflect", "organize"],
-            default=None,
-            help="Stage to record",
-        )
-        parser.add_argument(
-            "--report", type=str, default=None,
-            help="Stage report text",
-        )
-        parser.add_argument(
-            "--complete", action="store_true", default=False,
-            help="Mark triage complete",
-        )
-        parser.add_argument(
-            "--strategy", type=str, default=None,
-            help="Strategy summary (for --complete)",
-        )
-        parser.add_argument(
-            "--confirm-existing", action="store_true", default=False,
-            help="Fast-track confirmation of existing plan",
-        )
-        parser.add_argument(
-            "--note", type=str, default=None,
-            help="Note for --confirm-existing",
-        )
-        parser.add_argument(
-            "--start", action="store_true", default=False,
-            help="Manually start triage (inject triage::pending, clear prior stages)",
-        )
-        parser.add_argument(
-            "--confirm",
-            type=str,
-            choices=["observe", "reflect", "organize"],
-            default=None,
-            help="Confirm a completed stage (shows summary, requires --attestation)",
-        )
-        parser.add_argument(
-            "--attestation",
-            type=str,
-            default=None,
-            help="Attestation text confirming stage review (min 30 chars, used with --confirm)",
-        )
-        parser.add_argument(
-            "--confirmed",
-            type=str,
-            default=None,
-            help="Plan validation text for --confirm-existing (confirms plan review)",
-        )
-        parser.add_argument(
-            "--dry-run", action="store_true", default=False,
-            help="Preview mode",
-        )
 
-    # plan triage ...
+def _add_triage_subparser(plan_sub) -> None:
     p_triage = plan_sub.add_parser(
         "triage",
         help="Staged triage workflow for review issues",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    _add_triage_flags(p_triage)
+    p_triage.add_argument(
+        "--stage",
+        type=str,
+        choices=["observe", "reflect", "organize"],
+        default=None,
+        help="Stage to record",
+    )
+    p_triage.add_argument(
+        "--report", type=str, default=None,
+        help="Stage report text",
+    )
+    p_triage.add_argument(
+        "--complete", action="store_true", default=False,
+        help="Mark triage complete",
+    )
+    p_triage.add_argument(
+        "--strategy", type=str, default=None,
+        help="Strategy summary (for --complete)",
+    )
+    p_triage.add_argument(
+        "--confirm-existing", action="store_true", default=False,
+        help="Fast-track confirmation of existing plan",
+    )
+    p_triage.add_argument(
+        "--note", type=str, default=None,
+        help="Note for --confirm-existing",
+    )
+    p_triage.add_argument(
+        "--start", action="store_true", default=False,
+        help="Manually start triage (inject triage::pending, clear prior stages)",
+    )
+    p_triage.add_argument(
+        "--confirm",
+        type=str,
+        choices=["observe", "reflect", "organize"],
+        default=None,
+        help="Confirm a completed stage (shows summary, requires --attestation)",
+    )
+    p_triage.add_argument(
+        "--attestation",
+        type=str,
+        default=None,
+        help="Attestation text confirming stage review (min 30 chars, used with --confirm)",
+    )
+    p_triage.add_argument(
+        "--confirmed",
+        type=str,
+        default=None,
+        help="Plan validation text for --confirm-existing (confirms plan review)",
+    )
+    p_triage.add_argument(
+        "--dry-run", action="store_true", default=False,
+        help="Preview mode",
+    )
 
-    # plan commit-log ...
+
+def _add_commit_log_subparser(plan_sub) -> None:
     p_commit_log = plan_sub.add_parser(
         "commit-log",
         help="Track commits and resolved issues for PR updates",
@@ -361,6 +317,69 @@ examples:
     p_cl_history.add_argument("--top", type=int, default=10, help="Number of records to show (default: 10)")
 
     commit_log_sub.add_parser("pr", help="Print PR body markdown (dry run)")
+
+
+def add_plan_parser(sub) -> None:
+    p_plan = sub.add_parser(
+        "plan",
+        help="Living plan: generate, show, resolve, skip, cluster, triage",
+        description="""\
+Manage the living plan — a persistent layer on top of the work queue.
+Track custom ordering, clusters, skips, and per-issue annotations.
+Run with no subcommand to generate a full prioritized markdown plan.""",
+        epilog="""\
+typical workflow:
+  desloppify scan                       # detect issues
+  desloppify plan                       # full prioritized markdown
+  desloppify plan queue                 # compact table of all items
+  desloppify plan cluster create ...    # group related issues
+  desloppify plan focus <cluster>       # narrow scope
+  desloppify next                       # work on the next item
+  desloppify plan resolve <id> --attest .. # mark as fixed
+
+patterns (used by reorder, skip, resolve, describe, note, etc.):
+  Patterns match issues by detector, file, ID prefix, glob, or name.
+  Cluster names also work as patterns — they expand to all member IDs.
+  Examples: "security", "src/foo.py", "unused::*React*", "my-cluster"
+
+subcommands:
+  show       Show plan metadata summary
+  queue      Compact table of upcoming queue items
+  reset      Reset plan to empty
+  reorder    Reposition issues or clusters in the queue
+  resolve    Mark issues as fixed (score movement + next-step)
+  describe   Set augmented description
+  note       Set note on issues
+  skip       Skip issues (temporary/permanent/false_positive)
+  unskip     Bring skipped issues back to queue
+  reopen     Reopen resolved issues
+  focus      Set or clear active cluster focus
+  cluster    Manage issue clusters
+  triage     Staged triage workflow (after review)""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_plan.add_argument("--state", type=str, default=None, help="Path to state file")
+    p_plan.add_argument(
+        "--output", type=str, metavar="FILE", help="Write to file instead of stdout"
+    )
+
+    plan_sub = p_plan.add_subparsers(dest="plan_action")
+
+    # plan show
+    plan_sub.add_parser("show", help="Show plan metadata summary")
+
+    _add_queue_subparser(plan_sub)
+
+    # plan reset
+    plan_sub.add_parser("reset", help="Reset plan to empty")
+
+    _add_reorder_subparser(plan_sub)
+    _add_annotation_subparsers(plan_sub)
+    _add_skip_subparsers(plan_sub)
+    _add_resolve_subparser(plan_sub)
+    _add_cluster_subparser(plan_sub)
+    _add_triage_subparser(plan_sub)
+    _add_commit_log_subparser(plan_sub)
 
 
 __all__ = ["add_plan_parser"]

@@ -15,6 +15,7 @@ def _serialize_cluster_member(member: Mapping[str, Any]) -> dict[str, Any]:
     """Serialize a cluster member without nested plan metadata."""
     return {
         "id": member.get("id"),
+        "kind": member.get("kind", "issue"),
         "confidence": member.get("confidence"),
         "detector": member.get("detector"),
         "file": member.get("file"),

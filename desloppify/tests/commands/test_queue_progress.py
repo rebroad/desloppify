@@ -99,6 +99,23 @@ def test_queue_breakdown_actionable_floors_at_zero():
     assert b.actionable == 0
 
 
+def test_queue_breakdown_objective_actionable_excludes_subjective_and_workflow():
+    b = QueueBreakdown(queue_total=10, subjective=3, workflow=2)
+    assert b.objective_actionable == 5
+
+
+def test_queue_breakdown_objective_actionable_floors_at_zero():
+    b = QueueBreakdown(queue_total=3, subjective=2, workflow=1)
+    assert b.objective_actionable == 0
+
+
+def test_queue_breakdown_objective_actionable_with_only_subjective():
+    """When only subjective items remain, objective_actionable is 0."""
+    b = QueueBreakdown(queue_total=5, subjective=5, workflow=0)
+    assert b.objective_actionable == 0
+    assert b.actionable == 5  # actionable still counts subjective
+
+
 def test_queue_breakdown_frozen():
     b = QueueBreakdown(queue_total=10, plan_ordered=5)
     with pytest.raises(AttributeError):

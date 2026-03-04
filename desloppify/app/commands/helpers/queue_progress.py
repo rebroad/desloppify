@@ -43,10 +43,15 @@ class QueueBreakdown:
         """Items that represent real work — excludes workflow navigation steps.
 
         Use this instead of ``queue_total`` when gating on "is there work left?"
-        (e.g. scan preflight, plan-start-score clearing).  Workflow items like
-        ``workflow::run-scan`` guide the user but are not work to complete.
+        (e.g. scan preflight).  Workflow items like ``workflow::run-scan`` guide
+        the user but are not work to complete.
         """
         return max(0, self.queue_total - self.workflow)
+
+    @property
+    def objective_actionable(self) -> int:
+        """Objective items only — excludes subjective and workflow."""
+        return max(0, self.queue_total - self.subjective - self.workflow)
 
 
 def plan_aware_queue_breakdown(

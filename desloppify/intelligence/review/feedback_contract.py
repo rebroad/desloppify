@@ -10,7 +10,6 @@ LEGACY_DIMENSION_NOTE_ISSUES_KEY = "unreported_risk"
 REVIEW_QUALITY_HIGH_SCORE_MISSING_ISSUES_KEY = "high_score_missing_issue_note"
 LEGACY_REVIEW_QUALITY_HIGH_SCORE_MISSING_ISSUES_KEY = "high_score_without_risk"
 DEFAULT_MAX_BATCH_ISSUES = 10
-_PROMPT_CONTRACT_HEADER = "GLOBAL REVIEW CONTRACT (applies to every dimension):"
 TRUSTED_IMPORT_COVERAGE_OVERRIDE_FLAG = "--allow-partial"
 
 
@@ -30,45 +29,6 @@ def score_requires_explicit_feedback(score: float) -> bool:
     return float(score) < ASSESSMENT_FEEDBACK_THRESHOLD
 
 
-def global_prompt_contract() -> str:
-    """Render shared review contract text injected into all review prompts."""
-    return (
-        f"{_PROMPT_CONTRACT_HEADER}\n"
-        "- Scope breadth: report any material issues supported by evidence "
-        "(structural, architectural, boundary, readability, lifecycle), "
-        "not only low-level nits.\n"
-        "- Dimension boundaries are guidance, not a gag-order: if an issue "
-        "spans dimensions, report it under the most impacted dimension.\n"
-        "- Do not default to 100. Reserve 100 for genuinely exemplary code "
-        "with clear positive evidence; if there is uncertainty or residual "
-        "issues, score below 100.\n"
-        "- Do not suppress valid issues to keep scores high.\n"
-        f"- Scores below {LOW_SCORE_ISSUE_THRESHOLD:.1f} MUST include at least one "
-        "issue for that same dimension.\n"
-        f"- Scores below {ASSESSMENT_FEEDBACK_THRESHOLD:.1f} MUST include explicit "
-        "feedback for that same dimension (issue with suggestion or "
-        "dimension_notes evidence).\n"
-        f"- Scores above {HIGH_SCORE_ISSUES_NOTE_THRESHOLD:.1f} MUST include a "
-        "non-empty `issues_preventing_higher_score` note for that dimension.\n"
-        "- Issues must always describe defects that need change, never positive observations.\n"
-        "- Think structurally: when individual issues form a pattern, consider what is\n"
-        "  causing them. If several issues stem from a shared root cause (missing abstraction,\n"
-        "  repeated pattern, inconsistent convention), say so in the issues — explain the\n"
-        "  deeper issue and use root_cause_cluster to connect related symptoms."
-    )
-
-
-def ensure_prompt_contract(system_prompt: str) -> str:
-    """Append shared contract text once to a system prompt."""
-    text = (system_prompt or "").strip()
-    if _PROMPT_CONTRACT_HEADER in text:
-        return text
-    suffix = global_prompt_contract()
-    if not text:
-        return suffix
-    return f"{text}\n\n{suffix}"
-
-
 __all__ = [
     "ASSESSMENT_FEEDBACK_THRESHOLD",
     "DIMENSION_NOTE_ISSUES_KEY",
@@ -79,8 +39,6 @@ __all__ = [
     "REVIEW_QUALITY_HIGH_SCORE_MISSING_ISSUES_KEY",
     "TRUSTED_IMPORT_COVERAGE_OVERRIDE_FLAG",
     "LOW_SCORE_ISSUE_THRESHOLD",
-    "ensure_prompt_contract",
-    "global_prompt_contract",
     "max_batch_issues_for_dimension_count",
     "score_requires_dimension_issue",
     "score_requires_explicit_feedback",

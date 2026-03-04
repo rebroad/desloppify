@@ -5,9 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from desloppify.intelligence.review.feedback_contract import (
-    DIMENSION_NOTE_ISSUES_KEY,
-    HIGH_SCORE_ISSUES_NOTE_THRESHOLD,
-    LOW_SCORE_ISSUE_THRESHOLD,
     max_batch_issues_for_dimension_count,
 )
 
@@ -246,16 +243,74 @@ def render_dimension_focus(dim_set: set[str]) -> str:
     )
 
 
+def explode_to_single_dimension(
+    batches: list[dict[str, object]],
+    dimension_prompts: dict[str, dict[str, object]] | None = None,
+) -> list[dict[str, object]]:
+    """Split multi-dimension batches into one batch per dimension.
+
+    Preserves seed files and rationale — each exploded batch keeps the same
+    file grouping but is scoped to a single dimension.  When *dimension_prompts*
+    is provided, each exploded batch gets a ``_dimension_prompt`` key with the
+    prompt for its single dimension so that downstream renderers can use it
+    without extra parameter threading.
+    """
+    prompts = dimension_prompts or {}
+    result: list[dict[str, object]] = []
+    for batch in batches:
+        dims = batch.get("dimensions", [])
+        if not isinstance(dims, list):
+            result.append(batch)
+            continue
+        effective_dims = dims if len(dims) > 1 else dims
+        for dim in effective_dims:
+            exploded: dict[str, object] = {**batch, "dimensions": [dim]}
+            dim_prompt = prompts.get(dim)
+            if isinstance(dim_prompt, dict):
+                exploded["_dimension_prompt"] = dim_prompt
+            result.append(exploded)
+    return result
+
+
+def render_dimension_prompts_block(
+    dimensions: tuple[str, ...],
+    dimension_prompts: dict[str, dict[str, object]],
+) -> str:
+    """Render inline dimension guidance so the reviewer sees the full rubric."""
+    if not dimensions or not dimension_prompts:
+        return ""
+    lines: list[str] = ["DIMENSION TO EVALUATE:\n"]
+    for dim in dimensions:
+        prompt = dimension_prompts.get(dim)
+        if not isinstance(prompt, dict):
+            lines.append(f"## {dim}\n(no rubric available)\n")
+            continue
+        description = str(prompt.get("description", "")).strip()
+        lines.append(f"## {dim}")
+        if description:
+            lines.append(description)
+
+        look_for = prompt.get("look_for")
+        if isinstance(look_for, list) and look_for:
+            lines.append("Look for:")
+            for item in look_for:
+                lines.append(f"- {item}")
+
+        skip = prompt.get("skip")
+        if isinstance(skip, list) and skip:
+            lines.append("Skip:")
+            for item in skip:
+                lines.append(f"- {item}")
+        lines.append("")
+    return "\n".join(lines) + "\n"
+
+
 def render_scoring_frame() -> str:
     return (
-        "YOUR TASK: Read the code for this batch's dimensions. For each dimension, judge "
+        "YOUR TASK: Read the code for this batch's dimension. Judge "
         "how well the codebase serves a developer from that perspective. The dimension "
-        "prompt in the blind packet defines what good looks like — that is your rubric. "
+        "rubric above defines what good looks like. "
         "Cite specific observations that explain your judgment.\n\n"
-        "WHAT WE GIVE YOU AND WHY: Below you will find automated scan evidence, historical "
-        "issues, and mechanical concern signals. These are navigation aids — starting points "
-        "for where to look. They are NOT evidence, NOT findings, and NOT inputs to your "
-        "scores. Only what you observe directly in the code informs your judgment.\n\n"
     )
 
 
@@ -274,45 +329,25 @@ def render_seed_files_block(context: PromptBatchContext) -> str:
 
 
 def render_task_requirements(*, issues_cap: int, dim_set: set[str]) -> str:
-    return (
-        "Task requirements:\n"
-        "1. Read the blind packet and follow `system_prompt` constraints exactly.\n"
-        "1a. If previously flagged issues are listed above, use them as context for your review.\n"
-        "    Verify whether each still applies to the current code. Do not re-report fixed or\n"
-        "    wontfix issues. Use them as starting points to look deeper — inspect adjacent code\n"
-        "    and related modules for defects the prior review may have missed.\n"
-        "1b. If mechanical concern signals are listed above, confirm or refute each with your\n"
-        "    own code reading. Report only confirmed defects.\n"
-        "1c. Think structurally: when you spot multiple individual issues that share a common\n"
-        "    root cause (missing abstraction, duplicated pattern, inconsistent convention),\n"
-        "    explain the deeper structural issue in the issue, not just the surface symptom.\n"
-        "    If the pattern is significant enough, report the structural issue as its own issue\n"
-        "    with appropriate fix_scope ('multi_file_refactor' or 'architectural_change') and\n"
-        "    use `root_cause_cluster` to connect related symptom issues together.\n"
-        "2. Start with the seed files, then freely explore additional repository files likely to surface material issues.\n"
-        "2a. Prioritize high-signal leads: unexplored/lightly reviewed files, historical issue areas, and hotspot neighbors "
-        "(high coupling, god modules, large files, churn seams).\n"
-        "2b. Keep exploration targeted — follow strongest evidence paths first instead of attempting exhaustive coverage.\n"
-        "2c. Keep issues and scoring scoped to this batch's listed dimensions.\n"
-        "2d. Respect scope controls in the blind packet config: do not include files/directories marked by "
-        "`exclude`, `suppress`, or zone overrides that classify files as non-production (test/config/generated/vendor).\n"
-        f"3. Return 0-{issues_cap} high-quality issues for this batch (empty array allowed).\n"
-        "3a. Do not suppress real defects to keep scores high; report every material issue you can support with evidence.\n"
-        "3b. Do not default to 100. Reserve 100 for genuinely exemplary evidence in this batch.\n"
-        "4. Score/issue consistency is required: broader or more severe issues MUST lower dimension scores.\n"
-        f"4a. Any dimension scored below {LOW_SCORE_ISSUE_THRESHOLD:.1f} MUST include explicit feedback: add at least one "
-        "issue with the same `dimension` and a non-empty actionable `suggestion`.\n"
-        "5. Every issue must include `related_files` with at least 2 files when possible.\n"
-        "6. Every issue must include `dimension`, `identifier`, `summary`, `evidence`, `suggestion`, and `confidence`.\n"
-        "7. Every issue must include `impact_scope` and `fix_scope`.\n"
-        "8. Every scored dimension MUST include dimension_notes with concrete evidence.\n"
-        f"9. If a dimension score is >{HIGH_SCORE_ISSUES_NOTE_THRESHOLD:.1f}, include `{DIMENSION_NOTE_ISSUES_KEY}` in dimension_notes.\n"
-        "10. Use exactly one decimal place for every assessment and abstraction sub-axis score.\n"
-        f"{render_dimension_focus(dim_set)}"
-        "11. Ignore prior chat context and any target-threshold assumptions.\n"
-        "12. Do not edit repository files.\n"
-        "13. Return ONLY valid JSON, no markdown fences.\n\n"
-    )
+    dim_focus = render_dimension_focus(dim_set)
+    # Build numbered items; dimension focus items get renumbered dynamically.
+    lines = [
+        "Task requirements:",
+        "1. Read the blind packet's `system_prompt` — it contains scoring rules and calibration.",
+        "2. Start from the seed files, then freely explore the repository to build your understanding.",
+        "3. Keep issues and scoring scoped to this batch's dimension.",
+        "4. Respect scope controls: do not include files/directories marked by `exclude`, `suppress`, or non-production zone overrides.",
+        f"5. Return 0-{issues_cap} issues for this batch (empty array allowed).",
+    ]
+    next_num = 6
+    if dim_focus:
+        for focus_line in dim_focus.rstrip("\n").split("\n"):
+            lines.append(f"{next_num}. {focus_line.lstrip('0123456789abcdefghij. ')}")
+            next_num += 1
+    lines.append(f"{next_num}. Do not edit repository files.")
+    next_num += 1
+    lines.append(f"{next_num}. Return ONLY valid JSON, no markdown fences.")
+    return "\n".join(lines) + "\n\n"
 
 
 def render_scope_enums() -> str:
@@ -331,6 +366,8 @@ __all__ = [
     "PromptBatchContext",
     "coerce_string_list",
     "build_batch_context",
+    "explode_to_single_dimension",
+    "render_dimension_prompts_block",
     "SCAN_EVIDENCE_FOCUS_BY_DIMENSION",
     "render_scan_evidence_focus",
     "render_historical_focus",

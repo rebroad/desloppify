@@ -27,7 +27,9 @@ from .runner_process import FollowupScanDeps, run_followup_scan
 from .runtime.setup import setup_lang_concrete
 from .prompt_sections import (
     build_batch_context,
+    explode_to_single_dimension,
     join_non_empty_sections,
+    render_dimension_prompts_block,
     render_historical_focus,
     render_mechanical_concern_signals,
     render_scan_evidence_note,
@@ -218,25 +220,31 @@ def _build_claude_launch_prompt(
         f"Output JSON path: {output_path}\n\n"
     )
 
-    batches = packet.get("investigation_batches", [])
-    if not isinstance(batches, list):
-        batches = []
+    raw_batches = packet.get("investigation_batches", [])
+    if not isinstance(raw_batches, list):
+        raw_batches = []
+    raw_dim_prompts = packet.get("dimension_prompts")
+    dim_prompts: dict[str, dict[str, object]] = (
+        raw_dim_prompts if isinstance(raw_dim_prompts, dict) else {}
+    )
+    batches = explode_to_single_dimension(
+        [b for b in raw_batches if isinstance(b, dict)],
+        dimension_prompts=dim_prompts or None,
+    )
 
     all_dims: set[str] = set()
     combined_cap = 0
     batch_sections: list[str] = []
     for i, batch in enumerate(batches):
-        if not isinstance(batch, dict):
-            continue
         ctx = build_batch_context(batch, i)
         all_dims.update(ctx.dimension_set)
         combined_cap += ctx.issues_cap
 
         section = (
             f"--- Batch {i + 1}: {ctx.name} ---\n"
-            f"Dimensions: {ctx.dimensions_text}\n"
             f"Rationale: {ctx.rationale}\n"
         )
+        section += render_dimension_prompts_block(ctx.dimensions, dim_prompts)
         section += render_seed_files_block(ctx)
         section += render_historical_focus(batch)
         section += render_mechanical_concern_signals(batch)
@@ -278,14 +286,13 @@ def _build_claude_launch_prompt(
         f"1. Keep `session.id` exactly `{session_id}`.\n"
         f"2. Keep `session.token` exactly `{token}`.\n"
         "3. Do not include provenance metadata (CLI injects canonical provenance).\n"
-        "4. Return JSON only (no markdown fences).\n"
     )
 
     return join_non_empty_sections(
         header,
+        *batch_sections,
         render_scoring_frame(),
         render_scan_evidence_note(),
-        *batch_sections,
         render_task_requirements(issues_cap=combined_cap, dim_set=all_dims),
         render_scope_enums(),
         output_schema,

@@ -23,7 +23,7 @@ def print_plan_workflow_nudge(state: dict) -> None:
         if not plan.get("plan_start_scores"):
             return
         breakdown = plan_aware_queue_breakdown(state, plan)
-        queue_total = breakdown.actionable
+        queue_total = breakdown.objective_actionable
     except PLAN_LOAD_EXCEPTIONS:
         _logger.debug("plan workflow nudge skipped", exc_info=True)
         return

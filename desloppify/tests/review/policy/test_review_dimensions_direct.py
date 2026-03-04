@@ -291,7 +291,6 @@ def test_load_dimensions_for_lang_applies_override_patch(
     assert "shared_dim" in prompts
     assert "lang_dim" in prompts
     assert "lang-tail" in system_prompt
-    assert "GLOBAL REVIEW CONTRACT" in system_prompt
 
 
 def test_load_dimensions_for_lang_override_remove_and_append(

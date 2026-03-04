@@ -117,7 +117,7 @@ def collect_batch_results(
             try:
                 payload = extract_payload_fn(raw_path.read_text())
             except OSError as exc:
-                logger.debug("Failed reading batch payload %s: %s", raw_path, exc)
+                logger.warning("Failed reading batch payload %s: %s", raw_path, exc)
                 payload = None
         if payload is None:
             payload = _extract_payload_from_log(idx, raw_path, extract_payload_fn)
@@ -129,7 +129,7 @@ def collect_batch_results(
             try:
                 safe_write_text(raw_path, json.dumps(payload, indent=2) + "\n")
             except OSError as exc:
-                logger.debug("Failed writing normalized batch payload %s: %s", raw_path, exc)
+                logger.warning("Failed writing normalized batch payload %s: %s", raw_path, exc)
         try:
             assessments, issues, dimension_notes, quality = normalize_result_fn(
                 payload,

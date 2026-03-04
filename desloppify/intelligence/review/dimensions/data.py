@@ -10,7 +10,6 @@ from pathlib import Path
 from desloppify.intelligence.review.dimensions.validation import (
     parse_dimensions_payload,
 )
-from desloppify.intelligence.review.feedback_contract import ensure_prompt_contract
 
 _LANG_DIR = Path(__file__).resolve().parents[3] / "languages"
 _LANG_DATA_SUBDIR = "review_data"
@@ -189,7 +188,7 @@ def load_dimensions() -> tuple[list[str], dict[str, dict[str, object]], str]:
     dims, prompts, system_prompt = parse_dimensions_payload(
         payload, context_prefix=_DIMENSIONS_FILE
     )
-    return dims, prompts, ensure_prompt_contract(system_prompt)
+    return dims, prompts, system_prompt
 
 
 @lru_cache(maxsize=16)
@@ -205,4 +204,4 @@ def load_dimensions_for_lang(
     dims, prompts, system_prompt = parse_dimensions_payload(
         payload, context_prefix=context
     )
-    return dims, prompts, ensure_prompt_contract(system_prompt)
+    return dims, prompts, system_prompt

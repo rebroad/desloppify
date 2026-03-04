@@ -60,7 +60,7 @@ def _workflow_stage_index(item: WorkQueueItem) -> int:
         try:
             return int(raw_index)
         except (TypeError, ValueError) as exc:
-            logger.debug("Invalid workflow stage index %r: %s", raw_index, exc)
+            logger.warning("Invalid workflow stage index %r: %s", raw_index, exc)
     return _TRIAGE_STAGE_ORDER.get(workflow_stage_name(item).lower(), 0)
 
 

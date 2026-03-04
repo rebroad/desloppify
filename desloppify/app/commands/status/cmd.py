@@ -10,6 +10,7 @@ from desloppify import state as state_mod
 from desloppify.app.commands.helpers.guardrails import print_triage_guardrail_info
 from desloppify.app.commands.helpers.lang import resolve_lang
 from desloppify.app.commands.helpers.queue_progress import (
+    _print_objective_drained_banner,
     format_queue_block,
     get_plan_start_strict,
     plan_aware_queue_breakdown,
@@ -201,9 +202,11 @@ def _print_score_section(state, scores, plan, target_strict_score, ctx=None):
         except PLAN_LOAD_EXCEPTIONS as exc:
             _logger.debug("Plan-aware queue count failed: %s", exc)
             queue_remaining = 0
-    if plan_start_strict is not None and queue_remaining > 0:
+    objective_remaining = queue_remaining - breakdown.subjective - breakdown.workflow if breakdown else queue_remaining
+    if plan_start_strict is not None and objective_remaining > 0:
         print_frozen_score_with_queue_context(
             plan, queue_remaining, breakdown=breakdown,
+            live_score=scores.strict,
         )
     else:
         for line, style in score_summary_lines(
@@ -224,6 +227,14 @@ def _print_score_section(state, scores, plan, target_strict_score, ctx=None):
             block = format_queue_block(breakdown)
             for text, style in block:
                 print(colorize(text, style))
+        # Phase transition: objective drained but subjective/workflow remains
+        if (
+            plan_start_strict is not None
+            and breakdown is not None
+            and queue_remaining > 0
+            and objective_remaining == 0
+        ):
+            _print_objective_drained_banner(plan_start_strict, queue_remaining, breakdown)
     return breakdown
 
 

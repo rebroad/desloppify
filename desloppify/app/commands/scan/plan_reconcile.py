@@ -134,7 +134,7 @@ def _clear_plan_start_scores_if_queue_empty(
         )
 
         breakdown = plan_aware_queue_breakdown(state, plan)
-        queue_empty = breakdown.actionable == 0
+        queue_empty = breakdown.objective_actionable == 0
     except PLAN_LOAD_EXCEPTIONS as exc:
         log_best_effort_failure(logger, "run post-scan plan reconciliation", exc)
         return False
@@ -288,48 +288,52 @@ def _sync_plan_start_scores_and_log(
 
 def reconcile_plan_post_scan(runtime: Any) -> None:
     """Reconcile plan queue metadata and stale subjective review dimensions."""
+    plan_path = runtime.state_path.parent / "plan.json" if runtime.state_path else None
     try:
-        plan_path = runtime.state_path.parent / "plan.json" if runtime.state_path else None
         plan = load_plan(plan_path)
-        dirty = False
-
-        if _apply_plan_reconciliation(plan, runtime.state, reconcile_plan_after_scan):
-            dirty = True
-
-        if _sync_unscored_and_log(plan, runtime.state):
-            dirty = True
-
-        target_strict, policy, cycle_just_completed = _subjective_policy_context(
-            runtime,
-            plan,
-        )
-        if _sync_stale_and_log(
-            plan,
-            runtime.state,
-            policy=policy,
-            cycle_just_completed=cycle_just_completed,
-        ):
-            dirty = True
-
-        if _sync_auto_clusters_and_log(
-            plan,
-            runtime.state,
-            target_strict=target_strict,
-            policy=policy,
-            cycle_just_completed=cycle_just_completed,
-        ):
-            dirty = True
-
-        if _sync_triage_and_log(plan, runtime.state):
-            dirty = True
-        if _sync_communicate_score_and_log(plan, runtime.state, policy=policy):
-            dirty = True
-        if _sync_create_plan_and_log(plan, runtime.state, policy=policy):
-            dirty = True
-        if _sync_plan_start_scores_and_log(plan, runtime.state):
-            dirty = True
-
-        if dirty:
-            save_plan(plan, plan_path)
     except PLAN_LOAD_EXCEPTIONS as exc:
-        logger.warning("Plan reconciliation skipped: %s", exc)
+        logger.warning("Plan reconciliation skipped (load failed): %s", exc)
+        return
+    dirty = False
+
+    if _apply_plan_reconciliation(plan, runtime.state, reconcile_plan_after_scan):
+        dirty = True
+
+    if _sync_unscored_and_log(plan, runtime.state):
+        dirty = True
+
+    target_strict, policy, cycle_just_completed = _subjective_policy_context(
+        runtime,
+        plan,
+    )
+    if _sync_stale_and_log(
+        plan,
+        runtime.state,
+        policy=policy,
+        cycle_just_completed=cycle_just_completed,
+    ):
+        dirty = True
+
+    if _sync_auto_clusters_and_log(
+        plan,
+        runtime.state,
+        target_strict=target_strict,
+        policy=policy,
+        cycle_just_completed=cycle_just_completed,
+    ):
+        dirty = True
+
+    if _sync_triage_and_log(plan, runtime.state):
+        dirty = True
+    if _sync_communicate_score_and_log(plan, runtime.state, policy=policy):
+        dirty = True
+    if _sync_create_plan_and_log(plan, runtime.state, policy=policy):
+        dirty = True
+    if _sync_plan_start_scores_and_log(plan, runtime.state):
+        dirty = True
+
+    if dirty:
+        try:
+            save_plan(plan, plan_path)
+        except PLAN_LOAD_EXCEPTIONS as exc:
+            logger.warning("Plan reconciliation save failed: %s", exc)
