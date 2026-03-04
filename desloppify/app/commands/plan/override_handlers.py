@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from desloppify.app.commands.resolve.selection import (
 )
 from desloppify.base.discovery.file_paths import safe_write_text
 from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS
+from desloppify.base.output.fallbacks import log_best_effort_failure
 from desloppify.base.output.terminal import colorize
 from desloppify.engine._plan.skip_policy import (
     SKIP_KIND_LABELS,
@@ -46,6 +48,8 @@ from desloppify.engine.plan import (
     skip_items,
     unskip_items,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_state_file(path: Path | None) -> Path:
@@ -551,6 +555,7 @@ def cmd_plan_resolve(args: argparse.Namespace) -> None:
         )
         save_plan(plan)
     except PLAN_LOAD_EXCEPTIONS as exc:
+        log_best_effort_failure(logger, "append plan resolve log entry", exc)
         print(colorize(f"  Note: unable to append plan resolve log entry ({exc}).", "dim"))
 
     # Build a Namespace that cmd_resolve expects

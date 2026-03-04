@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from desloppify.base.discovery.file_paths import safe_write_text
@@ -10,7 +12,6 @@ from desloppify.base.discovery.file_paths import safe_write_text
 from ._runner_parallel_execution import (
     _complete_parallel_future,
     _drain_parallel_completions,
-    _execute_parallel,
     _execute_serial,
     _heartbeat,
     _queue_parallel_tasks,
@@ -51,16 +52,46 @@ def execute_batches(
     contract_cache: dict[int, str] = {}
     indexes = sorted(tasks)
     if resolved_options.run_parallel:
-        return _execute_parallel(
-            tasks=tasks,
+        max_workers, heartbeat = _resolve_parallel_runtime(
             indexes=indexes,
-            progress_fn=progress_fn,
-            error_log_fn=error_log_fn,
             max_parallel_workers=resolved_options.max_parallel_workers,
             heartbeat_seconds=resolved_options.heartbeat_seconds,
-            clock_fn=resolved_options.clock_fn,
-            contract_cache=contract_cache,
         )
+        failures: set[int] = set()
+        progress_failures: set[int] = set()
+        started_at: dict[int, float] = {}
+        lock = threading.Lock()
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = _queue_parallel_tasks(
+                executor=executor,
+                indexes=indexes,
+                tasks=tasks,
+                progress_fn=progress_fn,
+                error_log_fn=error_log_fn,
+                contract_cache=contract_cache,
+                max_workers=max_workers,
+                failures=failures,
+                progress_failures=progress_failures,
+                started_at=started_at,
+                lock=lock,
+                clock_fn=resolved_options.clock_fn,
+            )
+            pending = set(futures.keys())
+            _drain_parallel_completions(
+                pending=pending,
+                futures=futures,
+                heartbeat=heartbeat,
+                indexes=indexes,
+                progress_fn=progress_fn,
+                error_log_fn=error_log_fn,
+                contract_cache=contract_cache,
+                failures=failures,
+                progress_failures=progress_failures,
+                started_at=started_at,
+                lock=lock,
+                clock_fn=resolved_options.clock_fn,
+            )
+        return sorted(failures)
     return _execute_serial(
         tasks=tasks,
         indexes=indexes,

@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 
 from desloppify.base.discovery.paths import get_project_root
+from desloppify.base.output.fallbacks import log_best_effort_failure
 
 from . import registry_state
 
@@ -109,7 +110,7 @@ def load_all(*, force_reload: bool = False) -> None:
                         )
                         failures[f"user:{f.name}"] = ex
     except (OSError, ImportError) as exc:
-        logger.debug("User plugin discovery skipped: %s", exc)
+        log_best_effort_failure(logger, "discover user plugins", exc)
 
     registry_state.set_load_errors(failures)
     _report_load_errors_for_load_all()

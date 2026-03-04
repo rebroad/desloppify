@@ -12,6 +12,7 @@ from desloppify.app.commands.scan.reporting.agent_context import is_agent_enviro
 from desloppify.app.commands.status.strict_target import (
     format_strict_target_progress,
 )
+from desloppify.base.output.fallbacks import log_best_effort_failure
 from desloppify.base.output.terminal import colorize
 from desloppify.engine._state.schema import StateModel
 from desloppify.engine.concerns import generate_concerns
@@ -292,7 +293,7 @@ def show_concern_count(state: StateModel, lang_name: str | None = None) -> None:
                 )
             )
     except (ImportError, AttributeError, TypeError, ValueError) as exc:
-        logger.debug("Concern generation failed (best-effort): %s", exc)
+        log_best_effort_failure(logger, "generate best-effort concern summary", exc)
 
 
 def show_strict_target_progress(

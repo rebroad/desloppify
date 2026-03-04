@@ -8,6 +8,8 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
+from desloppify.base.output.fallbacks import log_best_effort_failure
+
 logger = logging.getLogger(__name__)
 
 
@@ -63,7 +65,7 @@ def resolve_package_version(
     try:
         return version_getter("desloppify")
     except package_not_found_error as exc:
-        logger.debug("Package metadata lookup failed, trying pyproject.toml: %s", exc)
+        log_best_effort_failure(logger, "read package metadata version", exc)
 
     pyproject_path = project_root / "pyproject.toml"
     try:
@@ -72,6 +74,6 @@ def resolve_package_version(
         if match:
             return match.group(1)
     except OSError as exc:
-        logger.debug("Failed to read pyproject.toml for version: %s", exc)
+        log_best_effort_failure(logger, "read pyproject.toml for package version", exc)
 
     return "unknown"

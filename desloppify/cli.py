@@ -13,6 +13,7 @@ from desloppify.app.commands.registry import get_command_handlers
 from desloppify.base.config import load_config
 from desloppify.base.discovery.source import set_exclusions
 from desloppify.base.exception_sets import CommandError
+from desloppify.base.output.fallbacks import log_best_effort_failure
 from desloppify.base.output.terminal import colorize
 from desloppify.base.discovery.paths import get_default_path, get_project_root
 from desloppify.base.registry import detector_names, on_detector_registered
@@ -86,7 +87,7 @@ def _resolve_default_path(args) -> None:
                     args.path = str((runtime_root / saved_path).resolve())
                     return
         except (OSError, KeyError, ValueError, TypeError, AttributeError) as exc:
-            logger.debug("Failed to resolve default path from saved state: %s", exc)
+            log_best_effort_failure(logger, "resolve default review path from saved state", exc)
     lang = resolve_lang(args)
     if lang:
         args.path = str(runtime_root / lang.default_src)

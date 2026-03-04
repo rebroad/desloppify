@@ -62,30 +62,6 @@ class ImportLoadConfig:
     manual_attest: str | None = None
 
 
-def _coerce_import_load_config(
-    *,
-    config: ImportLoadConfig | None,
-    lang_name: str | None,
-    allow_partial: bool,
-    trusted_assessment_source: bool,
-    trusted_assessment_label: str | None,
-    attested_external: bool,
-    manual_override: bool,
-    manual_attest: str | None,
-) -> ImportLoadConfig:
-    if config is not None:
-        return config
-    return ImportLoadConfig(
-        lang_name=lang_name,
-        allow_partial=allow_partial,
-        trusted_assessment_source=trusted_assessment_source,
-        trusted_assessment_label=trusted_assessment_label,
-        attested_external=attested_external,
-        manual_override=manual_override,
-        manual_attest=manual_attest,
-    )
-
-
 def _normalize_import_payload_shape(
     payload: dict[str, Any],
 ) -> tuple[ReviewImportPayload | None, list[str]]:
@@ -174,8 +150,7 @@ def _parse_and_validate_import(
     Returns ``(data, errors)`` where *data* is the normalized payload on
     success, or ``None`` when errors prevent import.
     """
-    options = _coerce_import_load_config(
-        config=config,
+    options = config or ImportLoadConfig(
         lang_name=lang_name,
         allow_partial=allow_partial,
         trusted_assessment_source=trusted_assessment_source,
@@ -308,8 +283,7 @@ def load_import_issues_data(
     Raises ``ImportPayloadLoadError`` when validation fails.
     """
     _ = colorize_fn
-    options = _coerce_import_load_config(
-        config=config,
+    options = config or ImportLoadConfig(
         lang_name=lang_name,
         allow_partial=allow_partial,
         trusted_assessment_source=trusted_assessment_source,

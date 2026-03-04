@@ -20,6 +20,7 @@ from desloppify.app.commands.helpers.state import require_completed_scan
 from desloppify.base.discovery.file_paths import safe_write_text
 from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS
 from desloppify.base.output.terminal import colorize
+from desloppify.base.output.user_message import print_user_message
 from desloppify.app.skill_docs import check_skill_version
 from desloppify.base.tooling import check_config_staleness
 from desloppify.engine._scoring.detection import merge_potentials
@@ -312,6 +313,17 @@ def _get_items(args: argparse.Namespace, state: dict, config: dict) -> None:
         breakdown=breakdown,
     )
     print()
+
+    if items and plan_data:
+        print_user_message(
+            "Hey — the task details are printed above. Just start"
+            " working on it. When you're done, resolve it with"
+            " `desloppify plan resolve` and then run `desloppify next`"
+            " again for the next one. If this doesn't seem like the"
+            " right priority, run `desloppify plan show` to see the"
+            " full queue and reorder. Don't stop until you're done"
+            " — unless I've told you otherwise, just keep going."
+        )
 
 
 __all__ = ["NextOptions", "_low_subjective_dimensions", "cmd_next"]

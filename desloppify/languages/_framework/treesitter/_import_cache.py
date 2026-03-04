@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 
+from desloppify.base.output.fallbacks import log_best_effort_failure
+
 _go_modules: dict[str, str] = {}
 
 
@@ -32,7 +34,7 @@ def _read_go_module_path(
                     module_path = line.split(None, 1)[1].strip()
                     break
     except OSError as exc:
-        logger.debug("Failed to read go.mod at %s: %s", go_mod_path, exc)
+        log_best_effort_failure(logger, f"read go.mod at {go_mod_path}", exc)
 
     _go_modules[go_mod_path] = module_path
     return module_path

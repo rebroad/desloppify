@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import Any
 
 from desloppify import state as state_mod
 from desloppify.base.config import DEFAULT_TARGET_STRICT_SCORE
 from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS
+from desloppify.base.output.fallbacks import log_best_effort_failure
 from desloppify.base.output.terminal import colorize
 from desloppify.engine.plan import (
     append_log_entry,
@@ -22,8 +23,7 @@ from desloppify.engine.plan import (
     sync_unscored_dimensions,
 )
 
-if TYPE_CHECKING:
-    from desloppify.app.commands.scan.workflow import ScanRuntime
+logger = logging.getLogger(__name__)
 
 
 def _plan_has_user_content(plan: dict[str, object]) -> bool:
@@ -136,7 +136,7 @@ def _clear_plan_start_scores_if_queue_empty(
         breakdown = plan_aware_queue_breakdown(state, plan)
         queue_empty = breakdown.actionable == 0
     except PLAN_LOAD_EXCEPTIONS as exc:
-        logging.debug("Plan operation skipped: %s", exc)
+        log_best_effort_failure(logger, "run post-scan plan reconciliation", exc)
         return False
     if not queue_empty:
         return False
@@ -286,7 +286,7 @@ def _sync_plan_start_scores_and_log(
     return cleared
 
 
-def reconcile_plan_post_scan(runtime: ScanRuntime) -> None:
+def reconcile_plan_post_scan(runtime: Any) -> None:
     """Reconcile plan queue metadata and stale subjective review dimensions."""
     try:
         plan_path = runtime.state_path.parent / "plan.json" if runtime.state_path else None

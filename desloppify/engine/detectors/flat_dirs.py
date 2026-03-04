@@ -101,6 +101,182 @@ def format_flat_dir_summary(entry: dict) -> str:
     )
 
 
+def _resolve_detection_settings(
+    *,
+    threshold: int,
+    config: FlatDirDetectionConfig | None,
+    child_dir_threshold: int,
+    child_dir_weight: int,
+    combined_threshold: int,
+    sparse_parent_child_threshold: int,
+    sparse_child_file_threshold: int,
+    sparse_child_count_threshold: int,
+    sparse_child_ratio_threshold: float,
+    thin_wrapper_parent_sibling_threshold: int,
+    thin_wrapper_max_file_count: int,
+    thin_wrapper_max_child_dir_count: int,
+    thin_wrapper_names: tuple[str, ...],
+) -> FlatDirDetectionConfig:
+    if config is not None:
+        return config
+    return FlatDirDetectionConfig(
+        threshold=threshold,
+        child_dir_threshold=child_dir_threshold,
+        child_dir_weight=child_dir_weight,
+        combined_threshold=combined_threshold,
+        sparse_parent_child_threshold=sparse_parent_child_threshold,
+        sparse_child_file_threshold=sparse_child_file_threshold,
+        sparse_child_count_threshold=sparse_child_count_threshold,
+        sparse_child_ratio_threshold=sparse_child_ratio_threshold,
+        thin_wrapper_parent_sibling_threshold=thin_wrapper_parent_sibling_threshold,
+        thin_wrapper_max_file_count=thin_wrapper_max_file_count,
+        thin_wrapper_max_child_dir_count=thin_wrapper_max_child_dir_count,
+        thin_wrapper_names=thin_wrapper_names,
+    )
+
+
+def _build_dir_stats(
+    scan_root: Path,
+    files: list[str],
+) -> tuple[Counter[str], dict[str, set[str]]]:
+    dir_counts: Counter[str] = Counter()
+    child_dirs: dict[str, set[str]] = {}
+    for file_path in files:
+        try:
+            resolved_file = resolve_scan_file(file_path, scan_root=scan_root).resolve()
+            parent_path = resolved_file.parent
+            parent_rel = parent_path.relative_to(scan_root)
+        except (OSError, ValueError) as exc:
+            logger.debug("Skipping unresolvable file %s: %s", file_path, exc)
+            continue
+
+        parent = str((scan_root / parent_rel).resolve())
+        dir_counts[parent] += 1
+        parts = parent_rel.parts
+        for idx in range(len(parts) - 1):
+            ancestor = (scan_root / Path(*parts[: idx + 1])).resolve()
+            child = (scan_root / Path(*parts[: idx + 2])).resolve()
+            ancestor_key = str(ancestor)
+            child_dirs.setdefault(ancestor_key, set()).add(str(child))
+    return dir_counts, child_dirs
+
+
+def _all_tracked_dirs(
+    dir_counts: Counter[str],
+    child_dirs: dict[str, set[str]],
+) -> set[str]:
+    all_dirs: set[str] = set(dir_counts.keys())
+    all_dirs.update(child_dirs.keys())
+    for children in child_dirs.values():
+        all_dirs.update(children)
+    return all_dirs
+
+
+def _is_overloaded(
+    *,
+    file_count: int,
+    direct_child_count: int,
+    combined_score: int,
+    settings: FlatDirDetectionConfig,
+) -> bool:
+    return (
+        file_count >= settings.threshold
+        or direct_child_count >= settings.child_dir_threshold
+        or combined_score >= settings.combined_threshold
+    )
+
+
+def _fragmentation_entry(
+    *,
+    dir_path: str,
+    file_count: int,
+    direct_children: set[str],
+    direct_child_count: int,
+    combined_score: int,
+    settings: FlatDirDetectionConfig,
+    dir_counts: Counter[str],
+    child_dirs: dict[str, set[str]],
+) -> dict | None:
+    sparse_child_count = 0
+    for child in direct_children:
+        child_file_count = int(dir_counts.get(child, 0))
+        child_child_count = len(child_dirs.get(child, set()))
+        if (
+            child_file_count <= settings.sparse_child_file_threshold
+            and child_child_count == 0
+        ):
+            sparse_child_count += 1
+    sparse_child_ratio = (
+        float(sparse_child_count) / float(direct_child_count)
+        if direct_child_count
+        else 0.0
+    )
+    fragmented = (
+        direct_child_count >= settings.sparse_parent_child_threshold
+        and sparse_child_count >= settings.sparse_child_count_threshold
+        and sparse_child_ratio >= settings.sparse_child_ratio_threshold
+    )
+    if not fragmented:
+        return None
+    return {
+        "directory": dir_path,
+        "file_count": file_count,
+        "child_dir_count": direct_child_count,
+        "combined_score": combined_score,
+        "kind": "fragmented",
+        "sparse_child_count": sparse_child_count,
+        "sparse_child_ratio": sparse_child_ratio,
+        "sparse_child_file_threshold": settings.sparse_child_file_threshold,
+    }
+
+
+def _thin_wrapper_entry(
+    *,
+    dir_path: str,
+    thin_names: set[str],
+    file_count: int,
+    direct_child_count: int,
+    combined_score: int,
+    settings: FlatDirDetectionConfig,
+    child_dirs: dict[str, set[str]],
+) -> dict | None:
+    dir_name = Path(dir_path).name.lower()
+    parent_key = str(Path(dir_path).parent)
+    parent_sibling_count = len(child_dirs.get(parent_key, set()))
+    wrapper_item_count = file_count + direct_child_count
+    thin_wrapper = (
+        dir_name in thin_names
+        and wrapper_item_count == 1
+        and file_count <= settings.thin_wrapper_max_file_count
+        and direct_child_count <= settings.thin_wrapper_max_child_dir_count
+        and parent_sibling_count >= settings.thin_wrapper_parent_sibling_threshold
+    )
+    if not thin_wrapper:
+        return None
+    return {
+        "directory": dir_path,
+        "file_count": file_count,
+        "child_dir_count": direct_child_count,
+        "combined_score": combined_score,
+        "kind": "thin_wrapper",
+        "parent_sibling_count": parent_sibling_count,
+        "wrapper_item_count": wrapper_item_count,
+    }
+
+
+def _sort_entries(entries: list[dict]) -> list[dict]:
+    return sorted(
+        entries,
+        key=lambda entry: (
+            -int(entry["combined_score"]),
+            -int(entry.get("parent_sibling_count", 0)),
+            -int(entry.get("sparse_child_count", 0)),
+            -int(entry["child_dir_count"]),
+            -int(entry["file_count"]),
+        ),
+    )
+
+
 def detect_flat_dirs(
     path: Path,
     file_finder,
@@ -134,57 +310,31 @@ def detect_flat_dirs(
     ),
 ) -> tuple[list[dict], int]:
     """Find overloaded/fragmented directories using count and fan-out heuristics."""
-    if config is None:
-        settings = FlatDirDetectionConfig(
-            threshold=threshold,
-            child_dir_threshold=child_dir_threshold,
-            child_dir_weight=child_dir_weight,
-            combined_threshold=combined_threshold,
-            sparse_parent_child_threshold=sparse_parent_child_threshold,
-            sparse_child_file_threshold=sparse_child_file_threshold,
-            sparse_child_count_threshold=sparse_child_count_threshold,
-            sparse_child_ratio_threshold=sparse_child_ratio_threshold,
-            thin_wrapper_parent_sibling_threshold=thin_wrapper_parent_sibling_threshold,
-            thin_wrapper_max_file_count=thin_wrapper_max_file_count,
-            thin_wrapper_max_child_dir_count=thin_wrapper_max_child_dir_count,
-            thin_wrapper_names=thin_wrapper_names,
-        )
-    else:
-        settings = config
-
+    settings = _resolve_detection_settings(
+        threshold=threshold,
+        config=config,
+        child_dir_threshold=child_dir_threshold,
+        child_dir_weight=child_dir_weight,
+        combined_threshold=combined_threshold,
+        sparse_parent_child_threshold=sparse_parent_child_threshold,
+        sparse_child_file_threshold=sparse_child_file_threshold,
+        sparse_child_count_threshold=sparse_child_count_threshold,
+        sparse_child_ratio_threshold=sparse_child_ratio_threshold,
+        thin_wrapper_parent_sibling_threshold=thin_wrapper_parent_sibling_threshold,
+        thin_wrapper_max_file_count=thin_wrapper_max_file_count,
+        thin_wrapper_max_child_dir_count=thin_wrapper_max_child_dir_count,
+        thin_wrapper_names=thin_wrapper_names,
+    )
     files = file_finder(path)
     scan_root = path.resolve()
-    dir_counts: Counter[str] = Counter()
-    child_dirs: dict[str, set[str]] = {}
-    for f in files:
-        try:
-            resolved_file = resolve_scan_file(f, scan_root=path).resolve()
-            parent_path = resolved_file.parent
-            parent_rel = parent_path.relative_to(scan_root)
-        except (OSError, ValueError) as exc:
-            logger.debug("Skipping unresolvable file %s: %s", f, exc)
-            continue
-
-        parent = str((scan_root / parent_rel).resolve())
-        dir_counts[parent] += 1
-        # Track direct subdirectory fan-out for every ancestor.
-        parts = parent_rel.parts
-        for idx in range(len(parts) - 1):
-            ancestor = (scan_root / Path(*parts[: idx + 1])).resolve()
-            child = (scan_root / Path(*parts[: idx + 2])).resolve()
-            ancestor_key = str(ancestor)
-            child_dirs.setdefault(ancestor_key, set()).add(str(child))
-
-    all_dirs: set[str] = set(dir_counts.keys())
-    all_dirs.update(child_dirs.keys())
-    for children in child_dirs.values():
-        all_dirs.update(children)
+    dir_counts, child_dirs = _build_dir_stats(scan_root, files)
+    all_dirs = _all_tracked_dirs(dir_counts, child_dirs)
 
     thin_names = {name.lower() for name in settings.thin_wrapper_names}
     if not thin_names:
         thin_names = set(THIN_WRAPPER_NAMES)
 
-    entries = []
+    entries: list[dict] = []
     for dir_path in sorted(all_dirs):
         file_count = int(dir_counts.get(dir_path, 0))
         direct_children = child_dirs.get(dir_path, set())
@@ -193,12 +343,12 @@ def detect_flat_dirs(
         has_local_files = dir_path in dir_counts
 
         if has_local_files:
-            overloaded = (
-                file_count >= settings.threshold
-                or direct_child_count >= settings.child_dir_threshold
-                or combined_score >= settings.combined_threshold
-            )
-            if overloaded:
+            if _is_overloaded(
+                file_count=file_count,
+                direct_child_count=direct_child_count,
+                combined_score=combined_score,
+                settings=settings,
+            ):
                 entries.append(
                     {
                         "directory": dir_path,
@@ -209,72 +359,29 @@ def detect_flat_dirs(
                     }
                 )
                 continue
-            # Conservative anti-fragmentation signal:
-            # only flag when a parent has many child dirs and most are single-file leaves.
-            sparse_child_count = 0
-            for child in direct_children:
-                child_file_count = int(dir_counts.get(child, 0))
-                child_child_count = len(child_dirs.get(child, set()))
-                if (
-                    child_file_count <= settings.sparse_child_file_threshold
-                    and child_child_count == 0
-                ):
-                    sparse_child_count += 1
-            sparse_child_ratio = (
-                float(sparse_child_count) / float(direct_child_count)
-                if direct_child_count
-                else 0.0
+            fragmented_entry = _fragmentation_entry(
+                dir_path=dir_path,
+                file_count=file_count,
+                direct_children=direct_children,
+                direct_child_count=direct_child_count,
+                combined_score=combined_score,
+                settings=settings,
+                dir_counts=dir_counts,
+                child_dirs=child_dirs,
             )
-            fragmented = (
-                direct_child_count >= settings.sparse_parent_child_threshold
-                and sparse_child_count >= settings.sparse_child_count_threshold
-                and sparse_child_ratio >= settings.sparse_child_ratio_threshold
-            )
-            if fragmented:
-                entries.append(
-                    {
-                        "directory": dir_path,
-                        "file_count": file_count,
-                        "child_dir_count": direct_child_count,
-                        "combined_score": combined_score,
-                        "kind": "fragmented",
-                        "sparse_child_count": sparse_child_count,
-                        "sparse_child_ratio": sparse_child_ratio,
-                        "sparse_child_file_threshold": settings.sparse_child_file_threshold,
-                    }
-                )
+            if fragmented_entry is not None:
+                entries.append(fragmented_entry)
                 continue
 
-        dir_name = Path(dir_path).name.lower()
-        parent_key = str(Path(dir_path).parent)
-        parent_sibling_count = len(child_dirs.get(parent_key, set()))
-        wrapper_item_count = file_count + direct_child_count
-        thin_wrapper = (
-            dir_name in thin_names
-            and wrapper_item_count == 1
-            and file_count <= settings.thin_wrapper_max_file_count
-            and direct_child_count <= settings.thin_wrapper_max_child_dir_count
-            and parent_sibling_count >= settings.thin_wrapper_parent_sibling_threshold
+        thin_wrapper = _thin_wrapper_entry(
+            dir_path=dir_path,
+            thin_names=thin_names,
+            file_count=file_count,
+            direct_child_count=direct_child_count,
+            combined_score=combined_score,
+            settings=settings,
+            child_dirs=child_dirs,
         )
-        if thin_wrapper:
-            entries.append(
-                {
-                    "directory": dir_path,
-                    "file_count": file_count,
-                    "child_dir_count": direct_child_count,
-                    "combined_score": combined_score,
-                    "kind": "thin_wrapper",
-                    "parent_sibling_count": parent_sibling_count,
-                    "wrapper_item_count": wrapper_item_count,
-                }
-            )
-    return sorted(
-        entries,
-        key=lambda e: (
-            -int(e["combined_score"]),
-            -int(e.get("parent_sibling_count", 0)),
-            -int(e.get("sparse_child_count", 0)),
-            -int(e["child_dir_count"]),
-            -int(e["file_count"]),
-        ),
-    ), len(all_dirs)
+        if thin_wrapper is not None:
+            entries.append(thin_wrapper)
+    return _sort_entries(entries), len(all_dirs)

@@ -15,6 +15,7 @@ from desloppify.base.discovery.file_paths import (
     resolve_path,
 
 )
+from desloppify.base.output.fallbacks import log_best_effort_failure
 from desloppify.engine._state.schema import StateModel
 from desloppify.intelligence.review._context.patterns import (
     ERROR_PATTERNS as _ERROR_PATTERNS,
@@ -116,8 +117,12 @@ def sibling_behavior_context(
                 if len(parts) >= 2:
                     return "/".join(parts[:-1]) + "/"
                 return None
-            except ValueError:
-                logger.debug("Path %s not relative to root %s, using fallback bucket", filepath, root)
+            except ValueError as exc:
+                log_best_effort_failure(
+                    logger,
+                    f"bucket path {filepath} relative to root {root}",
+                    exc,
+                )
         parts = Path(filepath).parts
         if len(parts) < 2:
             return None
@@ -128,8 +133,12 @@ def sibling_behavior_context(
         if root is not None:
             try:
                 return target.relative_to(root).as_posix()
-            except ValueError:
-                logger.debug("Path %s not relative to root %s, using rel() fallback", filepath, root)
+            except ValueError as exc:
+                log_best_effort_failure(
+                    logger,
+                    f"display path {filepath} relative to root {root}",
+                    exc,
+                )
         return rel(filepath)
 
     dir_imports: dict[str, dict[str, set[str]]] = {}

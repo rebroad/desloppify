@@ -6,6 +6,7 @@ import argparse
 
 from desloppify.app.commands.helpers.runtime import command_runtime
 from desloppify.base.output.terminal import colorize
+from desloppify.base.output.user_message import print_user_message
 from desloppify.engine.plan import (
     append_log_entry,
     collect_triage_input,
@@ -137,6 +138,16 @@ def _cmd_stage_observe(args: argparse.Namespace) -> None:
     else:
         print(colorize("  Now confirm your analysis.", "yellow"))
         print(colorize("    desloppify plan triage --confirm observe", "dim"))
+
+    if not is_reuse:
+        print_user_message(
+            "Hey — your job right now is to really understand these"
+            " issues. Go deep: find the root causes, spot where issues"
+            " contradict each other, and flag anything that's noise or"
+            " over-engineering. This is the foundation for everything"
+            " else, so don't rush it. Confirm and continue to reflect"
+            " — no need to stop for my input unless I've asked you to."
+        )
 
 
 def _cmd_stage_reflect(args: argparse.Namespace) -> None:

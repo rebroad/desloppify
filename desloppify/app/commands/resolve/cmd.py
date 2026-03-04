@@ -13,6 +13,7 @@ from desloppify.app.commands.helpers.queue_progress import show_score_with_plan_
 from desloppify.app.commands.helpers.state import state_path
 from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS
 from desloppify.base.output.terminal import colorize
+from desloppify.base.output.user_message import print_user_message
 from desloppify.engine.plan import (
     add_uncommitted_issues,
     append_log_entry,
@@ -179,6 +180,16 @@ def cmd_resolve(args: argparse.Namespace) -> None:
             state=state,
         )
     )
+
+    if args.status == "fixed" and plan is not None and next_command == "desloppify next":
+        print_user_message(
+            "Hey — nice, on to the next one. Run `desloppify next`"
+            " to pick up your next task. If this doesn't seem like"
+            " the right thing to work on, run `desloppify plan show`"
+            " to see the full queue and reorder if needed. Please"
+            " don't stop until you're done — unless I've told you"
+            " otherwise, just keep going."
+        )
 
 
 __all__ = ["_check_queue_order_guard", "cmd_suppress_pattern", "cmd_resolve"]

@@ -58,7 +58,7 @@ def merge_structural_signals(
         signal_count = len(signals)
         tier = 4 if signal_count >= 3 else 3
         confidence = "high" if signal_count >= 3 else "medium"
-        summary = "Needs decomposition: " + " / ".join(signals)
+        summary = "Large file: " + " / ".join(signals)
         results.append(
             make_issue(
                 "structural",

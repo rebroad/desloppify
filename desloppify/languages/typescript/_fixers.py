@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+import importlib
+
 from desloppify.languages._framework.base.types import FixerConfig
-from desloppify.languages.typescript import fixers as ts_fixers_mod
 from desloppify.languages.typescript.detectors import logs as logs_detector_mod
 from desloppify.languages.typescript.detectors import smells as smells_detector_mod
 from desloppify.languages.typescript.detectors import unused as unused_detector_mod
+
+_FIXERS_MODULE = "desloppify.languages.typescript.fixers"
+
+
+def _ts_fixers_mod():
+    return importlib.import_module(_FIXERS_MODULE)
 
 
 def _det_unused(cat):
@@ -41,12 +48,12 @@ def _det_smell(smell_id):
 
 def _fix_vars(entries, *, dry_run=False):
     """Fix unused vars, returning FixResult."""
-    return ts_fixers_mod.fix_unused_vars(entries, dry_run=dry_run)
+    return _ts_fixers_mod().fix_unused_vars(entries, dry_run=dry_run)
 
 
 def _fix_logs(entries, *, dry_run=False):
     """Fix debug logs, normalizing result keys."""
-    result = ts_fixers_mod.fix_debug_logs(entries, dry_run=dry_run)
+    result = _ts_fixers_mod().fix_debug_logs(entries, dry_run=dry_run)
     for r in result.entries:
         r["removed"] = r.get("tags", r.get("removed", []))
     return result
@@ -54,12 +61,13 @@ def _fix_logs(entries, *, dry_run=False):
 
 def get_ts_fixers() -> dict[str, FixerConfig]:
     """Build the TypeScript fixer registry (lazy-loaded)."""
+    fixers_mod = _ts_fixers_mod()
     removed, would_remove = "Removed", "Would remove"
     return {
         "unused-imports": FixerConfig(
             "unused imports",
             _det_unused("imports"),
-            ts_fixers_mod.fix_unused_imports,
+            fixers_mod.fix_unused_imports,
             "unused",
             removed,
             would_remove,
@@ -83,7 +91,7 @@ def get_ts_fixers() -> dict[str, FixerConfig]:
         "unused-params": FixerConfig(
             "unused params",
             _det_unused("vars"),
-            ts_fixers_mod.fix_unused_params,
+            fixers_mod.fix_unused_params,
             "unused",
             "Prefixed",
             "Would prefix",
@@ -91,7 +99,7 @@ def get_ts_fixers() -> dict[str, FixerConfig]:
         "dead-useeffect": FixerConfig(
             "dead useEffect calls",
             _det_smell("dead_useeffect"),
-            ts_fixers_mod.fix_dead_useeffect,
+            fixers_mod.fix_dead_useeffect,
             "smells",
             removed,
             would_remove,
@@ -99,7 +107,7 @@ def get_ts_fixers() -> dict[str, FixerConfig]:
         "empty-if-chain": FixerConfig(
             "empty if/else chains",
             _det_smell("empty_if_chain"),
-            ts_fixers_mod.fix_empty_if_chain,
+            fixers_mod.fix_empty_if_chain,
             "smells",
             removed,
             would_remove,

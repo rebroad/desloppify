@@ -21,6 +21,7 @@ from desloppify.app.commands.plan.triage_playbook import (
     TRIAGE_STAGE_LABELS,
 )
 from desloppify.base.output.terminal import colorize
+from desloppify.base.output.user_message import print_user_message
 from desloppify.engine.plan import (
     collect_triage_input,
     detect_recurring_patterns,
@@ -152,48 +153,15 @@ def _print_reflect_result(
     for line in report.strip().splitlines():
         print(colorize(f"  \u2502 {line}", "cyan"))
     print(colorize("  \u2514" + "\u2500" * 57 + "\u2518", "cyan"))
-    print()
-    print(colorize(
-        "  IMPORTANT: Present your holistic strategy to the user. Explain:",
-        "yellow",
-    ))
-    print(colorize(
-        "  - What themes and root causes you see",
-        "yellow",
-    ))
-    print(colorize(
-        "  - What contradictions you found and which direction you'll take",
-        "yellow",
-    ))
-    print(colorize(
-        "  - What you'll prioritize, what you'll defer, the overall arc of work",
-        "yellow",
-    ))
-    print(colorize(
-        "  Wait for their input before creating clusters.",
-        "yellow",
-    ))
-    print()
-    print(colorize(
-        "  Then create clusters and enrich each with action steps:",
-        "dim",
-    ))
-    print(colorize(
-        '    desloppify plan cluster create <name> --description "..."',
-        "dim",
-    ))
-    print(colorize(
-        "    desloppify plan cluster add <name> <issue-patterns>",
-        "dim",
-    ))
-    print(colorize(
-        '    desloppify plan cluster update <name> --steps "step 1" "step 2" ...',
-        "dim",
-    ))
-    print(colorize(
-        "    desloppify plan triage --stage organize --report \"summary of what was organized...\"",
-        "dim",
-    ))
+    print_user_message(
+        "Hey — your strategic briefing is printed above. Synthesize"
+        " it into a clear strategy: what are the big themes, where do"
+        " issues contradict, and which direction will you take? What's"
+        " actually worth doing vs just busywork or over-decomposing?"
+        " Don't shy away from big refactors if warranted, but cut"
+        " anything that's just churn. Proceed to organize — no need"
+        " to wait for my input unless I've asked you to."
+    )
 
 def _print_organize_result(
     *,
@@ -228,23 +196,15 @@ def _print_organize_result(
     for line in report.strip().splitlines():
         print(colorize(f"  \u2502 {line}", "cyan"))
     print(colorize("  \u2514" + "\u2500" * 57 + "\u2518", "cyan"))
-    print()
-    print(colorize(
-        "  IMPORTANT: Present your prioritized organization to the user. Explain",
-        "yellow",
-    ))
-    print(colorize(
-        "  each cluster, why it exists, and your explicit priority ordering \u2014",
-        "yellow",
-    ))
-    print(colorize(
-        "  which cluster comes first, second, third, what depends on what,",
-        "yellow",
-    ))
-    print(colorize(
-        "  and why that ordering matters.",
-        "yellow",
-    ))
+    print_user_message(
+        "Hey — the cluster summary and prioritized organization are"
+        " printed above. Now make it executable: use desloppify tools"
+        " to get the sequencing right across clusters and within each"
+        " one. Write action steps so detailed that someone with no"
+        " context could follow them without mistakes — research the"
+        " hard parts and spell out exactly how to do them. Continue"
+        " to completion, no need to stop unless I've asked you to."
+    )
 
 def _print_reflect_dashboard(si: object, plan: dict) -> None:
     """Show completed clusters, resolved issues, and recurring patterns."""

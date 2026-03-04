@@ -88,8 +88,8 @@ def generate_description(
     if detector == "structural":
         files = {os.path.basename(member.get("file", "")) for member in members}
         if len(files) == 1:
-            return f"Decompose {next(iter(files))}"
-        return f"Decompose {count} large files"
+            return f"Review file size: {next(iter(files))}"
+        return f"Review {count} large files"
 
     display = meta.display if meta else detector
     if subtype:

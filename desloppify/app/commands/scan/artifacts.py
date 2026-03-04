@@ -14,12 +14,15 @@ from desloppify.app.commands.scan.workflow import (
 )
 from desloppify.base.config import config_for_query
 from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS
+from desloppify.base.output.fallbacks import log_best_effort_failure
 from desloppify.base.output.terminal import colorize
 from desloppify.base.output.contract import OutputResult
 from desloppify.base.discovery.paths import get_project_root
 from desloppify.engine._scoring.results.core import compute_health_breakdown
 from desloppify.engine.plan import load_plan
 from desloppify.state import open_scope_breakdown, score_snapshot
+
+logger = logging.getLogger(__name__)
 
 
 def build_scan_query_payload(
@@ -82,7 +85,7 @@ def build_scan_query_payload(
                 "plan_overrides_narrative": True,
             }
     except PLAN_LOAD_EXCEPTIONS as exc:
-        logging.debug("Plan load for artifacts skipped: %s", exc)
+        log_best_effort_failure(logger, "load plan context for scan artifacts", exc)
 
     return payload
 

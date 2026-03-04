@@ -9,6 +9,8 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from desloppify.base.output.fallbacks import log_best_effort_failure
+
 logger = logging.getLogger(__name__)
 
 _AVAILABLE = False
@@ -16,8 +18,8 @@ try:
     import tree_sitter_language_pack  # noqa: F401
 
     _AVAILABLE = True
-except ImportError:
-    logger.debug("tree-sitter-language-pack not installed; tree-sitter features disabled")
+except ImportError as exc:
+    log_best_effort_failure(logger, "import tree_sitter_language_pack", exc)
 
 
 def is_available() -> bool:

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from desloppify.base.discovery.file_paths import rel
+from desloppify.base.output.fallbacks import log_best_effort_failure
 
 from desloppify.base.discovery.source import (
 
@@ -419,7 +420,7 @@ def prepare_holistic_review(
         if concerns_batch:
             batches.append(concerns_batch)
     except (ImportError, AttributeError, TypeError, ValueError) as exc:
-        logger.debug("Concern generation failed (best-effort): %s", exc)
+        log_best_effort_failure(logger, "generate review concern batch", exc)
 
     batches = _filter_batches_to_dimensions(
         batches,

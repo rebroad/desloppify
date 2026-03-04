@@ -79,61 +79,6 @@ def _execute_serial(
     return sorted(failures)
 
 
-def _execute_parallel(
-    *,
-    tasks: dict[int, BatchTask],
-    indexes: list[int],
-    progress_fn,
-    error_log_fn,
-    max_parallel_workers,
-    heartbeat_seconds,
-    clock_fn,
-    contract_cache: dict[int, str],
-) -> list[int]:
-    """Run tasks in a thread pool with optional heartbeat monitoring."""
-    max_workers, heartbeat = _resolve_parallel_runtime(
-        indexes=indexes,
-        max_parallel_workers=max_parallel_workers,
-        heartbeat_seconds=heartbeat_seconds,
-    )
-    failures: set[int] = set()
-    progress_failures: set[int] = set()
-    started_at: dict[int, float] = {}
-    lock = threading.Lock()
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = _queue_parallel_tasks(
-            executor=executor,
-            indexes=indexes,
-            tasks=tasks,
-            progress_fn=progress_fn,
-            error_log_fn=error_log_fn,
-            contract_cache=contract_cache,
-            max_workers=max_workers,
-            failures=failures,
-            progress_failures=progress_failures,
-            started_at=started_at,
-            lock=lock,
-            clock_fn=clock_fn,
-        )
-        pending = set(futures.keys())
-        _drain_parallel_completions(
-            pending=pending,
-            futures=futures,
-            heartbeat=heartbeat,
-            indexes=indexes,
-            progress_fn=progress_fn,
-            error_log_fn=error_log_fn,
-            contract_cache=contract_cache,
-            failures=failures,
-            progress_failures=progress_failures,
-            started_at=started_at,
-            lock=lock,
-            clock_fn=clock_fn,
-        )
-    return sorted(failures)
-
-
 def _resolve_parallel_runtime(
     *,
     indexes: list[int],
@@ -419,7 +364,6 @@ def _heartbeat(
 __all__ = [
     "_complete_parallel_future",
     "_drain_parallel_completions",
-    "_execute_parallel",
     "_execute_serial",
     "_heartbeat",
     "_queue_parallel_tasks",

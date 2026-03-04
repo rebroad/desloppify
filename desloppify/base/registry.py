@@ -199,7 +199,7 @@ DETECTORS: dict[str, DetectorMeta] = {
         "structural",
         "File health",
         "refactor",
-        "decompose large files — extract logic into focused modules",
+        "review large files — split only when responsibilities are clearly separable",
         needs_judgment=True,
         tier=3,
         marks_dims_stale=True,

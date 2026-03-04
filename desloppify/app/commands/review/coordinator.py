@@ -258,51 +258,11 @@ def write_review_packet_snapshot(
     )
 
 
-def prepare_review_packet_snapshot(
-    *,
-    state: StateModel,
-    lang,
-    config: dict[str, Any],
-    context: ReviewPacketContext,
-    next_command: str,
-    stamp: str,
-    project_root_override: Path | None = None,
-    review_packet_dir_override: Path | None = None,
-    blind_path_override: Path | None = None,
-    write_query_fn=None,
-    safe_write_text_fn,
-    setup_lang_fn=setup_lang_concrete,
-    prepare_holistic_review_fn=None,
-) -> tuple[dict[str, Any], Path, Path]:
-    """Build, optionally publish to query.json, and persist packet snapshots."""
-    packet = build_review_packet_payload(
-        state=state,
-        lang=lang,
-        config=config,
-        context=context,
-        next_command=next_command,
-        setup_lang_fn=setup_lang_fn,
-        prepare_holistic_review_fn=prepare_holistic_review_fn,
-    )
-    if callable(write_query_fn):
-        write_query_fn(packet)
-    packet_path, blind_path = write_review_packet_snapshot(
-        packet,
-        stamp=stamp,
-        project_root_override=project_root_override,
-        review_packet_dir_override=review_packet_dir_override,
-        blind_path_override=blind_path_override,
-        safe_write_text_fn=safe_write_text_fn,
-    )
-    return packet, packet_path, blind_path
-
-
 __all__ = [
     "blind_packet_semantic_sha256",
     "build_review_packet_payload",
     "build_review_session_baseline",
     "evaluate_session_baseline_drift",
-    "prepare_review_packet_snapshot",
     "state_sha256",
     "write_review_packet_snapshot",
 ]

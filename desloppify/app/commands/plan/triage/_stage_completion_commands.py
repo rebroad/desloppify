@@ -6,6 +6,7 @@ import argparse
 
 from desloppify.app.commands.helpers.runtime import command_runtime
 from desloppify.base.output.terminal import colorize
+from desloppify.base.output.user_message import print_user_message
 from desloppify.engine.plan import append_log_entry, collect_triage_input, load_plan
 
 from .helpers import (
@@ -119,6 +120,14 @@ def _cmd_triage_complete(args: argparse.Namespace) -> None:
     )
 
     _apply_completion(args, plan, strategy)
+
+    print_user_message(
+        "Hey — final check. Does the sequencing hold up? Is every task"
+        " clear enough to hand off to someone with zero context? You"
+        " can still use desloppify tools to adjust. Once you're"
+        " satisfied, run `desloppify next` and start executing —"
+        " unless I've told you otherwise, just go."
+    )
 
 
 def _cmd_confirm_existing(args: argparse.Namespace) -> None:

@@ -138,30 +138,6 @@ class GenericLangOptions:
     test_coverage_module: Any | None = None
 
 
-def _coerce_generic_lang_options(
-    *,
-    options: GenericLangOptions | None,
-    exclude: list[str] | None,
-    depth: str,
-    detect_markers: list[str] | None,
-    default_src: str,
-    treesitter_spec,
-    zone_rules: list[ZoneRule] | None,
-    test_coverage_module: Any | None,
-) -> GenericLangOptions:
-    if options is not None:
-        return options
-    return GenericLangOptions(
-        exclude=exclude,
-        depth=depth,
-        detect_markers=detect_markers,
-        default_src=default_src,
-        treesitter_spec=treesitter_spec,
-        zone_rules=zone_rules,
-        test_coverage_module=test_coverage_module,
-    )
-
-
 def generic_lang(
     name: str,
     extensions: list[str],
@@ -190,8 +166,7 @@ def generic_lang(
 
     Returns the built LangConfig (also registered in the language registry).
     """
-    opts = _coerce_generic_lang_options(
-        options=options,
+    opts = options or GenericLangOptions(
         exclude=exclude,
         depth=depth,
         detect_markers=detect_markers,

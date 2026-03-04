@@ -8,6 +8,7 @@ from desloppify import state as state_mod
 from desloppify.app.commands.helpers.queue_progress import plan_aware_queue_breakdown
 from desloppify.app.commands.helpers.state import state_path
 from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS, CommandError
+from desloppify.base.output.fallbacks import log_best_effort_failure
 from desloppify.base.output.terminal import colorize
 from desloppify.engine.plan import load_plan, save_plan
 
@@ -43,7 +44,7 @@ def scan_queue_preflight(args) -> None:
                 plan["plan_start_scores"] = {}
                 save_plan(plan)
         except PLAN_LOAD_EXCEPTIONS as exc:
-            logging.debug("Plan score cleanup skipped: %s", exc)
+            log_best_effort_failure(_logger, "clear plan_start_scores before force-rescan", exc)
         return
 
     # No plan = no gate (first scan, or user never uses plan)

@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from desloppify.base.discovery.file_paths import safe_write_text
+from desloppify.base.output.fallbacks import log_best_effort_failure
 from desloppify.engine._plan.schema import (
     PLAN_VERSION,
     PlanModel,
@@ -90,7 +91,7 @@ def save_plan(plan: PlanModel | dict, path: Path | None = None) -> None:
         try:
             shutil.copy2(str(plan_path), str(backup))
         except OSError as backup_ex:
-            logger.debug("Failed to create plan backup: %s", backup_ex)
+            log_best_effort_failure(logger, "create plan backup", backup_ex)
 
     try:
         safe_write_text(plan_path, content)

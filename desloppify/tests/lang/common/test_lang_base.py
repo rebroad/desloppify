@@ -181,7 +181,7 @@ class TestStructuralSignals:
         assert len(results) == 1
         assert results[0]["tier"] == 4
         assert results[0]["confidence"] == "high"
-        assert "Needs decomposition" in results[0]["summary"]
+        assert "Large file" in results[0]["summary"]
 
     def test_merge_structural_1_2_signals_tier3(self, tmp_path):
         """1-2 signals produce tier 3 / medium confidence."""
