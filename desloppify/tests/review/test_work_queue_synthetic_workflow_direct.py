@@ -54,6 +54,53 @@ def test_build_create_plan_and_import_scores_items() -> None:
     assert "untrusted source" in import_item["detail"]["explanation"]
 
 
+def test_build_create_plan_item_uses_confirm_for_unconfirmed_recorded_stage() -> None:
+    from desloppify.engine._plan.constants import WORKFLOW_CREATE_PLAN_ID
+
+    create_item = workflow_mod.build_create_plan_item(
+        {
+            "queue_order": [WORKFLOW_CREATE_PLAN_ID, "triage::reflect"],
+            "epic_triage_meta": {
+                "triage_stages": {
+                    "observe": {
+                        "report": "done",
+                        "timestamp": "2026-03-09T00:00:00Z",
+                    },
+                },
+            },
+        }
+    )
+    assert create_item is not None
+    assert create_item["id"] == WORKFLOW_CREATE_PLAN_ID
+    assert create_item["primary_command"].startswith(
+        "desloppify plan triage --confirm observe"
+    )
+
+
+def test_build_create_plan_item_advances_to_next_pending_stage() -> None:
+    from desloppify.engine._plan.constants import WORKFLOW_CREATE_PLAN_ID
+
+    create_item = workflow_mod.build_create_plan_item(
+        {
+            "queue_order": [WORKFLOW_CREATE_PLAN_ID, "triage::reflect"],
+            "epic_triage_meta": {
+                "triage_stages": {
+                    "observe": {
+                        "report": "done",
+                        "timestamp": "2026-03-09T00:00:00Z",
+                        "confirmed_at": "2026-03-09T00:01:00Z",
+                    },
+                },
+            },
+        }
+    )
+    assert create_item is not None
+    assert create_item["id"] == WORKFLOW_CREATE_PLAN_ID
+    assert create_item["primary_command"].startswith(
+        'desloppify plan triage --stage reflect --report "'
+    )
+
+
 def test_build_communicate_score_item_formats_command_and_delta(monkeypatch) -> None:
     from desloppify.engine._plan.constants import WORKFLOW_COMMUNICATE_SCORE_ID
 
