@@ -324,7 +324,7 @@ class TestConfirmExistingRequiresConfirmed:
 
 class TestTriageStart:
     def test_start_injects_triage_stages(self, monkeypatch, capsys):
-        """--start injects all 4 triage stage IDs into the queue."""
+        """--start injects all triage stage IDs into the queue."""
         plan = empty_plan()
         state = _state_with_review_issues("r1", "r2")
 

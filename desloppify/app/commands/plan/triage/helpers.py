@@ -28,18 +28,8 @@ def has_triage_in_queue(plan: dict) -> bool:
 def inject_triage_stages(plan: dict) -> None:
     """Inject all triage stage IDs into the queue (fresh start)."""
     order: list[str] = plan.setdefault("queue_order", [])
-    existing = set(order)
-    for sid in TRIAGE_STAGE_IDS:
-        if sid not in existing:
-            order.insert(0 if sid == TRIAGE_STAGE_IDS[0] else len(order), sid)
-    # Re-insert in correct order at front
-    for sid in reversed(TRIAGE_STAGE_IDS):
-        if sid in order:
-            order.remove(sid)
-    insert_at = 0
-    for sid in TRIAGE_STAGE_IDS:
-        order.insert(insert_at, sid)
-        insert_at += 1
+    remaining = [issue_id for issue_id in order if issue_id not in TRIAGE_IDS]
+    order[:] = [*TRIAGE_STAGE_IDS, *remaining]
 
 def purge_triage_stage(plan: dict, stage_name: str) -> None:
     """Purge a single triage stage ID from the queue."""
