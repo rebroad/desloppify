@@ -7,7 +7,7 @@ from pathlib import Path
 from desloppify.engine.plan import TriageInput
 
 from ..helpers import manual_clusters_with_issues, observe_dimension_breakdown
-from ..stage_helpers import _unclustered_review_issues, _unenriched_clusters
+from ..stage_helpers import unclustered_review_issues, unenriched_clusters
 from .._stage_validation import (
     _cluster_file_overlaps,
     _clusters_with_directory_scatter,
@@ -65,11 +65,11 @@ def validate_stage(
         manual = manual_clusters_with_issues(plan)
         if not manual:
             return False, "No manual clusters with issues exist."
-        gaps = _unenriched_clusters(plan)
+        gaps = unenriched_clusters(plan)
         if gaps:
             names = ", ".join(n for n, _ in gaps)
             return False, f"Unenriched clusters: {names}"
-        unclustered = _unclustered_review_issues(plan, state)
+        unclustered = unclustered_review_issues(plan, state)
         if unclustered:
             return False, f"{len(unclustered)} review issue(s) not in any cluster."
         # Advisory warnings (non-blocking but informational)
@@ -178,11 +178,11 @@ def validate_completion(
     if not manual:
         return False, "No manual clusters with issues."
 
-    gaps = _unenriched_clusters(plan)
+    gaps = unenriched_clusters(plan)
     if gaps:
         return False, f"{len(gaps)} cluster(s) still need enrichment."
 
-    unclustered = _unclustered_review_issues(plan, state)
+    unclustered = unclustered_review_issues(plan, state)
     if unclustered:
         return False, f"{len(unclustered)} review issue(s) not in any cluster."
 

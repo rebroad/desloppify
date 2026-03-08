@@ -5,8 +5,8 @@ from __future__ import annotations
 from desloppify.app.commands.helpers.display import short_issue_id
 from desloppify.app.commands.plan.triage.helpers import manual_clusters_with_issues
 from desloppify.app.commands.plan.triage.stage_helpers import (
-    _triage_coverage,
-    _unenriched_clusters,
+    triage_coverage,
+    unenriched_clusters,
 )
 from desloppify.app.commands.plan.triage_playbook import (
     TRIAGE_CMD_CLUSTER_ENRICH_COMPACT,
@@ -28,7 +28,7 @@ def _print_stage_progress(stages: dict, plan: dict | None = None) -> None:
             print(colorize(f"    \u25cb {label}", "dim"))
 
     if plan and "reflect" in stages and "organize" not in stages:
-        gaps = _unenriched_clusters(plan)
+        gaps = unenriched_clusters(plan)
         manual = manual_clusters_with_issues(plan)
         if not manual:
             print(
@@ -116,5 +116,5 @@ def _print_unclustered_issues(
             print(colorize(f"    ... and {len(unclustered) - 10} more", "dim"))
         return
     if open_issues:
-        organized, total, _ = _triage_coverage(plan)
+        organized, total, _ = triage_coverage(plan)
         print(colorize(f"\n  All {organized}/{total} issues are in clusters.", "green"))

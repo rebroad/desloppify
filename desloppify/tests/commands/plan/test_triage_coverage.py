@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from desloppify.app.commands.plan.triage_handlers import _triage_coverage
 from desloppify.app.commands.plan.triage.stage_helpers import (
-    _triage_coverage as _stage_helper_triage_coverage,
+    triage_coverage as stage_helper_triage_coverage,
 )
 from desloppify.engine._plan.schema import empty_plan
 from desloppify.engine._plan.stale_dimensions import TRIAGE_STAGE_IDS
@@ -138,6 +138,6 @@ class TestTriageCoverage:
             "unused-import::test.py",
             clustered=["review::test.py::issue1"],
         )
-        organized, total, _ = _stage_helper_triage_coverage(plan)
+        organized, total, _ = stage_helper_triage_coverage(plan)
         assert total == 1
         assert organized == 1

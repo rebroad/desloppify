@@ -5,7 +5,7 @@ from __future__ import annotations
 from desloppify.base.output.terminal import colorize
 from desloppify.engine.plan import TRIAGE_IDS
 
-from .helpers import triage_coverage
+from .helpers import triage_coverage as _triage_coverage_helper
 
 
 def _require_triage_pending(plan: dict, *, action: str) -> bool:
@@ -45,12 +45,12 @@ def _validate_stage_report(
     return cleaned
 
 
-def _triage_coverage(plan: dict) -> tuple[int, int, dict]:
+def triage_coverage(plan: dict) -> tuple[int, int, dict]:
     """Return (organized, total, clusters) for triage progress."""
-    return triage_coverage(plan)
+    return _triage_coverage_helper(plan)
 
 
-def _unenriched_clusters(plan: dict) -> list[tuple[str, list[str]]]:
+def unenriched_clusters(plan: dict) -> list[tuple[str, list[str]]]:
     """Return clusters with issues that are missing required enrichment.
 
     Requirements:
@@ -81,7 +81,7 @@ def _unenriched_clusters(plan: dict) -> list[tuple[str, list[str]]]:
     return gaps
 
 
-def _unclustered_review_issues(plan: dict, state: dict | None = None) -> list[str]:
+def unclustered_review_issues(plan: dict, state: dict | None = None) -> list[str]:
     """Return review issue IDs that aren't in any manual cluster.
 
     When *state* is provided, uses open review/concerns issues from state

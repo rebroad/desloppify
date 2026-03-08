@@ -17,10 +17,10 @@ from .helpers import (
     print_cascade_clear_feedback,
 )
 from ._stage_records import (
-    _record_enrich_stage,
-    _record_observe_stage,
-    _record_organize_stage,
-    _resolve_reusable_report,
+    record_enrich_stage,
+    record_observe_stage,
+    record_organize_stage,
+    resolve_reusable_report,
 )
 from ._stage_rendering import (
     _print_observe_report_requirement,
@@ -76,7 +76,7 @@ def _cmd_stage_observe(
     existing_stage = stages.get("observe")
 
     # Jump-back: reuse existing report if no --report provided
-    report, is_reuse = _resolve_reusable_report(report, existing_stage)
+    report, is_reuse = resolve_reusable_report(report, existing_stage)
     if not report:
         _print_observe_report_requirement()
         return
@@ -86,7 +86,7 @@ def _cmd_stage_observe(
 
     # Edge case: 0 issues
     if issue_count == 0:
-        cleared = _record_observe_stage(
+        cleared = record_observe_stage(
             stages,
             report=report,
             issue_count=0,
@@ -113,7 +113,7 @@ def _cmd_stage_observe(
     valid_ids = set(si.open_issues.keys())
     cited = resolved_services.extract_issue_citations(report, valid_ids)
 
-    cleared = _record_observe_stage(
+    cleared = record_observe_stage(
         stages,
         report=report,
         issue_count=issue_count,
@@ -359,7 +359,7 @@ def _cmd_stage_organize(
         return
 
     stages = meta.setdefault("triage_stages", {})
-    cleared = _record_organize_stage(
+    cleared = record_organize_stage(
         stages,
         report=report,
         issue_count=len(manual_clusters),
@@ -416,7 +416,7 @@ def _cmd_stage_enrich(
 
     # Jump-back: reuse existing report if no --report provided
     existing_stage = stages.get("enrich")
-    report, is_reuse = _resolve_reusable_report(report, existing_stage)
+    report, is_reuse = resolve_reusable_report(report, existing_stage)
 
     if not _require_organize_stage_for_enrich(stages):
         return
@@ -474,7 +474,7 @@ def _cmd_stage_enrich(
         return
 
     stages = meta.setdefault("triage_stages", {})
-    cleared = _record_enrich_stage(
+    cleared = record_enrich_stage(
         stages,
         report=report,
         shallow_count=total_bare,
@@ -537,7 +537,7 @@ def _cmd_stage_sense_check(
 
     # Jump-back: reuse existing report if no --report provided
     existing_stage = stages.get("sense-check")
-    report, is_reuse = _resolve_reusable_report(report, existing_stage)
+    report, is_reuse = resolve_reusable_report(report, existing_stage)
 
     # Gate: enrich must be confirmed
     if not stages.get("enrich", {}).get("confirmed_at"):

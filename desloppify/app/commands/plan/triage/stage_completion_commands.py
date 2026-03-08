@@ -15,7 +15,7 @@ from .helpers import (
     triage_coverage,
 )
 from .services import TriageServices, default_triage_services
-from ._stage_records import _record_confirm_existing_completion
+from ._stage_records import record_confirm_existing_completion
 from ._stage_rendering import _print_complete_summary
 from ._stage_validation import (
     _auto_confirm_enrich_for_complete,
@@ -243,7 +243,7 @@ def _cmd_confirm_existing(
 
     # Record organize as confirmed-existing and complete
     stages = meta.setdefault("triage_stages", {})
-    _record_confirm_existing_completion(
+    record_confirm_existing_completion(
         stages=stages,
         note=note,
         issue_count=len(clusters_with_issues),

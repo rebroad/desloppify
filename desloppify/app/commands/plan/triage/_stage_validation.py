@@ -20,7 +20,7 @@ from desloppify.state import utc_now
 from .confirmations import _MIN_ATTESTATION_LEN, _validate_attestation
 from .display import show_plan_summary
 from .helpers import manual_clusters_with_issues, observe_dimension_breakdown
-from .stage_helpers import _unclustered_review_issues, _unenriched_clusters
+from .stage_helpers import unclustered_review_issues, unenriched_clusters
 from ._stage_rendering import _print_new_issues_since_last
 
 _PATH_RE = re.compile(r'(?:src|supabase)/[\w./-]+\.\w+')
@@ -189,7 +189,7 @@ def _manual_clusters_or_error(plan: dict) -> list[str] | None:
 
 
 def _clusters_enriched_or_error(plan: dict) -> bool:
-    gaps = _unenriched_clusters(plan)
+    gaps = unenriched_clusters(plan)
     if not gaps:
         return True
     print(colorize(f"  Cannot organize: {len(gaps)} cluster(s) need enrichment.", "red"))
@@ -209,7 +209,7 @@ def _clusters_enriched_or_error(plan: dict) -> bool:
 
 def _unclustered_review_issues_or_error(plan: dict, state: dict) -> bool:
     """Block if open review issues aren't in any manual cluster. Return True if OK."""
-    unclustered = _unclustered_review_issues(plan, state)
+    unclustered = unclustered_review_issues(plan, state)
     if not unclustered:
         return True
     print(colorize(f"  Cannot organize: {len(unclustered)} review issue(s) have no cluster.", "red"))
@@ -610,7 +610,7 @@ def _require_organize_stage_for_complete(
         return False
 
     print(colorize("  Cannot complete: organize stage not done.", "red"))
-    gaps = _unenriched_clusters(plan)
+    gaps = unenriched_clusters(plan)
     if gaps:
         print(colorize(f"  {len(gaps)} cluster(s) still need enrichment:", "yellow"))
         for name, missing in gaps:
@@ -679,7 +679,7 @@ def _completion_clusters_valid(plan: dict, state: dict | None = None) -> bool:
             print(colorize('  Create clusters: desloppify plan cluster create <name> --description "..."', "dim"))
             return False
 
-    gaps = _unenriched_clusters(plan)
+    gaps = unenriched_clusters(plan)
     if gaps:
         print(colorize(f"  Cannot complete: {len(gaps)} cluster(s) still need enrichment.", "red"))
         for name, missing in gaps:
@@ -699,7 +699,7 @@ def _completion_clusters_valid(plan: dict, state: dict | None = None) -> bool:
         return False
 
     # Check for unclustered review issues
-    unclustered = _unclustered_review_issues(plan, state)
+    unclustered = unclustered_review_issues(plan, state)
     if unclustered:
         print(colorize(f"  Cannot complete: {len(unclustered)} review issue(s) have no action plan.", "red"))
         for fid in unclustered[:5]:

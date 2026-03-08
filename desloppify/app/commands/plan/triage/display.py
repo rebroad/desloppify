@@ -31,7 +31,7 @@ from .helpers import (
     triage_coverage,
 )
 from .services import TriageServices, default_triage_services
-from .stage_helpers import _unenriched_clusters
+from .stage_helpers import unenriched_clusters
 
 
 def print_stage_progress(stages: dict, plan: dict | None = None) -> None:
@@ -50,7 +50,7 @@ def print_stage_progress(stages: dict, plan: dict | None = None) -> None:
 
     # Show enrichment gaps when in the organize stage
     if plan and "reflect" in stages and "organize" not in stages:
-        gaps = _unenriched_clusters(plan)
+        gaps = unenriched_clusters(plan)
         manual = manual_clusters_with_issues(plan)
         if not manual:
             print(colorize("\n    No manual clusters yet. Create clusters and enrich them.", "yellow"))
@@ -317,7 +317,7 @@ def _print_action_guidance(stages: dict, meta: dict, si: object, plan: dict) -> 
         print(f"    {TRIAGE_CMD_REFLECT}")
         print(colorize("    (Contradictions, recurring patterns, which direction to take, what to defer)", "dim"))
     elif "organize" not in stages:
-        gaps = _unenriched_clusters(plan)
+        gaps = unenriched_clusters(plan)
         manual = manual_clusters_with_issues(plan)
 
         if not manual:
@@ -345,7 +345,7 @@ def _print_action_guidance(stages: dict, meta: dict, si: object, plan: dict) -> 
             print(colorize("  Or fast-track (if existing plan is still valid):", "dim"))
             print(f"    {TRIAGE_CMD_CONFIRM_EXISTING}")
     elif "enrich" not in stages:
-        shallow = _unenriched_clusters(plan)
+        shallow = unenriched_clusters(plan)
         if shallow:
             print(colorize("  Next step: enrich steps with detail and issue_refs.", "yellow"))
             print(colorize('    desloppify plan cluster update <name> --update-step N --detail "sub-details"', "dim"))

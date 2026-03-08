@@ -572,8 +572,8 @@ def _cmd_cluster_list(args: argparse.Namespace) -> None:
     sorted_clusters, min_pos_cache = _sorted_clusters_by_queue_pos(clusters, queue_order)
 
     if missing_steps:
-        from desloppify.app.commands.plan.triage.stage_helpers import _unenriched_clusters
-        gaps = _unenriched_clusters(plan)
+        from desloppify.app.commands.plan.triage.stage_helpers import unenriched_clusters
+        gaps = unenriched_clusters(plan)
         if not gaps:
             print(colorize("  All clusters have action steps.", "green"))
             return

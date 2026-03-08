@@ -304,9 +304,9 @@ def _confirm_organize(
     organize_clusters = [n for n in plan.get("clusters", {}) if not plan["clusters"][n].get("auto")]
 
     # Re-validate enrichment at confirm time
-    from .stage_helpers import _unclustered_review_issues, _unenriched_clusters
+    from .stage_helpers import unclustered_review_issues, unenriched_clusters
 
-    gaps = _unenriched_clusters(plan)
+    gaps = unenriched_clusters(plan)
     if gaps:
         print(colorize(f"\n  Cannot confirm: {len(gaps)} cluster(s) still need enrichment.", "red"))
         for name, missing in gaps:
@@ -320,7 +320,7 @@ def _confirm_organize(
         )
         return
 
-    unclustered = _unclustered_review_issues(plan, state)
+    unclustered = unclustered_review_issues(plan, state)
     if unclustered:
         print(colorize(f"\n  Cannot confirm: {len(unclustered)} review issue(s) have no action plan.", "red"))
         for fid in unclustered[:5]:

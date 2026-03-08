@@ -7,7 +7,7 @@ from desloppify.state import utc_now
 from .helpers import cascade_clear_later_confirmations
 
 
-def _resolve_reusable_report(
+def resolve_reusable_report(
     report: str | None,
     existing_stage: dict | None,
 ) -> tuple[str | None, bool]:
@@ -18,7 +18,7 @@ def _resolve_reusable_report(
     return None, False
 
 
-def _record_observe_stage(
+def record_observe_stage(
     stages: dict,
     *,
     report: str,
@@ -44,7 +44,7 @@ def _record_observe_stage(
     return cleared
 
 
-def _record_organize_stage(
+def record_organize_stage(
     stages: dict,
     *,
     report: str,
@@ -65,7 +65,7 @@ def _record_organize_stage(
     return cascade_clear_later_confirmations(stages, "organize")
 
 
-def _record_enrich_stage(
+def record_enrich_stage(
     stages: dict,
     *,
     report: str,
@@ -85,7 +85,7 @@ def _record_enrich_stage(
     return cascade_clear_later_confirmations(stages, "enrich")
 
 
-def _record_confirm_existing_completion(
+def record_confirm_existing_completion(
     *,
     stages: dict,
     note: str,
@@ -104,9 +104,9 @@ def _record_confirm_existing_completion(
 
 
 __all__ = [
-    "_record_confirm_existing_completion",
-    "_record_enrich_stage",
-    "_record_observe_stage",
-    "_record_organize_stage",
-    "_resolve_reusable_report",
+    "record_confirm_existing_completion",
+    "record_enrich_stage",
+    "record_observe_stage",
+    "record_organize_stage",
+    "resolve_reusable_report",
 ]
