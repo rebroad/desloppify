@@ -1,0 +1,234 @@
+"""Merge-support scoring and issue-key helpers for batch review results."""
+
+from __future__ import annotations
+
+from typing import cast
+
+from desloppify.intelligence.review.feedback_contract import (
+    LEGACY_REVIEW_QUALITY_HIGH_SCORE_MISSING_ISSUES_KEY,
+    REVIEW_QUALITY_HIGH_SCORE_MISSING_ISSUES_KEY,
+)
+from desloppify.intelligence.review.issue_merge import (
+    merge_list_fields,
+    normalize_word_set,
+    pick_longer_text,
+    track_merged_from,
+)
+
+from .core_models import (
+    BatchDimensionNotePayload,
+    BatchIssuePayload,
+    BatchResultPayload,
+)
+from .scoring import DimensionMergeScorer
+
+_DIMENSION_SCORER = DimensionMergeScorer()
+
+
+def assessment_weight(
+    *,
+    dimension: str,
+    issues: list[BatchIssuePayload],
+    dimension_notes: dict[str, BatchDimensionNotePayload],
+) -> float:
+    """Evidence-weighted assessment score weight with a neutral floor.
+
+    Weighting is evidence-based and score-independent: the raw score does not
+    influence how much weight a batch contributes during merge.
+    """
+    note = dimension_notes.get(dimension, {})
+    note_evidence = len(note.get("evidence", [])) if isinstance(note, dict) else 0
+    issue_count = sum(
+        1
+        for issue in issues
+        if str(issue.get("dimension", "")).strip() == dimension
+    )
+    return float(1 + note_evidence + issue_count)
+
+
+def _issue_pressure_by_dimension(
+    issues: list[BatchIssuePayload],
+    *,
+    dimension_notes: dict[str, BatchDimensionNotePayload],
+) -> tuple[dict[str, float], dict[str, int]]:
+    """Summarize how strongly issues should pull dimension scores down."""
+    return _DIMENSION_SCORER.issue_pressure_by_dimension(
+        issues,
+        dimension_notes=dimension_notes,
+    )
+
+
+def _accumulate_batch_scores(
+    result: BatchResultPayload,
+    *,
+    score_buckets: dict[str, list[tuple[float, float]]],
+    score_raw_by_dim: dict[str, list[float]],
+    merged_dimension_notes: dict[str, BatchDimensionNotePayload],
+    abstraction_axis_scores: dict[str, list[tuple[float, float]]],
+    abstraction_sub_axes: tuple[str, ...],
+) -> None:
+    """Accumulate assessment scores, dimension notes, and sub-axis data from one batch."""
+    result_issues = result.get("issues", [])
+    result_notes = result.get("dimension_notes", {})
+    for key, score in result.get("assessments", {}).items():
+        if isinstance(score, bool):
+            continue
+        score_value = float(score)
+        weight = assessment_weight(
+            dimension=key,
+            issues=result_issues,
+            dimension_notes=result_notes,
+        )
+        score_buckets.setdefault(key, []).append((score_value, weight))
+        score_raw_by_dim.setdefault(key, []).append(score_value)
+
+        note = result_notes.get(key)
+        existing = merged_dimension_notes.get(key)
+        existing_evidence = (
+            len(existing.get("evidence", [])) if isinstance(existing, dict) else -1
+        )
+        current_evidence = (
+            len(note.get("evidence", [])) if isinstance(note, dict) else -1
+        )
+        if current_evidence > existing_evidence and note is not None:
+            merged_dimension_notes[key] = note
+
+        if key == "abstraction_fitness" and isinstance(note, dict):
+            sub_axes = note.get("sub_axes")
+            if isinstance(sub_axes, dict):
+                for axis in abstraction_sub_axes:
+                    axis_score = sub_axes.get(axis)
+                    if isinstance(axis_score, bool) or not isinstance(
+                        axis_score, int | float
+                    ):
+                        continue
+                    abstraction_axis_scores[axis].append(
+                        (float(axis_score), weight)
+                    )
+
+
+def _issue_identity_key(issue: BatchIssuePayload) -> str:
+    """Build a stable concept key; prefer dimension+identifier when available."""
+    dim = str(issue.get("dimension", "")).strip()
+    ident = str(issue.get("identifier", "")).strip()
+    if ident:
+        return f"{dim}::{ident}"
+    summary = str(issue.get("summary", "")).strip()
+    summary_terms = sorted(normalize_word_set(summary))
+    if summary_terms:
+        return f"{dim}::summary::{','.join(summary_terms[:8])}"
+    return f"{dim}::{summary}"
+
+
+def _merge_issue_payload(
+    existing: BatchIssuePayload,
+    incoming: BatchIssuePayload,
+) -> None:
+    """Merge two concept-equivalent issues into the existing payload."""
+    merge_list_fields(existing, incoming, ("related_files", "evidence"))
+    pick_longer_text(existing, incoming, "summary")
+    pick_longer_text(existing, incoming, "suggestion")
+    track_merged_from(existing, str(incoming.get("identifier", "")).strip())
+
+
+def _should_merge_issues(
+    existing: BatchIssuePayload,
+    incoming: BatchIssuePayload,
+) -> bool:
+    """Check whether two key-matched issues are similar enough to merge."""
+    existing_summary = normalize_word_set(str(existing.get("summary", "")))
+    incoming_summary = normalize_word_set(str(incoming.get("summary", "")))
+    if existing_summary and incoming_summary:
+        overlap = len(existing_summary & incoming_summary)
+        union = len(existing_summary | incoming_summary)
+        if union and overlap / union >= 0.3:
+            return True
+    existing_files = set(cast(list[str], existing.get("related_files", [])))
+    incoming_files = set(cast(list[str], incoming.get("related_files", [])))
+    if existing_files and incoming_files:
+        return bool(existing_files & incoming_files)
+    return not existing_summary or not incoming_summary
+
+
+def _accumulate_batch_quality(
+    result: BatchResultPayload,
+    *,
+    coverage_values: list[float],
+    evidence_density_values: list[float],
+) -> float:
+    """Accumulate quality metrics from one batch. Returns high-score-missing-issues delta."""
+    quality: object = result.get("quality", {})
+    if not isinstance(quality, dict):
+        return 0.0
+    coverage = quality.get("dimension_coverage")
+    density = quality.get("evidence_density")
+    missing_issue_note = quality.get(REVIEW_QUALITY_HIGH_SCORE_MISSING_ISSUES_KEY)
+    if not isinstance(missing_issue_note, int | float):
+        missing_issue_note = quality.get(
+            LEGACY_REVIEW_QUALITY_HIGH_SCORE_MISSING_ISSUES_KEY
+        )
+    if isinstance(coverage, int | float):
+        coverage_values.append(float(coverage))
+    if isinstance(density, int | float):
+        evidence_density_values.append(float(density))
+    return (
+        float(missing_issue_note)
+        if isinstance(missing_issue_note, int | float)
+        else 0.0
+    )
+
+
+def _compute_merged_assessments(
+    score_buckets: dict[str, list[tuple[float, float]]],
+    score_raw_by_dim: dict[str, list[float]],
+    issue_pressure_by_dim: dict[str, float],
+    issue_count_by_dim: dict[str, int],
+) -> dict[str, float]:
+    """Compute pressure-adjusted weighted mean for each dimension."""
+    return _DIMENSION_SCORER.merge_scores(
+        score_buckets,
+        score_raw_by_dim,
+        issue_pressure_by_dim,
+        issue_count_by_dim,
+    )
+
+
+def _compute_abstraction_components(
+    merged_assessments: dict[str, float],
+    abstraction_axis_scores: dict[str, list[tuple[float, float]]],
+    *,
+    abstraction_sub_axes: tuple[str, ...],
+    abstraction_component_names: dict[str, str],
+) -> dict[str, float] | None:
+    """Compute weighted abstraction sub-axis component scores."""
+    abstraction_score = merged_assessments.get("abstraction_fitness")
+    if abstraction_score is None:
+        return None
+
+    component_scores: dict[str, float] = {}
+    for axis in abstraction_sub_axes:
+        weighted = abstraction_axis_scores.get(axis, [])
+        if not weighted:
+            continue
+        numerator = sum(score * weight for score, weight in weighted)
+        denominator = sum(weight for _, weight in weighted)
+        if denominator <= 0:
+            continue
+        component_scores[abstraction_component_names[axis]] = round(
+            max(0.0, min(100.0, numerator / denominator)),
+            1,
+        )
+    return component_scores if component_scores else None
+
+
+__all__ = [
+    "assessment_weight",
+    "_accumulate_batch_quality",
+    "_accumulate_batch_scores",
+    "_compute_abstraction_components",
+    "_compute_merged_assessments",
+    "_issue_identity_key",
+    "_issue_pressure_by_dimension",
+    "_merge_issue_payload",
+    "_should_merge_issues",
+]

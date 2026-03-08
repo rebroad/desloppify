@@ -14,11 +14,7 @@ from desloppify.intelligence.review.issue_merge import (
     track_merged_from,
 )
 
-from .core import (
-    BatchDimensionJudgmentPayload,
-    BatchDimensionNotePayload,
-    BatchIssuePayload,
-    BatchResultPayload,
+from .core_merge_support import (
     _accumulate_batch_quality,
     _accumulate_batch_scores,
     _compute_abstraction_components,
@@ -26,6 +22,12 @@ from .core import (
     _issue_identity_key,
     _issue_pressure_by_dimension,
     assessment_weight,
+)
+from .core_models import (
+    BatchDimensionJudgmentPayload,
+    BatchDimensionNotePayload,
+    BatchIssuePayload,
+    BatchResultPayload,
 )
 
 
