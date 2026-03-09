@@ -13,14 +13,9 @@ from desloppify.engine.plan import (
     add_to_cluster,
     append_log_entry,
     load_plan,
-    normalize_step,
-    parse_steps_file,
-    plan_lock,
     remove_from_cluster,
     save_plan,
-    step_summary,
 )
-from desloppify.state import utc_now
 
 from .cluster_ops_display import _cmd_cluster_list
 from .cluster_ops_display import _cmd_cluster_show
@@ -178,18 +173,7 @@ def _cmd_cluster_remove(args: argparse.Namespace) -> None:
 
 def _cmd_cluster_update(args: argparse.Namespace) -> None:
     """Update cluster description, steps, and/or priority."""
-    _cmd_cluster_update_impl(
-        args,
-        load_plan_fn=load_plan,
-        save_plan_fn=save_plan,
-        append_log_entry_fn=append_log_entry,
-        plan_lock_fn=plan_lock,
-        parse_steps_file_fn=parse_steps_file,
-        normalize_step_fn=normalize_step,
-        step_summary_fn=step_summary,
-        utc_now_fn=utc_now,
-        colorize_fn=colorize,
-    )
+    _cmd_cluster_update_impl(args)
 
 
 def cmd_cluster_dispatch(args: argparse.Namespace) -> None:

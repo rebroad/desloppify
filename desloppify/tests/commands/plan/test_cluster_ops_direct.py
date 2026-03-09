@@ -11,6 +11,7 @@ import desloppify.app.commands.plan.cluster_ops_manage as cluster_manage_mod
 import desloppify.app.commands.plan.cluster_ops_reorder as cluster_reorder_mod
 import desloppify.app.commands.plan.cluster_steps as cluster_steps_mod
 import desloppify.app.commands.plan.cluster_update as cluster_update_mod
+import desloppify.app.commands.plan.cluster_update_flow as cluster_update_flow_mod
 
 
 def test_cluster_steps_print_step_variants(capsys) -> None:
@@ -314,17 +315,20 @@ def test_cluster_update_direct_paths(capsys) -> None:
         depends_on=["beta"],
         issue_refs=["i1"],
     )
-    cluster_update_mod.cmd_cluster_update(
-        args,
+    services = cluster_update_flow_mod.ClusterUpdateServices(
         load_plan_fn=lambda: plan,
         save_plan_fn=lambda payload: saved.append(payload),
         append_log_entry_fn=lambda *_a, **_k: None,
-        plan_lock_fn=lambda: nullcontext(),
         parse_steps_file_fn=lambda _text: [],
         normalize_step_fn=lambda step: {"title": str(step)},
         step_summary_fn=lambda step: str(step),
         utc_now_fn=lambda: "2026-03-09T00:00:00+00:00",
         colorize_fn=lambda text, _tone: text,
+    )
+    cluster_update_mod.cmd_cluster_update(
+        args,
+        services=services,
+        plan_lock_fn=lambda: nullcontext(),
     )
     out = capsys.readouterr().out
     assert "Updated cluster: alpha" in out
@@ -355,15 +359,17 @@ def test_cluster_update_direct_paths(capsys) -> None:
     )
     cluster_update_mod.cmd_cluster_update(
         no_update_args,
-        load_plan_fn=lambda: plan,
-        save_plan_fn=lambda _payload: None,
-        append_log_entry_fn=lambda *_a, **_k: None,
+        services=cluster_update_flow_mod.ClusterUpdateServices(
+            load_plan_fn=lambda: plan,
+            save_plan_fn=lambda _payload: None,
+            append_log_entry_fn=lambda *_a, **_k: None,
+            parse_steps_file_fn=lambda _text: [],
+            normalize_step_fn=lambda step: {"title": str(step)},
+            step_summary_fn=lambda step: str(step),
+            utc_now_fn=lambda: "2026-03-09T00:00:00+00:00",
+            colorize_fn=lambda text, _tone: text,
+        ),
         plan_lock_fn=lambda: nullcontext(),
-        parse_steps_file_fn=lambda _text: [],
-        normalize_step_fn=lambda step: {"title": str(step)},
-        step_summary_fn=lambda step: str(step),
-        utc_now_fn=lambda: "2026-03-09T00:00:00+00:00",
-        colorize_fn=lambda text, _tone: text,
     )
     out2 = capsys.readouterr().out
     assert "Nothing to update" in out2

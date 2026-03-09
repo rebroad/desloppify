@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 import desloppify.app.commands.plan.cluster_handlers as cluster_mod
+import desloppify.app.commands.plan.cluster_update as cluster_update_mod
 from desloppify.engine._plan.schema import empty_plan
 
 # ---------------------------------------------------------------------------
@@ -176,8 +177,9 @@ class TestStepCountFeedback:
             "description": "test",
         }
 
-        monkeypatch.setattr(cluster_mod, "load_plan", lambda *a, **kw: plan)
-        monkeypatch.setattr(cluster_mod, "save_plan", lambda p, *a, **kw: None)
+        monkeypatch.setattr(cluster_update_mod, "load_plan", lambda: plan)
+        monkeypatch.setattr(cluster_update_mod, "save_plan", lambda p: None)
+        monkeypatch.setattr(cluster_update_mod, "append_log_entry", lambda *a, **kw: None)
 
         args = _fake_args(
             cluster_name="my-cluster",
@@ -198,8 +200,9 @@ class TestStepCountFeedback:
             "action_steps": [{"title": "existing"}],
         }
 
-        monkeypatch.setattr(cluster_mod, "load_plan", lambda *a, **kw: plan)
-        monkeypatch.setattr(cluster_mod, "save_plan", lambda p, *a, **kw: None)
+        monkeypatch.setattr(cluster_update_mod, "load_plan", lambda: plan)
+        monkeypatch.setattr(cluster_update_mod, "save_plan", lambda p: None)
+        monkeypatch.setattr(cluster_update_mod, "append_log_entry", lambda *a, **kw: None)
 
         args = _fake_args(cluster_name="my-cluster", add_step="New step", detail="Some detail")
         cluster_mod._cmd_cluster_update(args)
@@ -262,8 +265,9 @@ class TestStepDisplayNumbering:
             "description": "test",
         }
 
-        monkeypatch.setattr(cluster_mod, "load_plan", lambda *a, **kw: plan)
-        monkeypatch.setattr(cluster_mod, "save_plan", lambda p, *a, **kw: None)
+        monkeypatch.setattr(cluster_update_mod, "load_plan", lambda: plan)
+        monkeypatch.setattr(cluster_update_mod, "save_plan", lambda p: None)
+        monkeypatch.setattr(cluster_update_mod, "append_log_entry", lambda *a, **kw: None)
 
         args = _fake_args(
             cluster_name="my-cluster",
