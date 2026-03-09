@@ -46,7 +46,7 @@ import desloppify.languages.python.detectors.deps_dynamic as py_deps_dynamic_mod
 import desloppify.languages.python.detectors.deps_resolution as py_deps_resolution_mod
 import desloppify.languages.python.detectors.smells_runtime as py_smells_runtime_mod
 import desloppify.languages.python.phases_runtime as py_phases_runtime_mod
-import desloppify.languages.typescript.detectors.deps_resolve as ts_deps_resolve_mod
+import desloppify.languages.typescript.detectors.deps.resolve as ts_deps_resolve_mod
 import desloppify.languages.typescript.fixers.fixer_io as ts_fixer_io_mod
 import desloppify.languages.typescript.fixers.import_rewrite as ts_import_rewrite_mod
 import desloppify.languages.typescript.fixers.syntax_scan as ts_syntax_scan_mod

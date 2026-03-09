@@ -9,10 +9,10 @@ from desloppify.base.output.fallbacks import log_best_effort_failure
 from desloppify.base.signal_patterns import is_server_only_path
 from desloppify.engine.policy.zones import FileZoneMap, Zone
 from desloppify.languages.typescript.detectors.contracts import DetectorResult
-from desloppify.languages.typescript.detectors.security_entries import (
+from desloppify.languages.typescript.detectors.security.entries import (
     _make_security_entry,
 )
-from desloppify.languages.typescript.detectors.security_file_checks import (
+from desloppify.languages.typescript.detectors.security.file_checks import (
     _check_json_parse_unguarded,
     _check_rls_bypass,
     _extract_handler_body,
@@ -21,10 +21,10 @@ from desloppify.languages.typescript.detectors.security_file_checks import (
     _is_in_try_scope,
     _looks_like_edge_handler,
 )
-from desloppify.languages.typescript.detectors.security_line_checks import (
+from desloppify.languages.typescript.detectors.security.line_checks import (
     _line_security_issues,
 )
-from desloppify.languages.typescript.detectors.security_patterns import (
+from desloppify.languages.typescript.detectors.security.patterns import (
     _ATOB_JWT_RE,
     _AUTH_CHECK_RE,
     _CREATE_CLIENT_RE,

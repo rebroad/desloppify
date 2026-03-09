@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import re
 
-from desloppify.languages.typescript.detectors.security_entries import _make_security_entry
-from desloppify.languages.typescript.detectors.security_patterns import (
+from desloppify.languages.typescript.detectors.security.entries import _make_security_entry
+from desloppify.languages.typescript.detectors.security.patterns import (
     _AUTH_CHECK_RE,
     _CREATE_VIEW_RE,
     _EDGE_ENTRYPOINT_RE,

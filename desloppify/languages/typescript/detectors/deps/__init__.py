@@ -21,19 +21,19 @@ from desloppify.engine.detectors.graph import (
     finalize_graph,
     get_coupling_score,
 )
-from desloppify.languages.typescript.detectors.deps_resolve import (
+from desloppify.languages.typescript.detectors.deps.resolve import (
     find_tsconfig_root as _find_tsconfig_root,
 )
-from desloppify.languages.typescript.detectors.deps_resolve import (
+from desloppify.languages.typescript.detectors.deps.resolve import (
     load_tsconfig_paths as _load_tsconfig_paths,
 )
-from desloppify.languages.typescript.detectors.deps_resolve import (
+from desloppify.languages.typescript.detectors.deps.resolve import (
     resolve_module as _resolve_module,
 )
-from desloppify.languages.typescript.detectors.deps_runtime import (
+from desloppify.languages.typescript.detectors.deps.runtime import (
     build_dynamic_import_targets as _build_dynamic_import_targets,
 )
-from desloppify.languages.typescript.detectors.deps_runtime import (
+from desloppify.languages.typescript.detectors.deps.runtime import (
     ts_alias_resolver as _ts_alias_resolver,
 )
 
