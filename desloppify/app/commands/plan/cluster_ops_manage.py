@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Any
 
 from desloppify.base.output.terminal import colorize
 from desloppify.engine.plan import (
@@ -18,6 +19,22 @@ from desloppify.engine.plan import (
     save_plan,
 )
 from desloppify.state import utc_now
+
+
+def _import_yaml_module() -> Any | None:
+    """Load optional YAML dependency for cluster import/export commands."""
+    try:
+        import yaml  # noqa: PLC0415
+    except ImportError:
+        print(
+            colorize(
+                "  YAML import/export requires PyYAML. "
+                "Install with: pip install \"desloppify[plan-yaml]\"",
+                "red",
+            )
+        )
+        return None
+    return yaml
 
 
 def _cmd_cluster_create(args: argparse.Namespace) -> None:
@@ -92,7 +109,9 @@ def _cmd_cluster_export(args: argparse.Namespace) -> None:
         return
 
     if export_format == "yaml":
-        import yaml  # noqa: PLC0415
+        yaml = _import_yaml_module()
+        if yaml is None:
+            return
 
         data = {
             "clusters": [
@@ -119,7 +138,9 @@ def _cmd_cluster_import(args: argparse.Namespace) -> None:
         print(colorize(f"  File not found: {file_path}", "red"))
         return
 
-    import yaml  # noqa: PLC0415
+    yaml = _import_yaml_module()
+    if yaml is None:
+        return
 
     data = yaml.safe_load(path.read_text())
     if not isinstance(data, dict) or "clusters" not in data:

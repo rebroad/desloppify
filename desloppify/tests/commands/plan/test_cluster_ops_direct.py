@@ -104,6 +104,25 @@ def test_cluster_manage_create_export_import_merge(monkeypatch, tmp_path, capsys
     monkeypatch.setattr(cluster_manage_mod, "append_log_entry", lambda *_a, **_k: None)
     monkeypatch.setattr(cluster_manage_mod, "save_plan", lambda *_a, **_k: None)
     monkeypatch.setattr(cluster_manage_mod, "parse_steps_file", lambda _text: [{"title": "step"}])
+    monkeypatch.setattr(
+        cluster_manage_mod,
+        "_import_yaml_module",
+        lambda: SimpleNamespace(
+            dump=lambda data, **_kwargs: (
+                "clusters:\n"
+                f"- name: {data['clusters'][0]['name']}\n"
+            ),
+            safe_load=lambda _text: {
+                "clusters": [
+                    {
+                        "name": "new-cluster",
+                        "description": "imported",
+                        "steps": [{"title": "first"}],
+                    }
+                ]
+            },
+        ),
+    )
 
     steps_file = tmp_path / "steps.txt"
     steps_file.write_text("1. step\n", encoding="utf-8")
@@ -155,6 +174,43 @@ def test_cluster_manage_create_export_import_merge(monkeypatch, tmp_path, capsys
     )
     out_merge = capsys.readouterr().out
     assert "Merged cluster 'alpha' into 'beta'" in out_merge
+
+
+def test_cluster_manage_yaml_dependency_hint(monkeypatch, tmp_path, capsys) -> None:
+    plan = {
+        "clusters": {
+            "alpha": {
+                "action_steps": [{"title": "A"}],
+            }
+        }
+    }
+    monkeypatch.setattr(cluster_manage_mod, "load_plan", lambda: plan)
+    monkeypatch.setattr(
+        cluster_manage_mod,
+        "_import_yaml_module",
+        lambda: (
+            print(
+                '  YAML import/export requires PyYAML. Install with: pip install "desloppify[plan-yaml]"'
+            )
+            or None
+        ),
+    )
+
+    cluster_manage_mod._cmd_cluster_export(
+        argparse.Namespace(cluster_name="alpha", export_format="yaml")
+    )
+    out_export = capsys.readouterr().out
+    assert "requires PyYAML" in out_export
+    assert "desloppify[plan-yaml]" in out_export
+
+    import_file = tmp_path / "clusters.yaml"
+    import_file.write_text("clusters: []\n", encoding="utf-8")
+    cluster_manage_mod._cmd_cluster_import(
+        argparse.Namespace(file=str(import_file), dry_run=True)
+    )
+    out_import = capsys.readouterr().out
+    assert "requires PyYAML" in out_import
+    assert "desloppify[plan-yaml]" in out_import
 
 
 def test_cluster_reorder_item_position_and_whole_cluster_paths(monkeypatch, capsys) -> None:

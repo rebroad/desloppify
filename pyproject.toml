@@ -37,11 +37,13 @@ Issues = "https://github.com/peteromallet/desloppify/issues"
 treesitter = ["tree-sitter-language-pack>=0.3"]
 python-security = ["bandit>=1.7.8"]
 scorecard = ["Pillow>=9.0.0"]
+plan-yaml = ["PyYAML>=6.0"]
 full = [
   "tree-sitter-language-pack>=0.3",
   "bandit>=1.7.8",
   "defusedxml>=0.7.0",
   "Pillow>=9.0.0",
+  "PyYAML>=6.0",
 ]
 
 [project.scripts]
