@@ -19,7 +19,12 @@ from desloppify.engine._plan.constants import (
 )
 from desloppify.engine._plan.operations.lifecycle import purge_ids
 from desloppify.engine._plan.operations.meta import append_log_entry
-from desloppify.engine._plan.persistence import has_living_plan, load_plan, save_plan
+from desloppify.engine._plan.persistence import (
+    has_living_plan,
+    load_plan,
+    plan_path_for_state,
+    save_plan,
+)
 from desloppify.engine._plan.reconcile import ReconcileResult, reconcile_plan_after_scan
 from desloppify.engine._plan.reconcile_review_import import (
     ReviewImportSyncResult,
@@ -49,6 +54,8 @@ from desloppify.engine._plan.sync.triage import (
 )
 from desloppify.engine._plan.sync.workflow import (
     ScoreSnapshot,
+    import_scores_meta_matches,
+    pending_import_scores_meta,
     sync_communicate_score_needed,
     sync_create_plan_needed,
     sync_import_scores_needed,
@@ -79,6 +86,7 @@ __all__ = [
     "current_unscored_ids",
     "has_living_plan",
     "has_objective_backlog",
+    "import_scores_meta_matches",
     "is_mid_cycle",
     "is_triage_stale",
     "load_plan",
@@ -86,7 +94,9 @@ __all__ = [
     "normalize_queue_workflow_and_triage_prefix",
     "NON_OBJECTIVE_DETECTORS",
     "open_review_ids",
+    "pending_import_scores_meta",
     "postflight_scan_pending",
+    "plan_path_for_state",
     "purge_ids",
     "reconcile_plan_after_scan",
     "review_issue_snapshot_hash",

@@ -119,6 +119,7 @@ def cmd_resolve(args: argparse.Namespace) -> None:
         args=args,
         all_resolved=all_resolved,
         attestation=attestation,
+        state_file=state_file,
     )
     mid_cluster = (
         cluster_ctx.cluster_name is not None and not cluster_ctx.cluster_completed

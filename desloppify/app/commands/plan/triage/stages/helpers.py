@@ -86,6 +86,9 @@ def unclustered_review_issues(plan: dict, state: dict | None = None) -> list[str
     for cluster in clusters.values():
         if not cluster.get("auto"):
             clustered_ids.update(cluster.get("issue_ids", []))
+    skipped_ids = {
+        fid for fid in (plan.get("skipped", {}) or {}).keys() if isinstance(fid, str)
+    }
 
     if state is not None:
         # Only count actual review/concerns issues — not subjective_review
@@ -102,4 +105,7 @@ def unclustered_review_issues(plan: dict, state: dict | None = None) -> list[str
             and (fid.startswith("review::") or fid.startswith("concerns::"))
         ]
 
-    return [fid for fid in review_ids if fid not in clustered_ids]
+    return [
+        fid for fid in review_ids
+        if fid not in clustered_ids and fid not in skipped_ids
+    ]

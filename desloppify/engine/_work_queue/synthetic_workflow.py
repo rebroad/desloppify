@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import shlex
+
 from desloppify.engine.plan_queue import (
     WORKFLOW_COMMUNICATE_SCORE_ID,
     WORKFLOW_CREATE_PLAN_ID,
     WORKFLOW_DEFERRED_DISPOSITION_ID,
     WORKFLOW_IMPORT_SCORES_ID,
     WORKFLOW_SCORE_CHECKPOINT_ID,
+    pending_import_scores_meta,
 )
 from desloppify.engine.plan_triage import (
     triage_manual_stage_command,
@@ -171,6 +174,24 @@ def build_import_scores_item(plan: dict, state: dict) -> WorkQueueItem | None:
     """Build a synthetic work item for ``workflow::import-scores`` if queued."""
     if WORKFLOW_IMPORT_SCORES_ID not in plan.get("queue_order", []):
         return None
+    meta = pending_import_scores_meta(plan, state) or {}
+    import_file = str(meta.get("import_file", "")).strip() or "issues.json"
+    quoted_import_file = shlex.quote(import_file)
+    packet_sha = str(meta.get("packet_sha256", "")).strip()
+    packet_path = str(meta.get("packet_path", "")).strip()
+    dims = meta.get("assessment_dimensions") or []
+    explanation = (
+        "Review issues were imported but assessment scores were skipped "
+        "(untrusted source). Re-import the same batch with attestation to update dimension scores."
+    )
+    if import_file != "issues.json":
+        explanation += f" Expected import file: `{import_file}`."
+    if packet_sha:
+        explanation += f" Expected packet sha256: `{packet_sha}`."
+    if packet_path:
+        explanation += f" Blind packet: `{packet_path}`."
+    if dims:
+        explanation += f" Assessment dimensions: {', '.join(dims)}."
 
     return {
         "id": WORKFLOW_IMPORT_SCORES_ID,
@@ -181,13 +202,14 @@ def build_import_scores_item(plan: dict, state: dict) -> WorkQueueItem | None:
         "kind": "workflow_action",
         "summary": "Import assessment scores with attestation",
         "detail": {
-            "explanation": (
-                "Review issues were imported but assessment scores were skipped "
-                "(untrusted source). Re-import with attestation to update dimension scores."
-            ),
+            "explanation": explanation,
+            "expected_import_file": import_file,
+            "packet_sha256": packet_sha,
+            "packet_path": packet_path,
+            "assessment_dimensions": dims,
         },
         "primary_command": (
-            'desloppify review --import issues.json --attested-external '
+            f"desloppify review --import {quoted_import_file} --attested-external "
             '--attest "I validated this review was completed without awareness '
             'of overall score and is unbiased."'
         ),

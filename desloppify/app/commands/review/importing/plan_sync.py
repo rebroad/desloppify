@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import desloppify.engine.plan_queue as plan_queue_mod
 from desloppify import state as state_mod
 from desloppify.app.commands.helpers.display import short_issue_id
@@ -66,14 +68,20 @@ def sync_plan_after_import(
     diff: dict,
     assessment_mode: str,
     *,
+    state_file: str | Path | None = None,
     config: dict | None = None,
+    import_file: str | None = None,
+    import_payload: dict | None = None,
 ) -> None:
     """Apply issue/workflow syncs after import in one load/save cycle."""
     try:
-        if not plan_queue_mod.has_living_plan():
+        plan_path = None
+        if state_file is not None:
+            plan_path = plan_queue_mod.plan_path_for_state(Path(state_file))
+        if not plan_queue_mod.has_living_plan(plan_path):
             return
 
-        plan = plan_queue_mod.load_plan()
+        plan = plan_queue_mod.load_plan(plan_path)
         dirty = False
         workflow_injected_ids: list[str] = []
         policy = plan_queue_mod.compute_subjective_visibility(
@@ -119,11 +127,14 @@ def sync_plan_after_import(
             plan,
             state,
             assessment_mode=assessment_mode,
+            import_file=import_file,
+            import_payload=import_payload,
         )
         if import_scores_result.changes:
             dirty = True
-            workflow_injected_ids.append("workflow::import-scores")
-            injected_parts.append("`workflow::import-scores`")
+            if import_scores_result.injected:
+                workflow_injected_ids.append("workflow::import-scores")
+                injected_parts.append("`workflow::import-scores`")
 
         create_plan_result = plan_queue_mod.sync_create_plan_needed(
             plan,
@@ -168,7 +179,11 @@ def sync_plan_after_import(
                     plan,
                     "sync_import_scores",
                     actor="system",
-                    detail={"trigger": "review_import", "injected": True},
+                    detail={
+                        "trigger": "review_import",
+                        "injected": bool(import_scores_result.injected),
+                        "pruned": list(import_scores_result.pruned),
+                    },
                 )
             if create_plan_result.changes:
                 plan_queue_mod.append_log_entry(
@@ -215,7 +230,7 @@ def sync_plan_after_import(
                         ),
                     },
                 )
-            plan_queue_mod.save_plan(plan)
+            plan_queue_mod.save_plan(plan, plan_path)
 
         if import_result is not None:
             _print_review_import_sync(

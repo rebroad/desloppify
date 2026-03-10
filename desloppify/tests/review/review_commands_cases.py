@@ -377,6 +377,66 @@ class TestCmdReviewPrepare:
                 ),
             )
 
+    def test_do_import_rejects_durable_import_for_mismatched_pending_scores_batch(
+        self, empty_state, tmp_path
+    ):
+        blind_packet = tmp_path / "review_packet_blind.json"
+        blind_packet.write_text(json.dumps({"command": "review", "dimensions": ["naming_quality"]}))
+        packet_hash = hashlib.sha256(blind_packet.read_bytes()).hexdigest()
+
+        payload = {
+            "issues": [],
+            "assessments": {"naming_quality": 100},
+            "provenance": {
+                "kind": "blind_review_batch_import",
+                "blind": True,
+                "runner": "claude",
+                "packet_path": str(blind_packet),
+                "packet_sha256": packet_hash,
+            },
+        }
+        issues_file = tmp_path / "incoming_scores.json"
+        issues_file.write_text(json.dumps(payload))
+
+        lang = MagicMock()
+        lang.name = "typescript"
+        pending_plan = {
+            "queue_order": ["workflow::import-scores"],
+            "refresh_state": {
+                "pending_import_scores": {
+                    "timestamp": "2026-03-10T10:00:00+00:00",
+                    "import_file": str(tmp_path / "expected_scores.json"),
+                    "normalized_import_file": str((tmp_path / "expected_scores.json").resolve()),
+                    "packet_path": str(tmp_path / "expected_packet.json"),
+                    "normalized_packet_path": str((tmp_path / "expected_packet.json").resolve()),
+                    "packet_sha256": "expected-sha",
+                    "assessment_dimensions": ["naming_quality"],
+                }
+            },
+        }
+
+        with (
+            patch("desloppify.engine.plan_queue.has_living_plan", lambda _path=None: True),
+            patch("desloppify.engine.plan_queue.load_plan", lambda _path=None: pending_plan),
+        ):
+            with pytest.raises(CommandError) as exc:
+                _do_import(
+                    str(issues_file),
+                    empty_state,
+                    lang,
+                    tmp_path / "state.json",
+                    import_config=ReviewImportConfig(
+                        attested_external=True,
+                        manual_attest=(
+                            "I validated this review was completed without awareness of overall "
+                            "score and is unbiased."
+                        ),
+                    ),
+                )
+
+        assert "different review batch" in str(exc.value)
+        assert "expected import file" in str(exc.value)
+
     def test_trusted_internal_import_clears_provisional_flags(self, empty_state, tmp_path):
         from unittest.mock import MagicMock
 

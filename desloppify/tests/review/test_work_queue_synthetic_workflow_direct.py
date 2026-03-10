@@ -46,12 +46,24 @@ def test_build_create_plan_and_import_scores_items() -> None:
     assert "Create prioritized plan" in create_item["summary"]
 
     import_item = workflow_mod.build_import_scores_item(
-        {"queue_order": [WORKFLOW_IMPORT_SCORES_ID]},
-        {},
+        {
+            "queue_order": [WORKFLOW_IMPORT_SCORES_ID],
+            "refresh_state": {
+                "pending_import_scores": {
+                    "import_file": "/tmp/review/issues.json",
+                    "packet_sha256": "abc123",
+                    "packet_path": "/tmp/review_packet_blind.json",
+                    "assessment_dimensions": ["naming_quality"],
+                }
+            },
+        },
+        {"assessment_import_audit": []},
     )
     assert import_item is not None
     assert import_item["id"] == WORKFLOW_IMPORT_SCORES_ID
     assert "untrusted source" in import_item["detail"]["explanation"]
+    assert "/tmp/review/issues.json" in import_item["primary_command"]
+    assert import_item["detail"]["packet_sha256"] == "abc123"
 
 
 def test_build_create_plan_item_uses_confirm_for_unconfirmed_recorded_stage() -> None:

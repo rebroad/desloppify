@@ -177,6 +177,9 @@ def test_force_visible_subjective_bypasses_endgame_gate():
     ids = [item["id"] for item in queue["items"]]
     assert "subjective::naming_quality" in ids
     assert "smells::src/a.py::x" in ids
+    assert plan["subjective_defer_meta"]["force_visible_ids"] == [
+        "subjective::naming_quality"
+    ]
 
 
 def test_triage_pending_does_not_unhide_stale_subjective_items():

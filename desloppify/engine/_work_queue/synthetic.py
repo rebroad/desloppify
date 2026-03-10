@@ -158,7 +158,6 @@ def build_triage_stage_items(plan: dict, state: dict) -> list[WorkQueueItem]:
             "detector": "triage",
             "file": ".",
             "kind": "workflow_stage",
-            "force_visible": force_visible,
             "summary": f"Triage: {label_map.get(name, name)}",
             "detail": {
                 "total_review_issues": open_review_count,
@@ -173,6 +172,7 @@ def build_triage_stage_items(plan: dict, state: dict) -> list[WorkQueueItem]:
             "blocked_by": blocked_by,
             "is_blocked": bool(blocked_by),
         }
+        item["force_visible"] = force_visible
         item["primary_command"] = cmd
         items.append(item)
     return items

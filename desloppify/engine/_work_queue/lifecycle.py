@@ -5,6 +5,15 @@ from __future__ import annotations
 from desloppify.engine.plan_queue import NON_OBJECTIVE_DETECTORS
 from desloppify.engine._work_queue.types import WorkQueueItem
 
+# Detectors whose issues should only surface after objective queue is drained.
+# Must be a subset of NON_OBJECTIVE_DETECTORS.
+ENDGAME_ONLY_DETECTORS: frozenset[str] = frozenset({"subjective_review"})
+
+assert ENDGAME_ONLY_DETECTORS <= NON_OBJECTIVE_DETECTORS, (
+    f"ENDGAME_ONLY_DETECTORS has items not in NON_OBJECTIVE_DETECTORS: "
+    f"{ENDGAME_ONLY_DETECTORS - NON_OBJECTIVE_DETECTORS}"
+)
+
 
 def _has_objective_items(items: list[WorkQueueItem]) -> bool:
     """True if any objective mechanical work items remain in the queue.
@@ -30,6 +39,8 @@ def _has_initial_reviews(items: list[WorkQueueItem]) -> bool:
 
 def _is_endgame_only(item: WorkQueueItem) -> bool:
     """True if this item should only appear when the objective queue is drained."""
+    if item.get("detector", "") in ENDGAME_ONLY_DETECTORS:
+        return True
     return (
         item.get("kind") == "subjective_dimension"
         and not item.get("initial_review")

@@ -61,7 +61,7 @@ def test_flags_validation_and_assessment_state_helpers() -> None:
 
 
 def test_sync_plan_after_import_no_living_plan(monkeypatch) -> None:
-    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda: False)
+    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda _path=None: False)
     plan_sync_mod.sync_plan_after_import(
         state={},
         diff={"new": 1, "reopened": 0},
@@ -69,12 +69,38 @@ def test_sync_plan_after_import_no_living_plan(monkeypatch) -> None:
     )
 
 
+def test_sync_plan_after_import_scopes_living_plan_to_state_file(monkeypatch, tmp_path) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_plan_path_for_state(state_path):
+        seen["state_path"] = state_path
+        return tmp_path / "plan.json"
+
+    def fake_has_living_plan(path=None):
+        seen["has_living_plan_path"] = path
+        return False
+
+    monkeypatch.setattr(plan_queue_mod, "plan_path_for_state", fake_plan_path_for_state)
+    monkeypatch.setattr(plan_queue_mod, "has_living_plan", fake_has_living_plan)
+
+    state_file = tmp_path / "state.json"
+    plan_sync_mod.sync_plan_after_import(
+        state={},
+        diff={"new": 1, "reopened": 0},
+        assessment_mode="issues_only",
+        state_file=state_file,
+    )
+
+    assert seen["state_path"] == state_file
+    assert seen["has_living_plan_path"] == tmp_path / "plan.json"
+
+
 def test_sync_plan_after_import_handles_plan_exceptions(monkeypatch, capsys) -> None:
-    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda: True)
+    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda _path=None: True)
     monkeypatch.setattr(
         plan_queue_mod,
         "load_plan",
-        lambda: (_ for _ in ()).throw(OSError("boom")),
+        lambda _path=None: (_ for _ in ()).throw(OSError("boom")),
     )
     monkeypatch.setattr(plan_sync_mod, "PLAN_LOAD_EXCEPTIONS", (OSError,))
 
@@ -91,9 +117,9 @@ def test_sync_plan_after_import_runs_review_sync_for_auto_resolved_deltas(monkey
     plan: dict = {"queue_order": []}
     seen = {"import_called": False, "stale_called": False}
 
-    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda: True)
-    monkeypatch.setattr(plan_queue_mod, "load_plan", lambda: plan)
-    monkeypatch.setattr(plan_queue_mod, "save_plan", lambda _plan: None)
+    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda _path=None: True)
+    monkeypatch.setattr(plan_queue_mod, "load_plan", lambda _path=None: plan)
+    monkeypatch.setattr(plan_queue_mod, "save_plan", lambda _plan, _path=None: None)
     monkeypatch.setattr(plan_queue_mod, "current_unscored_ids", lambda _state: set())
     monkeypatch.setattr(plan_queue_mod, "purge_ids", lambda _plan, _ids: None)
     monkeypatch.setattr(
@@ -110,7 +136,7 @@ def test_sync_plan_after_import_runs_review_sync_for_auto_resolved_deltas(monkey
     monkeypatch.setattr(
         plan_queue_mod,
         "sync_import_scores_needed",
-        lambda _plan, _state, assessment_mode: SimpleNamespace(changes=False),
+        lambda _plan, _state, assessment_mode, **_kwargs: SimpleNamespace(changes=False),
     )
     monkeypatch.setattr(
         plan_queue_mod,
@@ -144,9 +170,9 @@ def test_sync_plan_after_import_logs_triage_provenance(monkeypatch) -> None:
     plan: dict = {"queue_order": []}
     entries: list[tuple[str, dict]] = []
 
-    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda: True)
-    monkeypatch.setattr(plan_queue_mod, "load_plan", lambda: plan)
-    monkeypatch.setattr(plan_queue_mod, "save_plan", lambda _plan: None)
+    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda _path=None: True)
+    monkeypatch.setattr(plan_queue_mod, "load_plan", lambda _path=None: plan)
+    monkeypatch.setattr(plan_queue_mod, "save_plan", lambda _plan, _path=None: None)
     monkeypatch.setattr(plan_queue_mod, "current_unscored_ids", lambda _state: set())
     monkeypatch.setattr(plan_queue_mod, "purge_ids", lambda _plan, _ids: None)
     monkeypatch.setattr(
@@ -179,7 +205,7 @@ def test_sync_plan_after_import_logs_triage_provenance(monkeypatch) -> None:
     monkeypatch.setattr(
         plan_queue_mod,
         "sync_import_scores_needed",
-        lambda _plan, _state, assessment_mode: SimpleNamespace(changes=False),
+        lambda _plan, _state, assessment_mode, **_kwargs: SimpleNamespace(changes=False),
     )
     monkeypatch.setattr(
         plan_queue_mod,
@@ -219,9 +245,9 @@ def test_sync_plan_after_import_keeps_workflow_before_triage(monkeypatch) -> Non
     }
     entries: list[tuple[str, dict]] = []
 
-    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda: True)
-    monkeypatch.setattr(plan_queue_mod, "load_plan", lambda: plan)
-    monkeypatch.setattr(plan_queue_mod, "save_plan", lambda _plan: None)
+    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda _path=None: True)
+    monkeypatch.setattr(plan_queue_mod, "load_plan", lambda _path=None: plan)
+    monkeypatch.setattr(plan_queue_mod, "save_plan", lambda _plan, _path=None: None)
     monkeypatch.setattr(plan_queue_mod, "current_unscored_ids", lambda _state: set())
     monkeypatch.setattr(plan_queue_mod, "purge_ids", lambda _plan, _ids: None)
     monkeypatch.setattr(
@@ -264,7 +290,7 @@ def test_sync_plan_after_import_keeps_workflow_before_triage(monkeypatch) -> Non
     monkeypatch.setattr(
         plan_queue_mod,
         "sync_import_scores_needed",
-        lambda _plan, _state, assessment_mode: SimpleNamespace(changes=False),
+        lambda _plan, _state, assessment_mode, **_kwargs: SimpleNamespace(changes=False),
     )
     monkeypatch.setattr(
         plan_queue_mod,
@@ -304,9 +330,9 @@ def test_sync_plan_after_import_reuses_plan_aware_policy(monkeypatch) -> None:
     policy = SimpleNamespace(has_objective_backlog=False)
     seen: dict[str, object] = {}
 
-    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda: True)
-    monkeypatch.setattr(plan_queue_mod, "load_plan", lambda: plan)
-    monkeypatch.setattr(plan_queue_mod, "save_plan", lambda _plan: None)
+    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda _path=None: True)
+    monkeypatch.setattr(plan_queue_mod, "load_plan", lambda _path=None: plan)
+    monkeypatch.setattr(plan_queue_mod, "save_plan", lambda _plan, _path=None: None)
     monkeypatch.setattr(plan_queue_mod, "current_unscored_ids", lambda _state: set())
     monkeypatch.setattr(plan_queue_mod, "purge_ids", lambda _plan, _ids: None)
     monkeypatch.setattr(
@@ -331,7 +357,7 @@ def test_sync_plan_after_import_reuses_plan_aware_policy(monkeypatch) -> None:
     monkeypatch.setattr(
         plan_queue_mod,
         "sync_import_scores_needed",
-        lambda _plan, _state, assessment_mode: SimpleNamespace(changes=False),
+        lambda _plan, _state, assessment_mode, **_kwargs: SimpleNamespace(changes=False),
     )
 
     def fake_compute_policy(_state, *, target_strict, plan):
@@ -374,9 +400,9 @@ def test_sync_plan_after_import_does_not_purge_subjective_ids(monkeypatch) -> No
     plan: dict = {"queue_order": ["subjective::naming_quality", "review::existing"]}
     purge_calls: list[list[str]] = []
 
-    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda: True)
-    monkeypatch.setattr(plan_queue_mod, "load_plan", lambda: plan)
-    monkeypatch.setattr(plan_queue_mod, "save_plan", lambda _plan: None)
+    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda _path=None: True)
+    monkeypatch.setattr(plan_queue_mod, "load_plan", lambda _path=None: plan)
+    monkeypatch.setattr(plan_queue_mod, "save_plan", lambda _plan, _path=None: None)
     monkeypatch.setattr(
         plan_queue_mod,
         "compute_subjective_visibility",
@@ -395,7 +421,7 @@ def test_sync_plan_after_import_does_not_purge_subjective_ids(monkeypatch) -> No
     monkeypatch.setattr(
         plan_queue_mod,
         "sync_import_scores_needed",
-        lambda _plan, _state, assessment_mode: SimpleNamespace(changes=False),
+        lambda _plan, _state, assessment_mode, **_kwargs: SimpleNamespace(changes=False),
     )
     monkeypatch.setattr(
         plan_queue_mod,
@@ -562,3 +588,50 @@ def test_print_import_results_writes_query_payload(monkeypatch) -> None:
     assert payload["action"] == "import"
     assert payload["next_command"] == "desloppify next"
     assert payload["assessment_import"]["mode"] == "issues_only"
+
+
+def test_plan_sync_source_preserves_scoped_sync_pipeline_contract() -> None:
+    src = inspect.getsource(plan_sync_mod.sync_plan_after_import)
+    assert "plan_path = None" in src
+    assert "plan_queue_mod.plan_path_for_state(Path(state_file))" in src
+    assert "if not plan_queue_mod.has_living_plan(plan_path):" in src
+    assert "plan = plan_queue_mod.load_plan(plan_path)" in src
+    assert "policy = plan_queue_mod.compute_subjective_visibility(" in src
+    assert "snapshot = state_mod.score_snapshot(state)" in src
+    assert "current_scores = plan_queue_mod.ScoreSnapshot(" in src
+    assert 'trusted_score_import = assessment_mode in {"trusted_internal", "attested_external"}' in src
+    assert "communicate_result = plan_queue_mod.sync_communicate_score_needed(" in src
+    assert "import_scores_result = plan_queue_mod.sync_import_scores_needed(" in src
+    assert "create_plan_result = plan_queue_mod.sync_create_plan_needed(" in src
+    assert "import_result = plan_queue_mod.sync_plan_after_review_import(" in src
+    assert "stale_sync_result = plan_queue_mod.sync_stale_dimensions(" in src
+    assert 'workflow_injected_ids.append("workflow::communicate-score")' in src
+    assert 'workflow_injected_ids.append("workflow::import-scores")' in src
+    assert 'workflow_injected_ids.append("workflow::create-plan")' in src
+    assert 'plan_queue_mod.append_log_entry(' in src
+    assert '"review_import_sync"' in src
+    assert "plan_queue_mod.save_plan(plan, plan_path)" in src
+    assert "_print_review_import_sync(" in src
+
+
+def test_results_source_preserves_query_and_narrative_contract() -> None:
+    src = inspect.getsource(results_mod.print_import_results)
+    assert "narrative_mod.compute_narrative(" in src
+    assert 'NarrativeContext(lang=lang_name, command="review")' in src
+    assert 'print(colorize(f"\\n  {label} imported:", "bold"))' in src
+    assert 'issue_count = int(diff.get("new", 0) or 0)' in src
+    assert "import_helpers_mod.print_skipped_validation_details" in src
+    assert "import_helpers_mod.print_assessments_summary" in src
+    assert "next_command = import_helpers_mod.print_open_review_summary(" in src
+    assert "show_score_with_plan_context(state, prev)" in src
+    assert "import_helpers_mod.print_review_import_scores_and_integrity(" in src
+    assert 'f"  Next command to improve subjective scores: `{next_command}`"' in src
+    assert "write_query(" in src
+    assert '"command": "review"' in src
+    assert '"action": "import"' in src
+    assert '"mode": "holistic"' in src
+    assert '"diff": diff' in src
+    assert '"next_command": next_command' in src
+    assert '"subjective_at_target": [' in src
+    assert '"assessment_import": {' in src
+    assert '"narrative": narrative' in src

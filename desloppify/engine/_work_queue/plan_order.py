@@ -68,11 +68,13 @@ def stamp_plan_sort_keys(
     subjective_defer_meta = plan.get("subjective_defer_meta", {})
     if not isinstance(subjective_defer_meta, dict):
         subjective_defer_meta = {}
-    force_visible_ids = {
+    normalized_force_visible_ids = sorted({
         str(fid).strip()
         for fid in subjective_defer_meta.get("force_visible_ids", [])
         if str(fid).strip()
-    }
+    })
+    subjective_defer_meta["force_visible_ids"] = normalized_force_visible_ids
+    force_visible_ids = set(normalized_force_visible_ids)
 
     position_map: dict[str, int] = {}
     for idx, issue_id in enumerate(queue_order):

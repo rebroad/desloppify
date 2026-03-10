@@ -112,8 +112,8 @@ def validate_and_build_issues(
             "evidence": issue["evidence"],
             "suggestion": issue.get("suggestion", ""),
             "reasoning": issue.get("reasoning", ""),
-            "content_hash": content_hash,
         }
+        detail["content_hash"] = content_hash
         if is_confirmed_concern:
             detail["concern_type"] = issue.get("concern_type", "")
             detail["concern_verdict"] = "confirmed"

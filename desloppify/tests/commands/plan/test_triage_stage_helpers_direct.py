@@ -102,13 +102,19 @@ def test_unclustered_review_issues_uses_state_when_provided() -> None:
         "clusters": {
             "manual": {"auto": False, "issue_ids": ["review::clustered"]},
             "auto": {"auto": True, "issue_ids": ["review::auto"]},
-        }
+        },
+        "skipped": {
+            "review::skipped": {"kind": "permanent"},
+            "concerns::skipped": {"kind": "false_positive"},
+        },
     }
     state = {
         "issues": {
             "review::clustered": {"status": "open", "detector": "review"},
             "review::leftover": {"status": "open", "detector": "review"},
             "concerns::leftover": {"status": "open", "detector": "concerns"},
+            "review::skipped": {"status": "open", "detector": "review"},
+            "concerns::skipped": {"status": "open", "detector": "concerns"},
             "subjective_review::placeholder": {
                 "status": "open",
                 "detector": "subjective_review",
@@ -130,11 +136,17 @@ def test_unclustered_review_issues_falls_back_to_queue_scan() -> None:
             "workflow::score-checkpoint",
             "review::clustered",
             "review::leftover",
+            "review::skipped",
             "concerns::leftover",
+            "concerns::skipped",
             "structural::ignored",
         ],
         "clusters": {
             "manual": {"auto": False, "issue_ids": ["review::clustered"]}
+        },
+        "skipped": {
+            "review::skipped": {"kind": "permanent"},
+            "concerns::skipped": {"kind": "false_positive"},
         },
     }
 
