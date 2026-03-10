@@ -139,9 +139,10 @@ def test_completion_stage_helpers_include_gate_and_auto_confirm_defaults(monkeyp
     )
 
     assert (
-        completion_stages_mod._auto_confirm_organize_for_complete(
+        completion_stages_mod._auto_confirm_stage_for_complete(
             plan=plan,
             stages={},
+            stage="organize",
             attestation=None,
         )
         is False
@@ -155,9 +156,10 @@ def test_completion_stage_helpers_include_gate_and_auto_confirm_defaults(monkeyp
         is False
     )
     assert (
-        completion_stages_mod._auto_confirm_sense_check_for_complete(
+        completion_stages_mod._auto_confirm_stage_for_complete(
             plan=plan,
             stages={},
+            stage="sense-check",
             attestation=None,
         )
         is False

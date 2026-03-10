@@ -11,7 +11,6 @@ from .stages.records import record_confirm_existing_completion
 from .stages.rendering import _print_complete_summary
 from .validation.core import (
     _auto_confirm_enrich_for_complete,
-    _auto_confirm_organize_for_complete,
     _completion_clusters_valid,
     _completion_strategy_valid,
     _confirm_existing_stages_valid,
@@ -27,7 +26,7 @@ from .validation.core import (
     _resolve_confirm_existing_strategy,
 )
 from .validation.completion_stages import (
-    _auto_confirm_sense_check_for_complete,
+    _auto_confirm_stage_for_complete,
 )
 from .helpers import (
     apply_completion,
@@ -69,9 +68,10 @@ def _cmd_triage_complete(
         return
 
     # Fold-confirm: auto-confirm organize if attestation provided
-    if not _auto_confirm_organize_for_complete(
+    if not _auto_confirm_stage_for_complete(
         plan=plan,
         stages=stages,
+        stage="organize",
         attestation=attestation,
         save_plan_fn=resolved_services.save_plan,
     ):
@@ -103,9 +103,10 @@ def _cmd_triage_complete(
         return
 
     # Fold-confirm: auto-confirm sense-check if attestation provided
-    if not _auto_confirm_sense_check_for_complete(
+    if not _auto_confirm_stage_for_complete(
         plan=plan,
         stages=stages,
+        stage="sense-check",
         attestation=attestation,
         save_plan_fn=resolved_services.save_plan,
     ):

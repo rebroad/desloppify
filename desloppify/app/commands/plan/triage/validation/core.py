@@ -30,7 +30,7 @@ from .completion_policy import (
 )
 from .completion_stages import (
     _auto_confirm_enrich_for_complete,
-    _auto_confirm_organize_for_complete,
+    _auto_confirm_stage_for_complete,
     _require_enrich_stage_for_complete,
     _require_organize_stage_for_complete,
     _require_sense_check_stage_for_complete,
@@ -388,7 +388,7 @@ def _organize_report_or_error(report: str | None) -> str | None:
 __all__ = [
     "_auto_confirm_enrich_for_complete",
     "_auto_confirm_observe_if_attested",
-    "_auto_confirm_organize_for_complete",
+    "_auto_confirm_stage_for_complete",
     "_auto_confirm_reflect_for_organize",
     "_cluster_file_overlaps",
     "_clusters_with_directory_scatter",

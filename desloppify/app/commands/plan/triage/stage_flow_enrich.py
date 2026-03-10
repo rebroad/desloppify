@@ -80,12 +80,13 @@ def run_stage_enrich(
         if attestation:
             auto_confirm_organize_for_complete = resolved_deps.auto_confirm_organize_for_complete
             if auto_confirm_organize_for_complete is None:
-                from .validation.core import _auto_confirm_organize_for_complete
+                from .validation.completion_stages import _auto_confirm_stage_for_complete
 
-                auto_confirm_organize_for_complete = _auto_confirm_organize_for_complete
+                auto_confirm_organize_for_complete = _auto_confirm_stage_for_complete
             if not auto_confirm_organize_for_complete(
                 plan=plan,
                 stages=stages,
+                stage="organize",
                 attestation=attestation,
                 save_plan_fn=resolved_services.save_plan,
             ):

@@ -135,22 +135,6 @@ def _require_sense_check_stage_for_complete(
     return False
 
 
-def _auto_confirm_sense_check_for_complete(
-    *,
-    plan: dict,
-    stages: dict,
-    attestation: str | None,
-    save_plan_fn=None,
-) -> bool:
-    return _auto_confirm_stage_for_complete(
-        plan=plan,
-        stages=stages,
-        stage="sense-check",
-        attestation=attestation,
-        save_plan_fn=save_plan_fn,
-    )
-
-
 def _require_organize_stage_for_complete(
     *,
     plan: dict,
@@ -185,26 +169,9 @@ def _require_organize_stage_for_complete(
     return False
 
 
-def _auto_confirm_organize_for_complete(
-    *,
-    plan: dict,
-    stages: dict,
-    attestation: str | None,
-    save_plan_fn=None,
-) -> bool:
-    return _auto_confirm_stage_for_complete(
-        plan=plan,
-        stages=stages,
-        stage="organize",
-        attestation=attestation,
-        save_plan_fn=save_plan_fn,
-    )
-
-
 __all__ = [
     "_auto_confirm_enrich_for_complete",
-    "_auto_confirm_organize_for_complete",
-    "_auto_confirm_sense_check_for_complete",
+    "_auto_confirm_stage_for_complete",
     "_require_enrich_stage_for_complete",
     "_require_organize_stage_for_complete",
     "_require_sense_check_stage_for_complete",
