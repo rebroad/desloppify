@@ -26,6 +26,20 @@ WORKFLOW_IMPORT_SCORES_ID = "workflow::import-scores"
 WORKFLOW_COMMUNICATE_SCORE_ID = "workflow::communicate-score"
 WORKFLOW_DEFERRED_DISPOSITION_ID = "workflow::deferred-disposition"
 WORKFLOW_PREFIX = "workflow::"
+WORKFLOW_IDS = {
+    WORKFLOW_IMPORT_SCORES_ID,
+    WORKFLOW_COMMUNICATE_SCORE_ID,
+    WORKFLOW_SCORE_CHECKPOINT_ID,
+    WORKFLOW_CREATE_PLAN_ID,
+    WORKFLOW_DEFERRED_DISPOSITION_ID,
+}
+WORKFLOW_PRIORITY_ORDER = (
+    WORKFLOW_IMPORT_SCORES_ID,
+    WORKFLOW_COMMUNICATE_SCORE_ID,
+    WORKFLOW_SCORE_CHECKPOINT_ID,
+    WORKFLOW_CREATE_PLAN_ID,
+    WORKFLOW_DEFERRED_DISPOSITION_ID,
+)
 SYNTHETIC_PREFIXES = ("triage::", "workflow::", "subjective::")
 
 
@@ -71,9 +85,39 @@ def recorded_unconfirmed_triage_stage_names(meta_or_stages: dict[str, Any] | Non
     }
 
 
+def normalize_queue_workflow_and_triage_prefix(queue_order: list[str]) -> None:
+    """Keep workflow items ahead of triage, then preserve the rest as-is."""
+    seen: set[str] = set()
+    normalized: list[str] = []
+
+    for issue_id in WORKFLOW_PRIORITY_ORDER:
+        if issue_id in queue_order and issue_id not in seen:
+            normalized.append(issue_id)
+            seen.add(issue_id)
+
+    for issue_id in queue_order:
+        if issue_id.startswith(WORKFLOW_PREFIX) and issue_id not in seen:
+            normalized.append(issue_id)
+            seen.add(issue_id)
+
+    for issue_id in TRIAGE_STAGE_IDS:
+        if issue_id in queue_order and issue_id not in seen:
+            normalized.append(issue_id)
+            seen.add(issue_id)
+
+    for issue_id in queue_order:
+        if issue_id in seen:
+            continue
+        normalized.append(issue_id)
+        seen.add(issue_id)
+
+    queue_order[:] = normalized
+
+
 __all__ = [
     "AUTO_PREFIX",
     "QueueSyncResult",
+    "normalize_queue_workflow_and_triage_prefix",
     "confirmed_triage_stage_names",
     "recorded_unconfirmed_triage_stage_names",
     "SUBJECTIVE_PREFIX",
@@ -83,7 +127,9 @@ __all__ = [
     "TRIAGE_STAGE_IDS",
     "WORKFLOW_COMMUNICATE_SCORE_ID",
     "WORKFLOW_DEFERRED_DISPOSITION_ID",
+    "WORKFLOW_IDS",
     "WORKFLOW_CREATE_PLAN_ID",
+    "WORKFLOW_PRIORITY_ORDER",
     "WORKFLOW_IMPORT_SCORES_ID",
     "WORKFLOW_PREFIX",
     "WORKFLOW_SCORE_CHECKPOINT_ID",

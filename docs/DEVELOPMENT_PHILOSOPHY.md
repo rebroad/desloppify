@@ -48,12 +48,12 @@ We keep a few rules concrete so the codebase stays workable as it grows:
 The work queue enforces a strict phase order. Items from later phases are hidden until earlier phases complete:
 
 1. **Initial reviews** — Unscored subjective dimensions. The lifecycle filter blocks everything else until all placeholder dimensions are scored.
-2. **Communicate score** — `workflow::communicate-score` is injected by `reconcile_plan_post_scan` once all initial reviews are done. Shows the user their first strict score.
-3. **Create plan** — `workflow::create-plan` is injected when reviews are complete, objective backlog exists, and no triage is pending.
-4. **Triage** — 4 stages (`triage::observe` → `reflect` → `organize` → `commit`) injected when the review-issue snapshot hash changes (new `review`/`concerns` detector issues appear).
+2. **Communicate score** — `workflow::communicate-score` is injected once all initial reviews are done, and also after trusted score imports that materially refresh the live score. It must appear before planning and triage so the user sees the updated strict score first.
+3. **Create plan** — `workflow::create-plan` is injected when reviews are complete and objective backlog exists. It stays ahead of triage in the queue.
+4. **Triage** — 6 stages (`triage::observe` → `reflect` → `organize` → `enrich` → `sense-check` → `commit`) injected when the review-issue snapshot hash changes (new `review`/`concerns` detector issues appear).
 5. **Objective work** — Mechanical issues ranked by dimension impact.
 
-Key constraint: `reconcile_plan_post_scan` only runs during `scan`. Between scans, items are completed via `purge_ids` (what `plan resolve` does internally) and the queue is rebuilt from current state + plan. Workflow items like `communicate-score` won't appear until the next scan triggers reconcile.
+Key constraint: full reconcile still only runs during `scan`. Review import is a narrower lifecycle entrypoint: it can add new review issues, queue workflow follow-up (`communicate-score`, `import-scores`, `create-plan`), and refresh the scorecard badge for trusted score imports, but it does not run the full post-scan reconcile/cluster regeneration path.
 
 ### Lifecycle walkthrough script
 

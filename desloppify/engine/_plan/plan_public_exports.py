@@ -84,6 +84,7 @@ PLAN_PUBLIC_EXPORTS = [
     "WORKFLOW_SCORE_CHECKPOINT_ID",
     "WORKFLOW_PREFIX",
     "QueueSyncResult",
+    "normalize_queue_workflow_and_triage_prefix",
     "clear_postflight_scan_completion",
     "compute_new_issue_ids",
     "current_unscored_ids",

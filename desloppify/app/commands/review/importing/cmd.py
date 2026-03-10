@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
+from types import SimpleNamespace
 
 from desloppify import state as state_mod
 from desloppify.app.commands.scan.reporting import (
     dimensions as reporting_dimensions_mod,
 )
+from desloppify.app.commands.scan.artifacts import emit_scorecard_badge
 from desloppify.base.exception_sets import CommandError, PacketValidationError
 from desloppify.base.output.terminal import colorize
 from desloppify.intelligence import integrity as subjective_integrity_mod
@@ -171,6 +173,23 @@ def _persist_import_state(
     sync_plan_after_import(state, diff, assessment_mode)
 
 
+def _refresh_scorecard_after_import(
+    *,
+    state: dict,
+    config: dict | None,
+    assessment_policy: AssessmentImportPolicyModel,
+) -> bool:
+    """Refresh the scorecard badge when a trusted import updates live scores."""
+    if not assessment_policy.assessments_present or not assessment_policy.trusted:
+        return False
+    emit_scorecard_badge(
+        SimpleNamespace(no_badge=False, badge_path=None),
+        config or {},
+        state,
+    )
+    return True
+
+
 def do_import(
     import_file,
     state,
@@ -241,6 +260,12 @@ def do_import(
         assessment_policy=assessment_policy,
         scorecard_subjective_at_target_fn=_SCORECARD_SUBJECTIVE_AT_TARGET,
     )
+    if not dry_run:
+        _refresh_scorecard_after_import(
+            state=state,
+            config=resolved_import_config.config,
+            assessment_policy=assessment_policy,
+        )
 
 
 def do_validate_import(

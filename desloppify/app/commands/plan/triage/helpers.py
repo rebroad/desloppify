@@ -9,6 +9,7 @@ from desloppify.base.output.terminal import colorize
 from desloppify.engine.plan import (
     TRIAGE_IDS,
     TRIAGE_STAGE_IDS,
+    normalize_queue_workflow_and_triage_prefix,
     WORKFLOW_CREATE_PLAN_ID,
     WORKFLOW_SCORE_CHECKPOINT_ID,
     open_review_ids,
@@ -82,7 +83,8 @@ def inject_triage_stages(plan: dict) -> None:
     order: list[str] = plan.setdefault("queue_order", [])
     _clear_triage_stage_skips(plan)
     remaining = [issue_id for issue_id in order if issue_id not in TRIAGE_IDS]
-    order[:] = [*TRIAGE_STAGE_IDS, *remaining]
+    order[:] = [*remaining, *TRIAGE_STAGE_IDS]
+    normalize_queue_workflow_and_triage_prefix(order)
 
 def purge_triage_stage(plan: dict, stage_name: str) -> None:
     """Purge a single triage stage ID from the queue."""

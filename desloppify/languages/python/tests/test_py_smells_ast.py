@@ -337,6 +337,25 @@ class TestConstantReturn:
         entries, _ = detect_smells(path)
         assert "constant_return" not in _smell_ids(entries)
 
+    def test_nested_function_returns_are_ignored(self, tmp_path):
+        path = _write_py(
+            tmp_path,
+            """\
+            def wrapper(flag):
+                def helper(value):
+                    if value:
+                        return True
+                    return True
+                return True
+        """,
+        )
+        entries, _ = detect_smells(path)
+        constant_return = next((entry for entry in entries if entry["id"] == "constant_return"), None)
+        assert constant_return is not None
+        contents = [match["content"] for match in constant_return["matches"]]
+        assert any("helper()" in content for content in contents)
+        assert not any("wrapper()" in content for content in contents)
+
 
 # ── unsafe file write ────────────────────────────────────
 

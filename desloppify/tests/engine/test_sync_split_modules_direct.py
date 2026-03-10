@@ -284,12 +284,13 @@ def test_sync_issue_clusters_handles_name_collisions_and_user_modified_clusters(
 
 
 def test_sync_workflow_helpers_inject_expected_items(monkeypatch) -> None:
-    plan = {"queue_order": []}
+    plan = {"queue_order": ["triage::observe", "review::x"]}
     state = {"issues": {"id1": {"status": "open", "detector": "unused"}}}
     policy = SimpleNamespace(unscored_ids=set(), has_objective_backlog=True)
 
     r1 = sync_workflow_mod.sync_score_checkpoint_needed(plan, state, policy=policy)
     assert r1.injected == ["workflow::score-checkpoint"]
+    assert plan["queue_order"][:2] == ["workflow::score-checkpoint", "triage::observe"]
 
     plan = {"queue_order": []}
     r2 = sync_workflow_mod.sync_create_plan_needed(plan, state, policy=policy)
@@ -310,6 +311,36 @@ def test_sync_workflow_helpers_inject_expected_items(monkeypatch) -> None:
 
     monkeypatch.setattr(sync_workflow_mod.stale_policy_mod, "current_unscored_ids", lambda *_a, **_k: {"s"})
     assert sync_workflow_mod._no_unscored(state, policy=None) is False
+
+
+def test_sync_communicate_score_reinjects_after_trusted_score_import() -> None:
+    plan = {
+        "queue_order": ["triage::observe"],
+        "plan_start_scores": {
+            "strict": 70.0,
+            "overall": 70.0,
+            "objective": 80.0,
+            "verified": 80.0,
+        },
+        "previous_plan_start_scores": {"strict": 65.0},
+    }
+
+    result = sync_workflow_mod.sync_communicate_score_needed(
+        plan,
+        state={"issues": {}},
+        scores_just_imported=True,
+        current_scores=sync_workflow_mod.ScoreSnapshot(
+            strict=74.5,
+            overall=74.5,
+            objective=97.5,
+            verified=97.4,
+        ),
+    )
+
+    assert result.injected == ["workflow::communicate-score"]
+    assert plan["queue_order"][:2] == ["workflow::communicate-score", "triage::observe"]
+    assert plan["previous_plan_start_scores"]["strict"] == 70.0
+    assert plan["plan_start_scores"]["strict"] == 74.5
 
 
 def test_sync_workflow_injection_removes_stale_skip_entries() -> None:

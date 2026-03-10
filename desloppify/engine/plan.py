@@ -160,6 +160,7 @@ from desloppify.engine._plan.constants import (
     WORKFLOW_SCORE_CHECKPOINT_ID,
     QueueSyncResult,
     confirmed_triage_stage_names,
+    normalize_queue_workflow_and_triage_prefix,
     recorded_unconfirmed_triage_stage_names,
 )
 

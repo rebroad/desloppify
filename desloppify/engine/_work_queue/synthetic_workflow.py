@@ -18,20 +18,6 @@ _TRIAGE_STAGE_SPECS: tuple[tuple[str, str], ...] = (
 )
 
 
-def _stage_report_hint(stage: str) -> str:
-    if stage == "observe":
-        return "Analysis of findings for plan creation..."
-    if stage == "reflect":
-        return "comparison against completed work..."
-    if stage == "organize":
-        return "summary of priorities and organization..."
-    if stage == "enrich":
-        return "enrichment summary..."
-    if stage == "sense-check":
-        return "verification summary..."
-    return "..."
-
-
 def _confirm_attestation_hint(stage: str) -> str:
     if stage == "observe":
         return "I have thoroughly reviewed..."

@@ -21,6 +21,7 @@ from .apply_retro import (
     _cascade_unused_import_cleanup,
     _SKIP_REASON_LABELS,
     _print_fix_retro,
+    _resolve_fixer_results,
     _warn_uncommitted_changes,
 )
 from .options import _COMMAND_POST_FIX
@@ -126,23 +127,6 @@ def _apply_and_report(
         }
     )
     _print_fix_retro(fixer_name, len(entries), total_items, len(resolved_ids), skip_reasons)
-
-
-def _resolve_fixer_results(
-    state: dict, results: list[dict], detector: str, fixer_name: str
-) -> list[str]:
-    resolved_ids = []
-    for result in results:
-        result_file = rel(result["file"])
-        for symbol in result["removed"]:
-            issue_id = f"{detector}::{result_file}::{symbol}"
-            if issue_id in state["issues"] and state["issues"][issue_id]["status"] == "open":
-                state["issues"][issue_id]["status"] = "fixed"
-                state["issues"][issue_id]["note"] = (
-                    f"auto-fixed by desloppify autofix {fixer_name}"
-                )
-                resolved_ids.append(issue_id)
-    return resolved_ids
 
 
 def _report_dry_run(

@@ -86,6 +86,17 @@ def _detect_constant_return(
     literal value (True, False, None, a number, or a string), the function
     likely has dead logic or is a stub masquerading as real code.
     """
+    def _iter_function_scope_nodes(node: ast.FunctionDef | ast.AsyncFunctionDef):
+        """Iterate nodes in this function body, skipping nested function scopes."""
+        stack: list[ast.AST] = list(reversed(node.body))
+        while stack:
+            current = stack.pop()
+            yield current
+            if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                continue
+            for child in reversed(list(ast.iter_child_nodes(current))):
+                stack.append(child)
+
     results: list[dict] = []
     for node in _iter_nodes(tree, all_nodes, (ast.FunctionDef, ast.AsyncFunctionDef)):
         # Skip tiny functions (stubs/pass-only already caught by dead_function)
@@ -100,7 +111,7 @@ def _detect_constant_return(
 
         returns = []
         has_conditional = False
-        for child in ast.walk(node):
+        for child in _iter_function_scope_nodes(node):
             if isinstance(child, ast.Return):
                 returns.append(child)
             if isinstance(

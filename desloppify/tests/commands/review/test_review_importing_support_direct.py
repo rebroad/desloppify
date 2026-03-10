@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import desloppify.app.commands.review.importing.cmd as import_cmd_mod
 import desloppify.app.commands.review.importing.flags as flags_mod
 import desloppify.app.commands.review.importing.plan_sync as plan_sync_mod
 import desloppify.app.commands.review.importing.results as results_mod
@@ -95,7 +96,12 @@ def test_sync_plan_after_import_logs_triage_provenance(monkeypatch) -> None:
             triage_deferred=False,
         ),
     )
-    monkeypatch.setattr(plan_mod, "sync_score_checkpoint_needed", lambda _plan, _state: SimpleNamespace(changes=False))
+    monkeypatch.setattr(plan_mod, "ScoreSnapshot", lambda **kwargs: SimpleNamespace(**kwargs))
+    monkeypatch.setattr(
+        plan_mod,
+        "sync_communicate_score_needed",
+        lambda _plan, _state, **_kwargs: SimpleNamespace(changes=False),
+    )
     monkeypatch.setattr(plan_mod, "sync_import_scores_needed", lambda _plan, _state, assessment_mode: SimpleNamespace(changes=False))
     monkeypatch.setattr(plan_mod, "sync_create_plan_needed", lambda _plan, _state: SimpleNamespace(changes=False))
     monkeypatch.setattr(
@@ -116,6 +122,96 @@ def test_sync_plan_after_import_logs_triage_provenance(monkeypatch) -> None:
     assert detail["triage_injected"] is True
     assert detail["triage_injected_ids"] == ["triage::observe", "triage::reflect"]
     assert detail["triage_deferred"] is False
+
+
+def test_sync_plan_after_import_keeps_workflow_before_triage(monkeypatch) -> None:
+    plan: dict = {
+        "queue_order": [],
+        "plan_start_scores": {"strict": 70.0, "overall": 70.0, "objective": 80.0, "verified": 80.0},
+    }
+    entries: list[tuple[str, dict]] = []
+
+    monkeypatch.setattr(plan_mod, "has_living_plan", lambda: True)
+    monkeypatch.setattr(plan_mod, "load_plan", lambda: plan)
+    monkeypatch.setattr(plan_mod, "save_plan", lambda _plan: None)
+    monkeypatch.setattr(plan_mod, "current_unscored_ids", lambda _state: set())
+    monkeypatch.setattr(plan_mod, "purge_ids", lambda _plan, _ids: None)
+    monkeypatch.setattr(plan_mod, "ScoreSnapshot", lambda **kwargs: SimpleNamespace(**kwargs))
+
+    def fake_communicate(_plan, _state, **_kwargs):
+        _plan["queue_order"].append("workflow::communicate-score")
+        plan_mod.normalize_queue_workflow_and_triage_prefix(_plan["queue_order"])
+        return SimpleNamespace(changes=True)
+
+    def fake_create_plan(_plan, _state):
+        _plan["queue_order"].append("workflow::create-plan")
+        plan_mod.normalize_queue_workflow_and_triage_prefix(_plan["queue_order"])
+        return SimpleNamespace(changes=True)
+
+    def fake_review_import(_plan, _state):
+        _plan["queue_order"].extend(["review::x", "triage::observe"])
+        return SimpleNamespace(
+            new_ids={"review::x"},
+            added_to_queue=["review::x"],
+            triage_injected=True,
+            triage_injected_ids=["triage::observe"],
+            triage_deferred=False,
+        )
+
+    monkeypatch.setattr(plan_mod, "sync_communicate_score_needed", fake_communicate)
+    monkeypatch.setattr(plan_mod, "sync_import_scores_needed", lambda _plan, _state, assessment_mode: SimpleNamespace(changes=False))
+    monkeypatch.setattr(plan_mod, "sync_create_plan_needed", fake_create_plan)
+    monkeypatch.setattr(plan_mod, "sync_plan_after_review_import", fake_review_import)
+    monkeypatch.setattr(
+        plan_mod,
+        "append_log_entry",
+        lambda _plan, action, **kwargs: entries.append((action, kwargs["detail"])),
+    )
+
+    plan_sync_mod.sync_plan_after_import(
+        state={"issues": {"review::x": {"summary": "new review issue"}}},
+        diff={"new": 1, "reopened": 0},
+        assessment_mode="trusted_internal",
+    )
+
+    assert plan["queue_order"][:2] == [
+        "workflow::communicate-score",
+        "workflow::create-plan",
+    ]
+    assert plan["queue_order"].index("workflow::communicate-score") < plan["queue_order"].index("triage::observe")
+    assert plan["queue_order"].index("workflow::create-plan") < plan["queue_order"].index("triage::observe")
+    action, detail = entries[-1]
+    assert action == "review_import_sync"
+    assert detail["workflow_injected_ids"] == [
+        "workflow::communicate-score",
+        "workflow::create-plan",
+    ]
+
+
+def test_refresh_scorecard_after_import_only_for_trusted_assessments(monkeypatch) -> None:
+    calls: list[tuple[object, dict, dict]] = []
+    monkeypatch.setattr(
+        import_cmd_mod,
+        "emit_scorecard_badge",
+        lambda args, config, state: (calls.append((args, config, state)), (None, None))[1],
+    )
+
+    trusted = SimpleNamespace(assessments_present=True, trusted=True)
+    skipped = SimpleNamespace(assessments_present=True, trusted=False)
+
+    assert import_cmd_mod._refresh_scorecard_after_import(
+        state={"strict_score": 74.5},
+        config={"badge_path": "scorecard.png"},
+        assessment_policy=trusted,
+    ) is True
+    assert len(calls) == 1
+
+    assert import_cmd_mod._refresh_scorecard_after_import(
+        state={"strict_score": 74.5},
+        config={"badge_path": "scorecard.png"},
+        assessment_policy=skipped,
+    ) is False
+    assert len(calls) == 1
 
 
 def test_print_import_results_writes_query_payload(monkeypatch) -> None:

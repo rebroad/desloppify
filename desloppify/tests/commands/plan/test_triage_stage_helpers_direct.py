@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import desloppify.app.commands.plan.triage.stage_helpers as stage_helpers_mod
+from desloppify.app.commands.plan.triage.helpers import inject_triage_stages
+from desloppify.engine._plan.constants import TRIAGE_STAGE_IDS
 
 
 def test_require_triage_pending_true_when_stage_present(capsys) -> None:
@@ -155,3 +157,21 @@ def test_unclustered_review_issues_falls_back_to_queue_scan() -> None:
         "review::leftover",
         "concerns::leftover",
     ]
+
+
+def test_inject_triage_stages_keeps_workflow_prefix_ahead_of_triage() -> None:
+    plan = {
+        "queue_order": [
+            "workflow::communicate-score",
+            "workflow::create-plan",
+            "review::leftover",
+        ]
+    }
+
+    inject_triage_stages(plan)
+
+    assert plan["queue_order"][:2] == [
+        "workflow::communicate-score",
+        "workflow::create-plan",
+    ]
+    assert plan["queue_order"][2: 2 + len(TRIAGE_STAGE_IDS)] == list(TRIAGE_STAGE_IDS)

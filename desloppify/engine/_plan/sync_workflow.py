@@ -7,6 +7,7 @@ from desloppify.engine._plan._sync_context import has_objective_backlog
 from desloppify.engine._plan.constants import (
     SUBJECTIVE_PREFIX,
     TRIAGE_IDS,
+    normalize_queue_workflow_and_triage_prefix,
     WORKFLOW_COMMUNICATE_SCORE_ID,
     WORKFLOW_CREATE_PLAN_ID,
     WORKFLOW_IMPORT_SCORES_ID,
@@ -31,9 +32,11 @@ def _no_unscored(
 
 
 def _inject(plan: PlanModel, item_id: str) -> QueueSyncResult:
-    """Append *item_id* and clear stale skip entries for that workflow item."""
+    """Inject *item_id* into the workflow prefix and clear stale skip entries."""
     order = plan["queue_order"]
-    order.append(item_id)
+    if item_id not in order:
+        order.append(item_id)
+    normalize_queue_workflow_and_triage_prefix(order)
     skipped = plan.get("skipped", {})
     if isinstance(skipped, dict):
         skipped.pop(item_id, None)
@@ -55,7 +58,7 @@ def sync_score_checkpoint_needed(
     - No unscored (placeholder) subjective dimensions remain
     - ``workflow::score-checkpoint`` is not already in the queue
 
-    Appended to back of queue.  Never reorders existing items.
+    Front-loads it into the workflow prefix so it stays ahead of triage.
     """
     ensure_plan_defaults(plan)
     order: list[str] = plan["queue_order"]
@@ -81,7 +84,7 @@ def sync_create_plan_needed(
     - ``workflow::create-plan`` is not already in the queue
     - No triage stages are pending
 
-    Appended to back of queue.  Never reorders existing items.
+    Front-loads it into the workflow prefix so it stays ahead of triage.
     """
     ensure_plan_defaults(plan)
     order: list[str] = plan["queue_order"]
@@ -111,7 +114,7 @@ def sync_import_scores_needed(
     - Assessment mode was ``issues_only`` (scores were skipped)
     - ``workflow::import-scores`` is not already in the queue
 
-    Appended to back of queue.  Never reorders existing items.
+    Front-loads it into the workflow prefix so it stays ahead of triage.
     """
     ensure_plan_defaults(plan)
     order: list[str] = plan["queue_order"]
@@ -157,7 +160,8 @@ def sync_communicate_score_needed(
       scores were just imported (trusted/attested/override)
     - ``workflow::communicate-score`` is not already in the queue
     - Score has not already been communicated this cycle
-      (``previous_plan_start_scores`` absent)
+      (``previous_plan_start_scores`` absent), unless a trusted score import
+      explicitly refreshed the live score mid-cycle
 
     When injected and *current_scores* is provided, ``plan_start_scores``
     is rebaselined to the current score so the score display unfreezes at
@@ -173,7 +177,7 @@ def sync_communicate_score_needed(
         return _EMPTY()
     # Already communicated this cycle — previous_plan_start_scores is set
     # at injection time and cleared at cycle boundaries.
-    if "previous_plan_start_scores" in plan:
+    if "previous_plan_start_scores" in plan and not scores_just_imported:
         return _EMPTY()
     if not scores_just_imported and not _no_unscored(state, policy):
         return _EMPTY()
