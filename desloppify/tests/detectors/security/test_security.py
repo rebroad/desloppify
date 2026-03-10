@@ -39,6 +39,14 @@ def _make_zone_map(files: list[str], zone: Zone = Zone.PRODUCTION) -> FileZoneMa
     return zm
 
 
+def _detect_ts_security(
+    files: list[str],
+    zone_map: FileZoneMap | None,
+) -> tuple[list[dict], int]:
+    result = detect_ts_security(files, zone_map)
+    return result.entries, result.population_size
+
+
 # ═══════════════════════════════════════════════════════════
 # Cross-Language Detector Tests
 # ═══════════════════════════════════════════════════════════
@@ -357,7 +365,7 @@ class TestCrossLangZoneFiltering:
 class TestTsReadFailures:
     def test_read_failures_are_reported_in_entries(self):
         with patch.object(Path, "read_text", side_effect=OSError("permission denied")):
-            entries, scanned = detect_ts_security(["/fake/src/client.ts"], None)
+            entries, scanned = _detect_ts_security(["/fake/src/client.ts"], None)
         assert scanned == 0
         assert any(e["detail"]["kind"] == "scan_read_error" for e in entries)
 
@@ -368,7 +376,7 @@ class TestTsServiceRoleOnClient:
             const supabase = createClient(url, SERVICE_ROLE_KEY)
         """)
         with patch.object(Path, "read_text", return_value=content):
-            entries, _ = detect_ts_security(["/fake/src/client.ts"], None)
+            entries, _ = _detect_ts_security(["/fake/src/client.ts"], None)
         assert any(e["detail"]["kind"] == "service_role_on_client" for e in entries)
 
     def test_service_role_camel_case_on_client(self):
@@ -376,7 +384,7 @@ class TestTsServiceRoleOnClient:
             const supabase = createClient(url, serviceRole)
         """)
         with patch.object(Path, "read_text", return_value=content):
-            entries, _ = detect_ts_security(["/fake/src/client.ts"], None)
+            entries, _ = _detect_ts_security(["/fake/src/client.ts"], None)
         assert any(e["detail"]["kind"] == "service_role_on_client" for e in entries)
 
     def test_service_role_on_server_path_not_flagged(self):
@@ -384,7 +392,7 @@ class TestTsServiceRoleOnClient:
             const supabase = createClient(url, SERVICE_ROLE_KEY)
         """)
         with patch.object(Path, "read_text", return_value=content):
-            entries, _ = detect_ts_security(["/fake/functions/worker.ts"], None)
+            entries, _ = _detect_ts_security(["/fake/functions/worker.ts"], None)
         assert not any(e["detail"]["kind"] == "service_role_on_client" for e in entries)
 
 
@@ -397,7 +405,7 @@ class TestTsEdgeFunctionAuth:
             });
         """)
         with patch.object(Path, "read_text", return_value=content):
-            entries, _ = detect_ts_security(["/fake/functions/orders.ts"], None)
+            entries, _ = _detect_ts_security(["/fake/functions/orders.ts"], None)
         kinds = {e["detail"]["kind"] for e in entries}
         assert "edge_function_missing_auth" in kinds
 
@@ -410,7 +418,7 @@ class TestTsEdgeFunctionAuth:
             });
         """)
         with patch.object(Path, "read_text", return_value=content):
-            entries, _ = detect_ts_security(["/fake/functions/orders.ts"], None)
+            entries, _ = _detect_ts_security(["/fake/functions/orders.ts"], None)
         kinds = {e["detail"]["kind"] for e in entries}
         assert "edge_function_missing_auth" in kinds
 
@@ -424,7 +432,7 @@ class TestTsEdgeFunctionAuth:
             });
         """)
         with patch.object(Path, "read_text", return_value=content):
-            entries, _ = detect_ts_security(["/fake/functions/orders.ts"], None)
+            entries, _ = _detect_ts_security(["/fake/functions/orders.ts"], None)
         kinds = {e["detail"]["kind"] for e in entries}
         assert "edge_function_missing_auth" not in kinds
 
@@ -434,7 +442,7 @@ class TestTsEvalInjection:
         content = "const result = eval(userInput);"
         path = _write_temp_file(content, suffix=".ts")
         try:
-            entries, _ = detect_ts_security([path], None)
+            entries, _ = _detect_ts_security([path], None)
             evals = [e for e in entries if e["detail"]["kind"] == "eval_injection"]
             assert len(evals) >= 1
             assert evals[0]["detail"]["severity"] == "critical"
@@ -445,7 +453,7 @@ class TestTsEvalInjection:
         content = 'const fn = new Function("return " + userInput);'
         path = _write_temp_file(content, suffix=".ts")
         try:
-            entries, _ = detect_ts_security([path], None)
+            entries, _ = _detect_ts_security([path], None)
             evals = [e for e in entries if e["detail"]["kind"] == "eval_injection"]
             assert len(evals) >= 1
         finally:
@@ -457,7 +465,7 @@ class TestTsDangerousHtml:
         content = "<div dangerouslySetInnerHTML={{__html: data}} />"
         path = _write_temp_file(content, suffix=".tsx")
         try:
-            entries, _ = detect_ts_security([path], None)
+            entries, _ = _detect_ts_security([path], None)
             xss = [
                 e
                 for e in entries
@@ -471,7 +479,7 @@ class TestTsDangerousHtml:
         content = "element.innerHTML = userInput;"
         path = _write_temp_file(content, suffix=".ts")
         try:
-            entries, _ = detect_ts_security([path], None)
+            entries, _ = _detect_ts_security([path], None)
             xss = [e for e in entries if e["detail"]["kind"] == "innerHTML_assignment"]
             assert len(xss) >= 1
         finally:
@@ -483,7 +491,7 @@ class TestTsDevCredentials:
         content = "const pass = import.meta.env.VITE_DEV_PASSWORD;"
         path = _write_temp_file(content, suffix=".ts")
         try:
-            entries, _ = detect_ts_security([path], None)
+            entries, _ = _detect_ts_security([path], None)
             creds = [e for e in entries if e["detail"]["kind"] == "dev_credentials_env"]
             assert len(creds) >= 1
         finally:
@@ -498,7 +506,7 @@ class TestTsJsonParse:
         """)
         path = _write_temp_file(content, suffix=".ts")
         try:
-            entries, _ = detect_ts_security([path], None)
+            entries, _ = _detect_ts_security([path], None)
             jp = [e for e in entries if e["detail"]["kind"] == "json_parse_unguarded"]
             assert len(jp) == 0
         finally:
@@ -511,7 +519,7 @@ class TestTsJsonParse:
         """)
         path = _write_temp_file(content, suffix=".ts")
         try:
-            entries, _ = detect_ts_security([path], None)
+            entries, _ = _detect_ts_security([path], None)
             jp = [e for e in entries if e["detail"]["kind"] == "json_parse_unguarded"]
             assert len(jp) >= 1
         finally:
@@ -529,7 +537,7 @@ class TestTsJsonParse:
         """)
         path = _write_temp_file(content, suffix=".ts")
         try:
-            entries, _ = detect_ts_security([path], None)
+            entries, _ = _detect_ts_security([path], None)
             jp = [e for e in entries if e["detail"]["kind"] == "json_parse_unguarded"]
             assert len(jp) == 0
         finally:
@@ -547,7 +555,7 @@ class TestTsJsonParse:
         """)
         path = _write_temp_file(content, suffix=".ts")
         try:
-            entries, _ = detect_ts_security([path], None)
+            entries, _ = _detect_ts_security([path], None)
             jp = [e for e in entries if e["detail"]["kind"] == "json_parse_unguarded"]
             assert len(jp) == 0
         finally:
@@ -563,7 +571,7 @@ class TestTsJsonParse:
         """)
         path = _write_temp_file(content, suffix=".ts")
         try:
-            entries, _ = detect_ts_security([path], None)
+            entries, _ = _detect_ts_security([path], None)
             jp = [e for e in entries if e["detail"]["kind"] == "json_parse_unguarded"]
             assert len(jp) >= 1
         finally:
@@ -580,7 +588,7 @@ class TestTsJsonParse:
         """)
         path = _write_temp_file(content, suffix=".ts")
         try:
-            entries, _ = detect_ts_security([path], None)
+            entries, _ = _detect_ts_security([path], None)
             jp = [e for e in entries if e["detail"]["kind"] == "json_parse_unguarded"]
             assert len(jp) >= 1
         finally:
@@ -592,7 +600,7 @@ class TestTsOpenRedirect:
         content = "window.location.href = data.redirectUrl;"
         path = _write_temp_file(content, suffix=".ts")
         try:
-            entries, _ = detect_ts_security([path], None)
+            entries, _ = _detect_ts_security([path], None)
             redirects = [e for e in entries if e["detail"]["kind"] == "open_redirect"]
             assert len(redirects) >= 1
         finally:
@@ -607,7 +615,7 @@ class TestTsRlsBypass:
         """)
         path = _write_temp_file(content, suffix=".sql")
         try:
-            entries, _ = detect_ts_security([path], None)
+            entries, _ = _detect_ts_security([path], None)
             rls = [e for e in entries if e["detail"]["kind"] == "rls_bypass_views"]
             assert len(rls) >= 1
         finally:
@@ -621,10 +629,8 @@ class TestTsRlsBypass:
         """)
         path = _write_temp_file(content, suffix=".sql")
         try:
-            entries, _ = detect_ts_security([path], None)
+            entries, _ = _detect_ts_security([path], None)
             rls = [e for e in entries if e["detail"]["kind"] == "rls_bypass_views"]
             assert len(rls) == 0
         finally:
             os.unlink(path)
-
-

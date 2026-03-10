@@ -1,4 +1,12 @@
-"""State helpers and shared state exports for runtime modules."""
+"""State compatibility facade.
+
+Prefer narrower surfaces for new code:
+- ``desloppify.state_io`` for persistence/schema contracts
+- ``desloppify.state_scoring`` for scoring-only reads
+
+Compatibility owner: core-platform
+Removal target: 2026-06-30
+"""
 
 from typing import NamedTuple
 

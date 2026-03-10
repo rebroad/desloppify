@@ -10,12 +10,12 @@ from __future__ import annotations
 import re
 import sys
 
-from desloppify.app.commands.helpers.query import load_query
+from desloppify.app.commands.helpers.query import load_query_result
 from desloppify.base.exception_sets import CommandError
 from desloppify.base.output.terminal import colorize
 from desloppify.engine._work_queue.core import QueueBuildOptions, build_work_queue
 from desloppify.engine._work_queue.context import queue_context
-from desloppify.state import StateModel, save_state
+from desloppify.state_io import StateModel, save_state
 
 from .helpers import parse_dimensions
 
@@ -68,7 +68,19 @@ def _normalize_dimension_key(raw: object) -> str:
 
 def _prepared_query_dimensions() -> set[str] | None:
     """Return prepared review dimensions from query.json when available."""
-    query = load_query()
+    query_result = load_query_result()
+    if not query_result.ok:
+        if query_result.error_kind in {"query_parse_error", "query_invalid_shape"}:
+            detail = query_result.message or query_result.error_kind
+            print(
+                colorize(
+                    f"  Warning: ignoring invalid query artifact ({detail}).",
+                    "yellow",
+                ),
+                file=sys.stderr,
+            )
+        return None
+    query = query_result.payload or {}
     if not isinstance(query, dict):
         return None
     if query.get("command") != "review" or query.get("mode") != "holistic":

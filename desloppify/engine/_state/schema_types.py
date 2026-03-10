@@ -24,7 +24,7 @@ from desloppify.engine._state.schema_types_review import (
     SubjectiveAssessmentJudgment,
     SubjectiveIntegrity,
 )
-from desloppify.languages._framework.base.types import ScanCoverageRecord
+from desloppify.languages.framework import ScanCoverageRecord
 
 
 class StateModel(TypedDict, total=False):

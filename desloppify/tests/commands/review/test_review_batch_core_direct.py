@@ -234,6 +234,17 @@ def test_normalize_batch_result_rejects_low_score_without_same_dimension_issue()
                         "issues_preventing_higher_score": "",
                     }
                 },
+                "dimension_judgment": {
+                    "logic_clarity": {
+                        "strengths": ["handlers keep domain names consistent"],
+                        "issue_character": "Predicate logic drifts between equivalent paths.",
+                        "score_rationale": (
+                            "The core decision paths are understandable, but equivalent handlers "
+                            "encode different branching logic and create behavioral drift. "
+                            "That inconsistency materially reduces trust in control-flow clarity."
+                        ),
+                    }
+                },
                 "issues": [],
             },
             allowed_dims={"logic_clarity"},
@@ -254,6 +265,17 @@ def test_normalize_batch_result_accepts_low_score_with_same_dimension_issue():
                     "fix_scope": "single_edit",
                     "confidence": "high",
                     "issues_preventing_higher_score": "",
+                }
+            },
+            "dimension_judgment": {
+                "logic_clarity": {
+                    "strengths": ["predicate naming is mostly descriptive"],
+                    "issue_character": "Control-flow choices are easy to follow but inconsistent.",
+                    "score_rationale": (
+                        "Branch structure is readable in isolation, yet equivalent handlers "
+                        "use incompatible predicate logic that undermines coherence. "
+                        "The score reflects moderate clarity with meaningful divergence risk."
+                    ),
                 }
             },
             "issues": [
@@ -291,6 +313,17 @@ def test_normalize_batch_result_accepts_legacy_findings_alias():
                     "issues_preventing_higher_score": "",
                 }
             },
+            "dimension_judgment": {
+                "logic_clarity": {
+                    "strengths": ["legacy payload shape is still parseable"],
+                    "issue_character": "The contract is clear but legacy paths increase ambiguity.",
+                    "score_rationale": (
+                        "The importer retains strong structural expectations, but alias handling "
+                        "adds historical complexity that can obscure canonical usage. "
+                        "The score reflects mostly clear logic with compatibility overhead."
+                    ),
+                }
+            },
             "findings": [
                 {
                     "dimension": "logic_clarity",
@@ -314,6 +347,82 @@ def test_normalize_batch_result_accepts_legacy_findings_alias():
     assert issues[0]["identifier"] == "legacy_findings_alias"
 
 
+def test_normalize_batch_result_rejects_missing_dimension_judgment_entry():
+    with pytest.raises(ValueError) as exc:
+        normalize_batch_result(
+            payload={
+                "assessments": {"logic_clarity": 80.0},
+                "dimension_notes": {
+                    "logic_clarity": {
+                        "evidence": ["branching logic is mostly clear"],
+                        "impact_scope": "module",
+                        "fix_scope": "single_edit",
+                        "confidence": "medium",
+                        "issues_preventing_higher_score": "",
+                    }
+                },
+                "issues": [
+                    {
+                        "dimension": "logic_clarity",
+                        "identifier": "judgment_contract_missing",
+                        "summary": "Missing judgment contract should fail closed",
+                        "related_files": ["src/a.ts"],
+                        "evidence": ["dimension_judgment omitted"],
+                        "suggestion": "provide all required judgment fields",
+                        "confidence": "medium",
+                        "impact_scope": "module",
+                        "fix_scope": "single_edit",
+                    }
+                ],
+            },
+            allowed_dims={"logic_clarity"},
+            max_batch_issues=max_batch_issues_for_dimension_count(1),
+            abstraction_sub_axes=_ABSTRACTION_SUB_AXES,
+        )
+    assert "dimension_judgment missing entry for assessed dimension" in str(exc.value)
+
+
+def test_normalize_batch_result_rejects_incomplete_dimension_judgment_entry():
+    with pytest.raises(ValueError) as exc:
+        normalize_batch_result(
+            payload={
+                "assessments": {"logic_clarity": 80.0},
+                "dimension_notes": {
+                    "logic_clarity": {
+                        "evidence": ["branching logic is mostly clear"],
+                        "impact_scope": "module",
+                        "fix_scope": "single_edit",
+                        "confidence": "medium",
+                        "issues_preventing_higher_score": "",
+                    }
+                },
+                "dimension_judgment": {
+                    "logic_clarity": {
+                        "strengths": ["handler structure is predictable"],
+                        "issue_character": "some divergence exists",
+                    }
+                },
+                "issues": [
+                    {
+                        "dimension": "logic_clarity",
+                        "identifier": "judgment_contract_incomplete",
+                        "summary": "Incomplete judgment contract should fail closed",
+                        "related_files": ["src/a.ts"],
+                        "evidence": ["score_rationale omitted"],
+                        "suggestion": "require full judgment payload for assessed dimensions",
+                        "confidence": "medium",
+                        "impact_scope": "module",
+                        "fix_scope": "single_edit",
+                    }
+                ],
+            },
+            allowed_dims={"logic_clarity"},
+            max_batch_issues=max_batch_issues_for_dimension_count(1),
+            abstraction_sub_axes=_ABSTRACTION_SUB_AXES,
+        )
+    assert "dimension_judgment.logic_clarity.score_rationale" in str(exc.value)
+
+
 def test_normalize_batch_result_accepts_legacy_unreported_risk_key():
     _assessments, _issues, notes, _judgment, _quality = normalize_batch_result(
         payload={
@@ -325,6 +434,17 @@ def test_normalize_batch_result_accepts_legacy_unreported_risk_key():
                     "fix_scope": "single_edit",
                     "confidence": "medium",
                     "unreported_risk": "legacy note still provided",
+                }
+            },
+            "dimension_judgment": {
+                "logic_clarity": {
+                    "strengths": ["legacy and canonical fields are reconciled"],
+                    "issue_character": "Compatibility handling is explicit but adds branching cost.",
+                    "score_rationale": (
+                        "Normalization logic remains understandable because compatibility keys are "
+                        "handled in one place, but each legacy path increases cognitive load. "
+                        "The score reflects that tradeoff."
+                    ),
                 }
             },
             "issues": [

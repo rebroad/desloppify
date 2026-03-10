@@ -255,7 +255,7 @@ class TestCmdReviewPrepare:
                 return_value=(mock_lang_with_zones, file_list),
             ),
             patch(
-                "desloppify.app.commands.review.prepare.review_mod.prepare_holistic_review",
+                "desloppify.app.commands.review.packet.build.prepare_holistic_review",
                 side_effect=_fake_prepare_holistic_review,
             ),
             patch("desloppify.app.commands.review.prepare.write_query", lambda _data: None),
@@ -786,7 +786,7 @@ class TestCmdReviewPrepare:
                 return_value=(mock_lang_with_zones, file_list),
             ),
             patch(
-                "desloppify.app.commands.review.batch.orchestrator.review_mod.prepare_holistic_review",
+                "desloppify.app.commands.review.batch.orchestrator.prepare_holistic_review",
                 return_value=prepared,
             ),
             patch(
@@ -910,6 +910,13 @@ class TestCmdReviewPrepare:
                             "issues_preventing_higher_score": "Cross-cutting regression risk remains.",
                         },
                     },
+                    "dimension_judgment": {
+                        "high_level_elegance": {
+                            "strengths": ["consistent module boundaries"],
+                            "issue_character": "structural coupling between subsystems",
+                            "score_rationale": "Orchestration seams cross module boundaries creating coupling that impacts maintainability.",
+                        },
+                    },
                     "issues": [
                         {
                             "dimension": "high_level_elegance",
@@ -933,6 +940,13 @@ class TestCmdReviewPrepare:
                             "fix_scope": "single_edit",
                             "confidence": "medium",
                             "issues_preventing_higher_score": "",
+                        },
+                    },
+                    "dimension_judgment": {
+                        "mid_level_elegance": {
+                            "strengths": ["clear module separation"],
+                            "issue_character": "adapter protocol inconsistency across sibling modules",
+                            "score_rationale": "Handoff adapters diverge between sibling modules making the integration boundary harder to reason about.",
                         },
                     },
                     "issues": [
@@ -960,6 +974,13 @@ class TestCmdReviewPrepare:
                             "issues_preventing_higher_score": "Some edge seams are still brittle.",
                         },
                     },
+                    "dimension_judgment": {
+                        "high_level_elegance": {
+                            "strengths": ["orchestration seams are mostly aligned"],
+                            "issue_character": "brittle edge seams in module boundary handling",
+                            "score_rationale": "Most orchestration boundaries are consistent but edge seams remain brittle enough to risk regressions.",
+                        },
+                    },
                     "issues": [
                         {
                             "dimension": "high_level_elegance",
@@ -983,6 +1004,13 @@ class TestCmdReviewPrepare:
                             "fix_scope": "single_edit",
                             "confidence": "medium",
                             "issues_preventing_higher_score": "",
+                        },
+                    },
+                    "dimension_judgment": {
+                        "low_level_elegance": {
+                            "strengths": ["concise local internals"],
+                            "issue_character": "repetitive branching boilerplate in local flow",
+                            "score_rationale": "Local function bodies are concise but repetitive branching patterns add unnecessary cognitive load.",
                         },
                     },
                     "issues": [
@@ -1120,6 +1148,13 @@ class TestCmdReviewPrepare:
                         "issues_preventing_higher_score": "",
                     }
                 },
+                "dimension_judgment": {
+                    "mid_level_elegance": {
+                        "strengths": ["seam boundaries are explicit"],
+                        "issue_character": "seam convention drift across adjacent modules",
+                        "score_rationale": "Adjacent modules use mostly explicit seams but conventions drift enough to cause confusion at boundaries.",
+                    }
+                },
                 "issues": [
                     {
                         "dimension": "mid_level_elegance",
@@ -1231,6 +1266,13 @@ class TestCmdReviewPrepare:
                         "confidence": "high",
                     }
                 },
+                "dimension_judgment": {
+                    "mid_level_elegance": {
+                        "strengths": ["aligned seam conventions"],
+                        "issue_character": "minor inconsistencies in seam boundary alignment",
+                        "score_rationale": "Seam conventions are mostly aligned but minor inconsistencies remain at module boundaries.",
+                    }
+                },
                 "issues": [],
             }
             out_path.write_text(json.dumps(payload))
@@ -1278,6 +1320,7 @@ class TestCmdReviewPrepare:
                         {
                             "assessments": {"mid_level_elegance": 78.0},
                             "dimension_notes": {},
+                            "dimension_judgment": {},
                             "issues": [],
                             "quality": {},
                         }
@@ -1336,6 +1379,13 @@ class TestCmdReviewPrepare:
                     "impact_scope": "module",
                     "fix_scope": "single_edit",
                     "confidence": "high",
+                }
+            },
+            "dimension_judgment": {
+                "mid_level_elegance": {
+                    "strengths": ["clear hook separation"],
+                    "issue_character": "overlapping orchestration seams across sibling hooks",
+                    "score_rationale": "Domain seams are split across sibling hooks causing overlapping orchestration that complicates reasoning.",
                 }
             },
             "issues": [
@@ -1485,6 +1535,13 @@ class TestCmdReviewPrepare:
                                     "fix_scope": "single_edit",
                                     "confidence": "medium",
                                     "issues_preventing_higher_score": "",
+                                }
+                            },
+                            "dimension_judgment": {
+                                "mid_level_elegance": {
+                                    "strengths": ["explicit seam boundaries"],
+                                    "issue_character": "seam style drift across nearby modules",
+                                    "score_rationale": "Seam interfaces are explicit but style differences across nearby modules reduce consistency.",
                                 }
                             },
                             "issues": [
@@ -1679,6 +1736,13 @@ class TestCmdReviewPrepare:
                             "indirection_cost": 62,
                             "interface_honesty": 81,
                         },
+                    },
+                },
+                "dimension_judgment": {
+                    "abstraction_fitness": {
+                        "strengths": ["interfaces are mostly honest about their contracts"],
+                        "issue_character": "excessive wrapper indirection before reaching domain logic",
+                        "score_rationale": "Three wrapper layers before domain calls add significant indirection cost that outweighs abstraction leverage.",
                     },
                 },
                 "issues": [

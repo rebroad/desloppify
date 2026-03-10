@@ -752,7 +752,7 @@ class TestSpecValidation:
 
 class TestParseTreeCache:
     def test_cache_hit(self, go_file, tmp_path):
-        from desloppify.languages._framework.treesitter._cache import (
+        from desloppify.languages._framework.treesitter.imports.cache import (
             _PARSE_CACHE,
             disable_parse_cache,
             enable_parse_cache,
@@ -772,7 +772,7 @@ class TestParseTreeCache:
             disable_parse_cache()
 
     def test_cache_disabled(self, go_file, tmp_path):
-        from desloppify.languages._framework.treesitter._cache import (
+        from desloppify.languages._framework.treesitter.imports.cache import (
             _PARSE_CACHE,
             disable_parse_cache,
         )
@@ -788,7 +788,7 @@ class TestParseTreeCache:
         assert result1[1] is not result2[1]
 
     def test_cache_cleanup(self):
-        from desloppify.languages._framework.treesitter._cache import (
+        from desloppify.languages._framework.treesitter.imports.cache import (
             _PARSE_CACHE,
             disable_parse_cache,
             enable_parse_cache,

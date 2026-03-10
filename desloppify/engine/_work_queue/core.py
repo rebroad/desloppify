@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TypedDict
 
-from desloppify.engine._plan.refresh_lifecycle import postflight_scan_pending
 from desloppify.engine._work_queue.context import QueueContext
 from desloppify.engine._work_queue.helpers import (
     ALL_STATUSES,
@@ -40,7 +39,8 @@ from desloppify.engine._work_queue.synthetic import (
     build_triage_stage_items,
 )
 from desloppify.engine._work_queue.types import WorkQueueItem
-from desloppify.state import StateModel
+from desloppify.engine.plan_queue import postflight_scan_pending
+from desloppify.engine._state.schema import StateModel
 
 
 class _ScanPathFromState:

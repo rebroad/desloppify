@@ -7,9 +7,14 @@ from types import SimpleNamespace
 
 import pytest
 
+from desloppify.app.commands.viz import cmd_tree, cmd_viz
 from desloppify.app.commands.helpers.runtime import CommandRuntime
 from desloppify.app.output._viz_cmd_context import load_cmd_context
-from desloppify.app.output.visualize import D3_CDN_URL, cmd_viz, generate_visualization
+from desloppify.app.output.visualize import (
+    D3_CDN_URL,
+    generate_visualization,
+)
+from desloppify.base.exception_sets import CommandError
 from desloppify.base.output.contract import OutputResult
 
 
@@ -153,13 +158,18 @@ class TestVizWriteBehavior:
         assert output_result.status == "error"
         assert output_result.error_kind == "visualization_generation_error"
 
-    def test_cmd_viz_exits_when_write_fails(self, monkeypatch, capsys, tmp_path):
+    def test_cmd_viz_raises_command_error_when_write_fails(
+        self,
+        monkeypatch,
+        capsys,
+        tmp_path,
+    ):
         monkeypatch.setattr(
-            "desloppify.app.output.visualize.load_cmd_context",
+            "desloppify.app.commands.viz.load_cmd_context",
             lambda _args: (tmp_path, None, {}),
         )
         monkeypatch.setattr(
-            "desloppify.app.output.visualize.generate_visualization",
+            "desloppify.app.commands.viz.generate_visualization",
             lambda *_args, **_kwargs: (
                 "<html></html>",
                 OutputResult(
@@ -171,13 +181,32 @@ class TestVizWriteBehavior:
             ),
         )
         monkeypatch.setattr(
-            "desloppify.app.output.visualize.colorize",
+            "desloppify.app.commands.viz.colorize",
             lambda text, _style: text,
         )
 
         args = SimpleNamespace(path=".", output=str(tmp_path / "treemap.html"))
-        with pytest.raises(SystemExit) as exc:
+        with pytest.raises(CommandError) as exc:
             cmd_viz(args)
-        assert exc.value.code == 1
+        assert "Visualization generation failed" in exc.value.message
         out = capsys.readouterr().out
         assert "Treemap written to" not in out
+
+    def test_cmd_tree_raises_command_error_when_generation_fails(
+        self,
+        monkeypatch,
+        tmp_path,
+    ):
+        monkeypatch.setattr(
+            "desloppify.app.commands.viz.load_cmd_context",
+            lambda _args: (tmp_path, None, {}),
+        )
+        monkeypatch.setattr(
+            "desloppify.app.commands.viz.generate_tree_text",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("disk error")),
+        )
+
+        args = SimpleNamespace(path=".", depth=2, focus=None, min_loc=0, sort="loc", detail=False)
+        with pytest.raises(CommandError) as exc:
+            cmd_tree(args)
+        assert "Tree generation failed" in exc.value.message

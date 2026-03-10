@@ -8,16 +8,17 @@ from desloppify.base.output.terminal import colorize
 from desloppify.base.output.user_message import print_user_message
 from desloppify.state import utc_now
 
-from ._stage_records import (
+from .lifecycle import TriageLifecycleDeps, TriageStartRequest, ensure_triage_started
+from .stages.records import (
     record_observe_stage,
     record_organize_stage,
     resolve_reusable_report,
 )
-from ._stage_rendering import (
+from .stages.rendering import (
     _print_observe_report_requirement,
     _print_reflect_report_requirement,
 )
-from ._stage_validation import (
+from .validation.core import (
     _auto_confirm_observe_if_attested,
     _auto_confirm_reflect_for_organize,
     _clusters_enriched_or_error,
@@ -28,7 +29,7 @@ from ._stage_validation import (
     _validate_recurring_dimension_mentions,
     _validate_reflect_issue_accounting,
 )
-from .display import print_organize_result, print_reflect_result
+from .display.dashboard import print_organize_result, print_reflect_result
 from .helpers import (
     cascade_clear_later_confirmations,
     count_log_activity_since,
@@ -48,6 +49,7 @@ def _cmd_stage_observe(
 ) -> None:
     """Record the OBSERVE stage: agent analyses themes and root causes."""
     report: str | None = getattr(args, "report", None)
+    attestation: str | None = getattr(args, "attestation", None)
 
     resolved_services = services or default_triage_services()
     runtime = resolved_services.command_runtime(args)
@@ -55,11 +57,21 @@ def _cmd_stage_observe(
     plan = resolved_services.load_plan()
 
     if not has_triage_in_queue_fn(plan):
-        inject_triage_stages_fn(plan)
-        meta = plan.setdefault("epic_triage_meta", {})
-        meta.setdefault("triage_stages", {})
-        resolved_services.save_plan(plan)
-        print(colorize("  Planning mode auto-started (6 stages queued).", "cyan"))
+        start_outcome = ensure_triage_started(
+            plan,
+            services=resolved_services,
+            request=TriageStartRequest(
+                state=state,
+                attestation=attestation,
+                start_message="  Planning mode auto-started (6 stages queued).",
+            ),
+            deps=TriageLifecycleDeps(
+                has_triage_in_queue=has_triage_in_queue_fn,
+                inject_triage_stages=inject_triage_stages_fn,
+            ),
+        )
+        if start_outcome.status == "blocked":
+            return
 
     meta = plan.setdefault("epic_triage_meta", {})
     stages = meta.setdefault("triage_stages", {})
@@ -100,7 +112,7 @@ def _cmd_stage_observe(
     cited = resolved_services.extract_issue_citations(report, valid_ids)
 
     # --- Structured evidence validation ---
-    from ._stage_evidence_parsing import (
+    from .stages.evidence_parsing import (
         format_evidence_failures,
         parse_observe_evidence,
         validate_observe_evidence,
@@ -246,7 +258,7 @@ def _cmd_stage_reflect(
         return
 
     # --- Validate skip-reason evidence ---
-    from ._stage_evidence_parsing import (
+    from .stages.evidence_parsing import (
         format_evidence_failures,
         validate_reflect_skip_evidence,
     )
@@ -393,7 +405,7 @@ def _cmd_stage_organize(
         return
 
     # --- Report must mention at least one cluster name ---
-    from ._stage_evidence_parsing import (
+    from .stages.evidence_parsing import (
         format_evidence_failures,
         validate_report_references_clusters,
     )

@@ -2,48 +2,21 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping, MutableMapping
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypeAlias
 
 
 class ReviewContextSchemaError(ValueError):
     """Raised when contextual review payloads violate section-shape contracts."""
 
 
-@dataclass
-class SectionPayload(MutableMapping[str, Any]):
-    """Named mapping wrapper for one review-context section."""
-
-    name: str
-    _data: dict[str, Any] = field(default_factory=dict)
-
-    def __getitem__(self, key: str) -> Any:
-        return self._data[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self._data[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self._data[key]
-
-    def __iter__(self) -> Iterator[str]:
-        return iter(self._data)
-
-    def __len__(self) -> int:
-        return len(self._data)
-
-    def to_dict(self) -> dict[str, Any]:
-        return dict(self._data)
-
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, Mapping):
-            return self._data == dict(other)
-        return False
+SectionPayload: TypeAlias = dict[str, Any]
 
 
 def _empty_section(name: str) -> SectionPayload:
-    return SectionPayload(name=name)
+    _ = name
+    return {}
 
 
 def _coerce_section(
@@ -52,19 +25,15 @@ def _coerce_section(
     value: object,
     strict: bool,
 ) -> SectionPayload:
-    if isinstance(value, SectionPayload):
-        if value.name == section:
-            return value
-        return SectionPayload(name=section, _data=value.to_dict())
     if isinstance(value, Mapping):
-        return SectionPayload(name=section, _data=dict(value))
+        return dict(value)
     if value is None:
-        return SectionPayload(name=section)
+        return {}
     if strict:
         raise ReviewContextSchemaError(
             f"review context section '{section}' must be an object, got {type(value).__name__}"
         )
-    return SectionPayload(name=section)
+    return {}
 
 
 @dataclass
@@ -129,6 +98,15 @@ class ReviewContext:
                 section,
                 _coerce_section(section=section, value=getattr(self, section), strict=strict),
             )
+
+    @classmethod
+    def from_raw(cls, payload: Mapping[str, Any] | None) -> ReviewContext:
+        if payload is not None and not isinstance(payload, Mapping):
+            raise ReviewContextSchemaError(
+                f"review context payload must be an object, got {type(payload).__name__}"
+            )
+        raw = payload if isinstance(payload, Mapping) else {}
+        return cls(**{section: raw.get(section) for section in cls._SECTION_NAMES})
 
 
 @dataclass
@@ -208,7 +186,7 @@ class HolisticContext:
         return cls(**{section: raw.get(section) for section in cls._SECTION_NAMES})
 
     def to_dict(self) -> dict[str, object]:
-        return {section: getattr(self, section).to_dict() for section in self._SECTION_NAMES}
+        return {section: dict(getattr(self, section)) for section in self._SECTION_NAMES}
 
 
 __all__ = [

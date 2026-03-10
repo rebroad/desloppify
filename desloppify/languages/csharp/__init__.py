@@ -4,15 +4,13 @@ from __future__ import annotations
 
 from desloppify.base.discovery.paths import get_area
 from desloppify.engine.hook_registry import register_lang_hooks
-from desloppify.engine.policy.zones import COMMON_ZONE_RULES, Zone, ZoneRule
-from desloppify.languages import register_lang
-from desloppify.languages._framework import registry_state
 from desloppify.languages._framework.base.phase_builders import (
     detector_phase_security,
     detector_phase_signature,
     detector_phase_test_coverage,
     shared_subjective_duplicates_tail,
 )
+from desloppify.languages._framework.registration import register_full_plugin
 from desloppify.languages._framework.base.types import (
     DetectorPhase,
     LangConfig,
@@ -111,14 +109,23 @@ class CSharpConfig(LangConfig):
 
 def register() -> None:
     """Register C# language config + hooks through an explicit entrypoint."""
+    register_full_plugin(
+        "csharp",
+        CSharpConfig,
+        test_coverage=csharp_test_coverage_hooks,
+    )
+
+
+def register_hooks() -> None:
+    """Register C# hook modules without language-config bootstrap."""
     register_lang_hooks("csharp", test_coverage=csharp_test_coverage_hooks)
-    if registry_state.is_registered("csharp"):
-        return
-    register_lang("csharp")(CSharpConfig)
+
+
+Config = CSharpConfig
 
 
 __all__ = [
-    "COMMON_ZONE_RULES",
+    "Config",
     "CSHARP_ENTRY_PATTERNS",
     "CSHARP_HOLISTIC_REVIEW_DIMENSIONS",
     "CSHARP_LOW_VALUE_PATTERN",
@@ -128,6 +135,5 @@ __all__ = [
     "CSHARP_ZONE_RULES",
     "CSharpConfig",
     "register",
-    "Zone",
-    "ZoneRule",
+    "register_hooks",
 ]

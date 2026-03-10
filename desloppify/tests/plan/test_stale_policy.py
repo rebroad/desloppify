@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 
-from desloppify.engine._plan.stale_policy import (
+from desloppify.engine._plan.policy.stale import (
     compute_new_issue_ids,
     current_stale_ids,
     current_under_target_ids,

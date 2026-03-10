@@ -21,6 +21,32 @@ _ROUTE_AUTH_RE = re.compile(
 )
 _AUTH_GUARD_RE = AUTH_GUARD_TOKEN_RE
 _AUTH_USAGE_RE = re.compile(r"\buseAuth\b|\brequest\.user\b|\bsession\.user\b|\bgetUser\b")
+_PUBLIC_ROUTE_RE = re.compile(
+    r"\b(?:allow_anonymous|allowanonymous|permit_all|public[_\s-]?route|public_endpoint)\b|@\s*public\b",
+    re.IGNORECASE,
+)
+_AUTH_SOURCE_EXTENSIONS = frozenset(
+    {
+        ".c",
+        ".cc",
+        ".cpp",
+        ".cs",
+        ".go",
+        ".java",
+        ".js",
+        ".jsx",
+        ".kt",
+        ".mjs",
+        ".php",
+        ".py",
+        ".rb",
+        ".rs",
+        ".sql",
+        ".swift",
+        ".ts",
+        ".tsx",
+    }
+)
 # Table name pattern: matches unquoted, "double-quoted", `backtick`, or [bracket] names,
 # optionally preceded by a schema qualifier (e.g. public.users, "auth"."profiles").
 _SQL_IDENT = r'(?:"[^"]+"|`[^`]+`|\[[^\]]+\]|\w+)'
@@ -52,12 +78,14 @@ class RouteAuthCoverage:
     handlers: int
     with_auth: int
     without_auth: int
+    public_routes: int = 0
 
     def as_dict(self) -> dict[str, int]:
         return {
             "handlers": self.handlers,
             "with_auth": self.with_auth,
             "without_auth": self.without_auth,
+            "public_routes": self.public_routes,
         }
 
 
@@ -119,17 +147,26 @@ def gather_auth_context(
     auth_usage_patterns: dict[str, int] = {}
 
     for filepath, content in file_contents.items():
+        if not _is_auth_source_file(filepath):
+            continue
         rpath = rel_fn(filepath)
 
         # Route auth coverage
         route_segments = _route_segments(content)
         if route_segments:
             handler_count = len(route_segments)
-            auth_count = sum(1 for segment in route_segments if _AUTH_GUARD_RE.search(segment))
+            auth_count = 0
+            public_count = 0
+            for segment in route_segments:
+                if _AUTH_GUARD_RE.search(segment):
+                    auth_count += 1
+                elif _PUBLIC_ROUTE_RE.search(segment):
+                    public_count += 1
             route_auth[rpath] = RouteAuthCoverage(
                 handlers=handler_count,
                 with_auth=auth_count,
-                without_auth=max(0, handler_count - auth_count),
+                without_auth=max(0, handler_count - auth_count - public_count),
+                public_routes=public_count,
             )
 
         # RLS coverage (SQL/migration files)
@@ -190,6 +227,12 @@ def _route_segments(content: str) -> list[str]:
         end = matches[idx + 1].start() if idx + 1 < len(matches) else len(content)
         segments.append(content[start:end])
     return segments
+
+
+def _is_auth_source_file(filepath: str) -> bool:
+    """Return True when a file path should be scanned for executable auth signals."""
+    lower = filepath.lower()
+    return any(lower.endswith(ext) for ext in _AUTH_SOURCE_EXTENSIONS)
 
 
 __all__ = ["AuthorizationSignals", "RouteAuthCoverage", "gather_auth_context"]

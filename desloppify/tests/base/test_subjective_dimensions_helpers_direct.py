@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from desloppify.base import subjective_dimensions_constants as constants_mod
+from desloppify.base import subjective_dimensions as metadata_mod
 from desloppify.base import subjective_dimensions_merge as merge_mod
 from desloppify.base import subjective_dimensions_providers as providers_mod
 from desloppify.intelligence.review.dimensions import data as dimensions_data
@@ -197,3 +198,22 @@ def test_provider_state_and_wrappers_delegate_to_configured_callables(
         {},
         "stub-lang",
     )
+
+
+def test_configure_and_reset_providers_updates_provider_state() -> None:
+    metadata_mod.reset_subjective_dimension_providers()
+    try:
+        metadata_mod.configure_subjective_dimension_providers(
+            available_languages_provider=lambda: ["xlang"],
+            load_dimensions_payload_provider=lambda: (["dim_x"], {}, "x"),
+            load_dimensions_payload_for_lang_provider=lambda lang: ([lang], {}, "xlang"),
+        )
+        assert providers_mod.available_languages() == ["xlang"]
+        assert providers_mod.load_dimensions_payload() == (["dim_x"], {}, "x")
+        assert providers_mod.load_dimensions_payload_for_lang("py") == (
+            ["py"],
+            {},
+            "xlang",
+        )
+    finally:
+        metadata_mod.reset_subjective_dimension_providers()

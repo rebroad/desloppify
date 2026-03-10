@@ -5,15 +5,25 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
+
+from desloppify.base.exception_sets import CommandError
+from desloppify.engine.plan_state import (
+    ActionStep,
+    Cluster,
+    PlanModel,
+)
 
 from .cluster_steps import print_step
 
-LoadPlanFn = Callable[[], dict]
-SavePlanFn = Callable[[dict], None]
+StepLike = str | ActionStep
+
+LoadPlanFn = Callable[[], PlanModel]
+SavePlanFn = Callable[[PlanModel], None]
 AppendLogFn = Callable[..., None]
-ParseStepsFn = Callable[[str], list]
-NormalizeStepFn = Callable[[str | dict], dict]
-StepSummaryFn = Callable[[str | dict], str]
+ParseStepsFn = Callable[[str], list[ActionStep]]
+NormalizeStepFn = Callable[[StepLike], ActionStep]
+StepSummaryFn = Callable[[StepLike], str]
 UtcNowFn = Callable[[], str]
 ColorizeFn = Callable[[str, str], str]
 
@@ -27,6 +37,7 @@ class ClusterUpdateRequest:
     steps: list[str] | None
     steps_file: str | None
     add_step: str | None
+    update_title: str | None
     detail: str | None
     update_step: int | None
     remove_step: int | None
@@ -45,6 +56,7 @@ class ClusterUpdateRequest:
                 self.steps,
                 self.steps_file,
                 self.add_step,
+                self.update_title,
                 self.update_step,
                 self.remove_step,
                 self.done_step,
@@ -63,6 +75,7 @@ class ClusterUpdateRequest:
                 self.steps,
                 self.steps_file,
                 self.add_step,
+                self.update_title,
                 self.update_step,
                 self.remove_step,
                 self.done_step,
@@ -85,14 +98,22 @@ class ClusterUpdateServices:
 
 def build_request(args) -> ClusterUpdateRequest:
     """Convert argparse namespace to typed request payload."""
+    add_step = getattr(args, "add_step", None)
+    update_step = getattr(args, "update_step", None)
+    update_title = getattr(args, "update_title", None)
+    if update_step is not None and update_title is None and add_step is not None:
+        update_title = add_step
+        add_step = None
+
     return ClusterUpdateRequest(
         cluster_name=str(getattr(args, "cluster_name", "")),
         description=getattr(args, "description", None),
         steps=getattr(args, "steps", None),
         steps_file=getattr(args, "steps_file", None),
-        add_step=getattr(args, "add_step", None),
+        add_step=add_step,
+        update_title=update_title,
         detail=getattr(args, "detail", None),
-        update_step=getattr(args, "update_step", None),
+        update_step=update_step,
         remove_step=getattr(args, "remove_step", None),
         done_step=getattr(args, "done_step", None),
         undone_step=getattr(args, "undone_step", None),
@@ -106,7 +127,7 @@ def build_request(args) -> ClusterUpdateRequest:
 def print_no_update_warning(*, colorize_fn: ColorizeFn) -> None:
     print(
         colorize_fn(
-            "  Nothing to update. Use --description, --steps, --steps-file, --add-step, --priority, etc.",
+            "  Nothing to update. Use --description, --steps-file, --add-step, --update-title, --priority, etc.",
             "yellow",
         )
     )
@@ -142,8 +163,8 @@ def run_cluster_update_locked(
 
 def _apply_cluster_metadata(
     *,
-    cluster: dict,
-    plan: dict,
+    cluster: Cluster,
+    plan: PlanModel,
     request: ClusterUpdateRequest,
     services: ClusterUpdateServices,
 ) -> bool:
@@ -169,7 +190,7 @@ def _apply_cluster_metadata(
 
 def _apply_step_source(
     *,
-    cluster: dict,
+    cluster: Cluster,
     request: ClusterUpdateRequest,
     services: ClusterUpdateServices,
 ) -> bool:
@@ -178,7 +199,12 @@ def _apply_step_source(
         if not path.is_file():
             print(services.colorize_fn(f"  Steps file not found: {request.steps_file}", "red"))
             return False
-        parsed = services.parse_steps_file_fn(path.read_text())
+        try:
+            parsed = services.parse_steps_file_fn(path.read_text())
+        except (OSError, UnicodeDecodeError, ValueError) as exc:
+            raise CommandError(
+                f"failed to load steps file {request.steps_file}: {exc}"
+            ) from exc
         cluster["action_steps"] = parsed
         print(services.colorize_fn(f"  Loaded {len(parsed)} step(s) from {request.steps_file}.", "dim"))
         return True
@@ -192,7 +218,7 @@ def _apply_step_source(
 
 def _apply_step_mutations(
     *,
-    current_steps: list[dict],
+    current_steps: list[ActionStep],
     request: ClusterUpdateRequest,
     services: ClusterUpdateServices,
 ) -> bool:
@@ -234,12 +260,12 @@ def _apply_step_mutations(
 
 def _apply_add_step(
     *,
-    current_steps: list[dict],
+    current_steps: list[ActionStep],
     request: ClusterUpdateRequest,
     colorize_fn: ColorizeFn,
 ) -> None:
     title = str(request.add_step or "")
-    new_step: dict[str, object] = {"title": title}
+    new_step: ActionStep = {"title": title}
     if request.detail is not None:
         new_step["detail"] = request.detail
     if request.effort is not None:
@@ -254,7 +280,7 @@ def _apply_add_step(
 
 def _apply_update_step(
     *,
-    current_steps: list[dict],
+    current_steps: list[ActionStep],
     request: ClusterUpdateRequest,
     colorize_fn: ColorizeFn,
 ) -> bool:
@@ -265,8 +291,8 @@ def _apply_update_step(
         return False
 
     updated = dict(current_steps[idx])
-    if request.add_step is not None:
-        title = request.add_step
+    if request.update_title is not None:
+        title = request.update_title
         updated["title"] = title
         _show_long_title_warning(title=title, colorize_fn=colorize_fn)
     if request.detail is not None:
@@ -282,7 +308,7 @@ def _apply_update_step(
 
 def _apply_remove_step(
     *,
-    current_steps: list[dict],
+    current_steps: list[ActionStep],
     step_summary_fn: StepSummaryFn,
     step_number: int,
     colorize_fn: ColorizeFn,
@@ -299,7 +325,7 @@ def _apply_remove_step(
 
 def _apply_done_toggle(
     *,
-    current_steps: list[dict],
+    current_steps: list[ActionStep],
     step_number: int,
     done: bool,
     colorize_fn: ColorizeFn,
@@ -318,7 +344,7 @@ def _apply_done_toggle(
 
 def _print_current_steps(
     *,
-    cluster: dict,
+    cluster: Cluster,
     request: ClusterUpdateRequest,
     colorize_fn: ColorizeFn,
 ) -> None:
@@ -333,7 +359,7 @@ def _print_current_steps(
 
 def _save_cluster_update(
     *,
-    plan: dict,
+    plan: PlanModel,
     cluster_name: str,
     request: ClusterUpdateRequest,
     services: ClusterUpdateServices,
@@ -364,13 +390,13 @@ def _show_long_title_warning(*, title: str, colorize_fn: ColorizeFn) -> None:
     print(colorize_fn("  Move implementation detail to --detail instead.", "dim"))
 
 
-def _as_step_list(raw_steps: list) -> list[dict]:
-    normalized: list[dict] = []
+def _as_step_list(raw_steps: list[str | ActionStep]) -> list[ActionStep]:
+    normalized: list[ActionStep] = []
     for step in raw_steps:
         if isinstance(step, str):
             normalized.append({"title": step})
         elif isinstance(step, dict):
-            normalized.append(dict(step))
+            normalized.append(cast(ActionStep, dict(step)))
     return normalized
 
 

@@ -64,8 +64,13 @@ def _format_inner_def_names(inner_defs: list[ast.AST]) -> str:
     return names_str
 
 
-def _detect_nested_closures(filepath: str, node: ast.AST) -> list[dict]:
+def _detect_nested_closures(
+    filepath: str,
+    node: ast.AST,
+    tree: ast.Module | None = None,
+) -> list[dict]:
     """Flag functions with deeply nested or numerous inner defs."""
+    del tree
     inner_defs: list[ast.AST] = []
     max_depth = _walk_inner_defs(node.body, 0, inner_defs)
 
@@ -119,8 +124,13 @@ def _find_subscript_zero_refs(
     return used
 
 
-def _detect_mutable_ref_hack(filepath: str, node: ast.AST) -> list[dict]:
+def _detect_mutable_ref_hack(
+    filepath: str,
+    node: ast.AST,
+    tree: ast.Module | None = None,
+) -> list[dict]:
     """Flag ``x = [value]`` with ``x[0]`` mutation in nested functions."""
+    del tree
     single_list_names = _collect_single_list_assignments(node.body)
     if not single_list_names:
         return []

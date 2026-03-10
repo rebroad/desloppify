@@ -5,9 +5,10 @@ from __future__ import annotations
 import subprocess
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
-from desloppify.app.commands.review.runner_process import (
+from desloppify.app.commands.runner.codex_batch import (
     CodexBatchRunnerDeps,
     codex_batch_command,
     run_codex_batch,
@@ -25,6 +26,26 @@ def _output_file_has_text(output_file: Path) -> bool:
         return False
 
 
+@dataclass(frozen=True)
+class TriageStageRunResult:
+    """Typed result contract for triage-stage execution."""
+
+    exit_code: int
+    reason: str | None = None
+    merged_output: str | None = None
+    dry_run: bool = False
+
+    @property
+    def ok(self) -> bool:
+        return self.status == "ok"
+
+    @property
+    def status(self) -> str:
+        if self.dry_run:
+            return "dry_run"
+        return "ok" if self.exit_code == 0 else "failed"
+
+
 def run_triage_stage(
     *,
     prompt: str,
@@ -33,12 +54,12 @@ def run_triage_stage(
     log_file: Path,
     timeout_seconds: int = 1800,
     validate_output_fn: Callable[[Path], bool] | None = None,
-) -> int:
-    """Execute a triage stage via codex subprocess. Returns exit code."""
+) -> TriageStageRunResult:
+    """Execute a triage stage via codex subprocess and return a typed result."""
     normalized_prompt = str(prompt).strip()
     if not normalized_prompt:
         safe_write_text(log_file, "Empty triage prompt — skipping execution.\n")
-        return 2
+        return TriageStageRunResult(exit_code=2, reason="empty_prompt")
     output_file.parent.mkdir(parents=True, exist_ok=True)
     log_file.parent.mkdir(parents=True, exist_ok=True)
     if validate_output_fn is None:
@@ -66,13 +87,18 @@ def run_triage_stage(
         sleep_fn=time.sleep,
         validate_output_fn=validate_output_fn,
     )
-    return run_codex_batch(
+    exit_code = run_codex_batch(
         prompt=normalized_prompt,
         repo_root=repo_root,
         output_file=output_file,
         log_file=log_file,
         deps=deps,
     )
+    reason = None if exit_code == 0 else f"runner_exit_{exit_code}"
+    return TriageStageRunResult(exit_code=exit_code, reason=reason)
 
 
-__all__ = ["run_triage_stage"]
+__all__ = [
+    "TriageStageRunResult",
+    "run_triage_stage",
+]

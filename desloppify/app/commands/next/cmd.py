@@ -13,7 +13,7 @@ from desloppify.app.skill_docs import check_skill_version
 from desloppify.base.output.terminal import colorize
 from desloppify.base.tooling import check_config_staleness
 from desloppify.engine._work_queue.core import build_work_queue
-from desloppify.engine.plan import load_plan
+from desloppify.engine.plan_state import load_plan
 
 from .options import NextOptions
 from .queue_flow import build_and_render_queue

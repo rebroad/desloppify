@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-import desloppify.engine.plan as plan_mod
+import desloppify.engine.plan_state as plan_mod
 
 
 @pytest.fixture(autouse=True)

@@ -1,8 +1,6 @@
 """Codebase treemap visualization with HTML output and LLM-readable tree text."""
 
-import argparse
 import json
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -12,12 +10,10 @@ from desloppify.app.output.visualize_data import (
     _collect_file_data,
     _issues_by_file,
 )
-from desloppify.app.output._viz_cmd_context import load_cmd_context
 from desloppify.app.output.tree_text import render_tree_lines
 from desloppify.base.discovery.file_paths import safe_write_text
 from desloppify.base.output.contract import OutputResult
 from desloppify.base.output.fallbacks import print_write_error
-from desloppify.base.output.terminal import colorize
 from desloppify.state import score_snapshot
 
 D3_CDN_URL = "https://d3js.org/d3.v7.min.js"
@@ -25,8 +21,9 @@ D3_CDN_URL = "https://d3js.org/d3.v7.min.js"
 
 __all__ = [
     "D3_CDN_URL",
-    "cmd_viz",
-    "cmd_tree",
+    "TreeTextOptions",
+    "generate_tree_text",
+    "generate_visualization",
 ]
 
 
@@ -111,26 +108,6 @@ def generate_visualization(
     )
 
 
-def cmd_viz(args: argparse.Namespace) -> None:
-    """Generate HTML treemap visualization."""
-    path, lang, state = load_cmd_context(args)
-    output = Path(getattr(args, "output", None) or ".desloppify/treemap.html")
-    print(colorize("Collecting file data and building dependency graph...", "dim"))
-    _, output_result = generate_visualization(path, state, output, lang=lang)
-    if output_result.status != "written":
-        message = output_result.message or "unknown write failure"
-        print(
-            colorize(
-                f"\nVisualization write failed ({output_result.status}): {output} ({message})",
-                "red",
-            ),
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    print(colorize(f"\nTreemap written to {output}", "green"))
-    print(colorize(f"Open in browser: file://{output.resolve()}", "dim"))
-
-
 @dataclass
 class TreeTextOptions:
     """Text tree rendering options."""
@@ -177,25 +154,6 @@ def generate_tree_text(
         detail=resolved_options.detail,
     )
     return "\n".join(lines)
-
-
-def cmd_tree(args: argparse.Namespace) -> None:
-    """Print annotated codebase tree to terminal."""
-    path, lang, state = load_cmd_context(args)
-    print(
-        generate_tree_text(
-            path,
-            state,
-            options=TreeTextOptions(
-                max_depth=getattr(args, "depth", 2),
-                focus=getattr(args, "focus", None),
-                min_loc=getattr(args, "min_loc", 0),
-                sort_by=getattr(args, "sort", "loc"),
-                detail=getattr(args, "detail", False),
-            ),
-            lang=lang,
-        )
-    )
 
 
 def _get_html_template() -> str:

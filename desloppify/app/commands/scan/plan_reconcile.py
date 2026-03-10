@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from desloppify.app.commands.scan.workflow import ScanRuntime
@@ -13,9 +13,14 @@ from desloppify.base.config import DEFAULT_TARGET_STRICT_SCORE
 from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS
 from desloppify.base.output.fallbacks import log_best_effort_failure
 from desloppify.base.output.terminal import colorize
-from desloppify.engine.plan import (
+from desloppify.engine.plan_queue import (
+    SYNTHETIC_PREFIXES,
+    ScoreSnapshot,
+    WORKFLOW_COMMUNICATE_SCORE_ID,
     append_log_entry,
     auto_cluster_issues,
+    compute_subjective_visibility,
+    is_mid_cycle,
     load_plan,
     mark_postflight_scan_completed,
     reconcile_plan_after_scan,
@@ -26,13 +31,7 @@ from desloppify.engine.plan import (
     sync_triage_needed,
     sync_unscored_dimensions,
 )
-from desloppify.engine._plan._sync_context import is_mid_cycle
-from desloppify.engine._plan.constants import (
-    SYNTHETIC_PREFIXES,
-)
-from desloppify.engine._work_queue.synthetic_workflow import (
-    build_deferred_disposition_item,
-)
+from desloppify.engine.work_queue import build_deferred_disposition_item
 
 logger = logging.getLogger(__name__)
 
@@ -199,8 +198,6 @@ def _clear_plan_start_scores_if_queue_empty(
         return False
     # Don't clear while communicate-score is pending — the rebaseline just
     # set plan_start_scores and the user hasn't seen the update yet.
-    from desloppify.engine._plan.constants import WORKFLOW_COMMUNICATE_SCORE_ID
-
     if WORKFLOW_COMMUNICATE_SCORE_ID in plan.get("queue_order", []):
         return False
 
@@ -248,7 +245,6 @@ def _subjective_policy_context(
     plan: dict[str, object],
 ) -> tuple[float, object, bool]:
     from desloppify.base.config import target_strict_score_from_config
-    from desloppify.engine.plan import compute_subjective_visibility
 
     target_strict = target_strict_score_from_config(runtime.config)
     policy = compute_subjective_visibility(
@@ -348,8 +344,6 @@ def _sync_communicate_score_and_log(
     *,
     policy,
 ) -> bool:
-    from desloppify.engine.plan import ScoreSnapshot
-
     snapshot = state_mod.score_snapshot(state)
     current_scores = ScoreSnapshot(
         strict=snapshot.strict,

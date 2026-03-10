@@ -20,7 +20,8 @@ from desloppify.engine._work_queue.plan_order import (
     collapse_clusters,
     filter_cluster_focus,
 )
-from desloppify.engine.plan import compute_new_issue_ids, load_plan
+from desloppify.engine.plan_state import load_plan
+from desloppify.engine.plan_queue import compute_new_issue_ids
 
 
 def _truncate(text: str, width: int) -> str:

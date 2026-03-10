@@ -24,13 +24,33 @@ def register_lang_hooks(
 
 
 def _bootstrap_language_module(module: object) -> None:
-    """Run optional language-module bootstrap hook."""
+    """Run optional language-module bootstrap hook(s).
+
+    Preference order:
+    1) ``register_hooks`` (hook-only bootstrap, no language registry mutation)
+    2) ``register`` (legacy fallback)
+    """
+    register_hooks_fn = getattr(module, "register_hooks", None)
+    if register_hooks_fn is not None:
+        if not callable(register_hooks_fn):
+            raise TypeError("Language module register_hooks entrypoint must be callable")
+        register_hooks_fn()
+        return
+
     register_fn = getattr(module, "register", None)
     if register_fn is None:
         return
     if not callable(register_fn):
         raise TypeError("Language module register entrypoint must be callable")
     register_fn()
+
+
+def _load_language_module(module_name: str) -> object:
+    """Resolve language module from sys.modules or import it lazily."""
+    module = sys.modules.get(module_name)
+    if module is not None:
+        return module
+    return importlib.import_module(module_name)
 
 
 def _get_lang_hook(
@@ -44,27 +64,23 @@ def _get_lang_hook(
         return hook
 
     module_name = f"desloppify.languages.{lang_name}"
-    module = sys.modules.get(module_name)
+    try:
+        module = _load_language_module(module_name)
+    except (ImportError, ValueError, TypeError, RuntimeError, OSError) as exc:
+        logger.debug(
+            "Unable to import language hook package %s: %s", lang_name, exc
+        )
+        return None
 
-    # Lazy-load only the requested language package.
-    if module is None:
-        try:
-            module = importlib.import_module(module_name)
-            _bootstrap_language_module(module)
-        except (ImportError, ValueError, TypeError, RuntimeError, OSError) as exc:
-            logger.debug(
-                "Unable to import language hook package %s: %s", lang_name, exc
-            )
-            return None
-    elif lang_name not in _hooks:
-        try:
-            module = importlib.reload(module)
-            _bootstrap_language_module(module)
-        except (ImportError, ValueError, TypeError, RuntimeError, OSError) as exc:
-            logger.debug(
-                "Unable to reload language hook package %s: %s", lang_name, exc
-            )
-            return None
+    # Re-run explicit register() entrypoint to repopulate hook state after
+    # registry clears in tests/refresh flows. Avoid module reload side effects.
+    try:
+        _bootstrap_language_module(module)
+    except (ImportError, ValueError, TypeError, RuntimeError, OSError) as exc:
+        logger.debug(
+            "Unable to bootstrap language hook package %s: %s", lang_name, exc
+        )
+        return None
 
     return _hooks.get(lang_name, {}).get(hook_name)
 

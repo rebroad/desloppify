@@ -11,17 +11,19 @@ from desloppify.app.commands.review.runner_parallel import (
 )
 from desloppify.base.output.terminal import colorize
 
+from .codex_runner import TriageStageRunResult
+
 
 def run_parallel_batches(
     *,
-    tasks: dict[int, object],
+    tasks: dict[int, Callable[[], TriageStageRunResult]],
     stage_label: str,
     batch_label_fn: Callable[[int], str],
     append_run_log: Callable[[str], None],
     heartbeat_seconds: float = 15.0,
     heartbeat_printer: Callable[[BatchProgressEvent], None] | None = None,
 ) -> list[int]:
-    """Execute parallel codex batches with shared progress/error logging."""
+    """Execute typed triage-stage batches with shared progress/error logging."""
 
     stage_slug = stage_label.lower().replace(" ", "-")
 
@@ -45,8 +47,12 @@ def run_parallel_batches(
     def _error_log(batch_index: int, exc: Exception) -> None:
         append_run_log(f"{stage_slug}-batch-error batch={batch_index} error={exc}")
 
+    wrapped_tasks: dict[int, Callable[[], int]] = {
+        idx: (lambda idx=idx, task=task: task().exit_code) for idx, task in tasks.items()
+    }
+
     return execute_batches(
-        tasks=tasks,
+        tasks=wrapped_tasks,
         options=BatchExecutionOptions(
             run_parallel=True,
             heartbeat_seconds=heartbeat_seconds,

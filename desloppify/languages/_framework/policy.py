@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 REQUIRED_FILES: tuple[str, ...] = (
-    "commands.py",
     "extractors.py",
-    "phases.py",
     "review.py",
     "test_coverage.py",
 )

@@ -19,6 +19,11 @@ def _write(tmp_path: Path, name: str, content: str) -> Path:
     return p
 
 
+def _detect(path: Path) -> tuple[list[dict], int]:
+    result = detect_logs(path)
+    return result.entries, result.population_size
+
+
 # ── detect_logs ──────────────────────────────────────────────
 
 
@@ -27,7 +32,7 @@ class TestDetectLogs:
         """Finds console.log with [Tag] prefix."""
 
         _write(tmp_path, "debug.ts", "console.log('[Debug] something happened');\n")
-        entries, total = detect_logs(tmp_path)
+        entries, total = _detect(tmp_path)
         assert len(entries) == 1
         assert entries[0]["tag"] == "Debug"
         assert total == 1
@@ -36,7 +41,7 @@ class TestDetectLogs:
         """Finds console.warn with [Tag] prefix."""
 
         _write(tmp_path, "warn.ts", "console.warn('[Warning] something');\n")
-        entries, _ = detect_logs(tmp_path)
+        entries, _ = _detect(tmp_path)
         assert len(entries) == 1
         assert entries[0]["tag"] == "Warning"
 
@@ -44,21 +49,21 @@ class TestDetectLogs:
         """Finds console.info with [Tag] prefix."""
 
         _write(tmp_path, "info.ts", "console.info('[Perf] timing data');\n")
-        entries, _ = detect_logs(tmp_path)
+        entries, _ = _detect(tmp_path)
         assert len(entries) == 1
 
     def test_detects_console_debug_tagged(self, tmp_path):
         """Finds console.debug with [Tag] prefix."""
 
         _write(tmp_path, "dbg.ts", "console.debug('[Trace] step 1');\n")
-        entries, _ = detect_logs(tmp_path)
+        entries, _ = _detect(tmp_path)
         assert len(entries) == 1
 
     def test_no_tag_not_detected(self, tmp_path):
         """console.log without a [Tag] is not detected."""
 
         _write(tmp_path, "clean.ts", "console.log('normal message');\n")
-        entries, _ = detect_logs(tmp_path)
+        entries, _ = _detect(tmp_path)
         assert len(entries) == 0
 
     def test_multiple_tags_in_one_file(self, tmp_path):
@@ -73,7 +78,7 @@ class TestDetectLogs:
                 "console.log('[Perf] render time');\n"
             ),
         )
-        entries, _ = detect_logs(tmp_path)
+        entries, _ = _detect(tmp_path)
         assert len(entries) == 3
 
     def test_deduplicates_same_line(self, tmp_path):
@@ -81,7 +86,7 @@ class TestDetectLogs:
 
         # A line that could match both patterns should still produce only 1 entry
         _write(tmp_path, "one.ts", "console.log('[Tag] message');\n")
-        entries, _ = detect_logs(tmp_path)
+        entries, _ = _detect(tmp_path)
         assert len(entries) == 1
 
     def test_returns_file_count(self, tmp_path):
@@ -89,13 +94,13 @@ class TestDetectLogs:
 
         _write(tmp_path, "a.ts", "const x = 1;\n")
         _write(tmp_path, "b.tsx", "const y = 2;\n")
-        _, total = detect_logs(tmp_path)
+        _, total = _detect(tmp_path)
         assert total == 2
 
     def test_empty_directory(self, tmp_path):
         """Empty directory returns no entries."""
 
-        entries, total = detect_logs(tmp_path)
+        entries, total = _detect(tmp_path)
         assert entries == []
         assert total == 0
 
@@ -104,14 +109,14 @@ class TestDetectLogs:
 
         # The pattern allows up to 4 characters before the [
         _write(tmp_path, "emoji.ts", "console.log('>> [Tag] message');\n")
-        entries, _ = detect_logs(tmp_path)
+        entries, _ = _detect(tmp_path)
         assert len(entries) == 1
 
     def test_tsx_files_included(self, tmp_path):
         """Both .ts and .tsx files are scanned."""
 
         _write(tmp_path, "comp.tsx", "console.log('[Render] component');\n")
-        entries, total = detect_logs(tmp_path)
+        entries, total = _detect(tmp_path)
         assert len(entries) == 1
         assert total >= 1
 

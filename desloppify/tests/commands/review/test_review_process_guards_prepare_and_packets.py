@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,6 +10,9 @@ from unittest.mock import patch
 
 import pytest
 
+import desloppify.app.commands.review.coordinator as coordinator_mod
+import desloppify.app.commands.review.external as external_mod
+import desloppify.app.commands.review.prepare as prepare_mod
 from desloppify.app.commands.review.batch.scope import require_batches
 from desloppify.app.commands.review.prepare import do_prepare
 from desloppify.app.commands.review.runner_packets import write_packet_snapshot
@@ -52,10 +56,7 @@ def test_write_packet_snapshot_redacts_target_from_blind_packet(tmp_path):
 
 
 _P_SETUP = "desloppify.app.commands.review.prepare.setup_lang_concrete"
-_P_NARRATIVE = "desloppify.app.commands.review.prepare.narrative_mod.compute_narrative"
-_P_REVIEW_PREP = "desloppify.app.commands.review.prepare.review_mod.prepare_holistic_review"
-_P_REVIEW_OPTS = "desloppify.app.commands.review.prepare.review_mod.HolisticReviewPrepareOptions"
-_P_NARRATIVE_CTX = "desloppify.app.commands.review.prepare.narrative_mod.NarrativeContext"
+_P_BUILD_PAYLOAD = "desloppify.app.commands.review.prepare.build_review_packet_payload"
 _P_WRITE_QUERY = "desloppify.app.commands.review.prepare.write_query"
 
 
@@ -69,14 +70,22 @@ def _do_prepare_patched(*, total_files: int = 3, state: dict | None = None, conf
 
     with (
         patch(_P_SETUP, return_value=(SimpleNamespace(name="python"), [])),
-        patch(_P_NARRATIVE, return_value={"headline": "x"}),
-        patch(_P_REVIEW_PREP, return_value={
-            "total_files": total_files,
-            "investigation_batches": [],
-            "workflow": [],
-        }),
-        patch(_P_REVIEW_OPTS, side_effect=lambda **kw: SimpleNamespace(**kw)),
-        patch(_P_NARRATIVE_CTX, side_effect=lambda **kw: SimpleNamespace(**kw)),
+        patch(
+            _P_BUILD_PAYLOAD,
+            side_effect=(
+                lambda **_kwargs: (
+                    (_ for _ in ()).throw(ValueError("no files found at path '.'. Nothing to review."))
+                    if total_files == 0
+                    else {
+                        "total_files": total_files,
+                        "investigation_batches": [],
+                        "workflow": [],
+                        "narrative": {"headline": "x"},
+                        "config": {"noise_budget": (config or {}).get("noise_budget")},
+                    }
+                )
+            ),
+        ),
         patch(_P_WRITE_QUERY, side_effect=_fake_write_query),
     ):
         do_prepare(
@@ -129,3 +138,44 @@ def test_require_batches_guides_rebuild_when_packet_has_no_batches(capsys):
     assert "no investigation_batches" in exc.value.message
     assert "Regenerate review context first" in err
     assert "follow your runner's review workflow" in err
+
+
+def test_review_command_modules_avoid_package_level_review_facade_imports() -> None:
+    package_root = Path(__file__).resolve().parents[3]
+    review_root = package_root / "app" / "commands" / "review"
+    offenders: list[str] = []
+    banned = (
+        "from desloppify.intelligence import review as",
+        "from desloppify.intelligence.review import ",
+        "import desloppify.intelligence.review as ",
+    )
+    for module_path in review_root.rglob("*.py"):
+        text = module_path.read_text(encoding="utf-8")
+        if any(token in text for token in banned):
+            offenders.append(str(module_path.relative_to(package_root)))
+    assert offenders == []
+
+
+def test_intelligence_review_modules_do_not_import_app_review_commands() -> None:
+    package_root = Path(__file__).resolve().parents[3]
+    review_intel_root = package_root / "intelligence" / "review"
+    offenders: list[str] = []
+    for module_path in review_intel_root.rglob("*.py"):
+        text = module_path.read_text(encoding="utf-8")
+        if "desloppify.app.commands.review" in text:
+            offenders.append(str(module_path.relative_to(package_root)))
+    assert offenders == []
+
+
+def test_review_packet_payload_ownership_is_centered_in_packet_build() -> None:
+    prepare_src = inspect.getsource(prepare_mod)
+    external_src = inspect.getsource(external_mod)
+    coordinator_src = inspect.getsource(coordinator_mod)
+
+    assert "from .coordinator import build_review_packet_payload" not in prepare_src
+    assert "from .coordinator import (" not in external_src
+    assert "from .packet.build import" in prepare_src
+    assert "from .packet.build import" in external_src
+
+    assert "def build_review_packet_payload(" not in coordinator_src
+    assert "def write_review_packet_snapshot(" not in coordinator_src

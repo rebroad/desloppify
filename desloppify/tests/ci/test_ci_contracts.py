@@ -125,6 +125,14 @@ def test_makefile_contains_ci_gate_targets() -> None:
     assert expected.issubset(targets)
 
 
+def test_ci_contracts_target_includes_phase_order_invariant() -> None:
+    text = MAKEFILE.read_text()
+    assert (
+        'pytest -q desloppify/tests/commands/test_lifecycle_transitions.py '
+        '-k "subjective_then_score_then_triage"'
+    ) in text
+
+
 def test_readme_optional_extras_exist_in_pyproject() -> None:
     readme = README.read_text()
     referenced = set(re.findall(r"desloppify\[([a-zA-Z0-9_-]+)\]", readme))

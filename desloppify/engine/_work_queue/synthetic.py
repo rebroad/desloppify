@@ -22,6 +22,19 @@ from desloppify.engine._work_queue.synthetic_workflow import (
     build_score_checkpoint_item,
 )
 from desloppify.engine._work_queue.types import WorkQueueItem
+from desloppify.engine.plan_queue import (
+    confirmed_triage_stage_names,
+    recorded_unconfirmed_triage_stage_names,
+)
+from desloppify.engine.plan_triage import (
+    TRIAGE_IDS,
+    TRIAGE_STAGE_DEPENDENCIES,
+    TRIAGE_STAGE_IDS,
+    TRIAGE_STAGE_LABELS,
+    triage_manual_stage_command,
+    triage_run_stages_command,
+    triage_runner_commands,
+)
 from desloppify.engine.planning.scorecard_projection import (
     all_subjective_entries,
 )
@@ -97,24 +110,11 @@ def build_triage_stage_items(plan: dict, state: dict) -> list[WorkQueueItem]:
 
     Returns an empty list when no triage stages are pending.
     """
-    from desloppify.engine._plan.constants import (
-        TRIAGE_IDS,
-        TRIAGE_STAGE_IDS,
-        confirmed_triage_stage_names,
-        recorded_unconfirmed_triage_stage_names,
-    )
-    from desloppify.engine._plan.triage_playbook import (
-        TRIAGE_STAGE_DEPENDENCIES,
-        TRIAGE_STAGE_LABELS,
-        triage_manual_stage_command,
-        triage_run_stages_command,
-        triage_runner_commands,
-    )
-
     order = plan.get("queue_order", [])
     order_set = set(order)
     present_ids = order_set & TRIAGE_IDS
     meta = plan.get("epic_triage_meta", {})
+    force_visible = bool(meta.get("triage_force_visible"))
     confirmed = confirmed_triage_stage_names(meta)
     recorded_unconfirmed = recorded_unconfirmed_triage_stage_names(meta)
     stage_names = ("observe", "reflect", "organize", "enrich", "sense-check", "commit")
@@ -158,6 +158,7 @@ def build_triage_stage_items(plan: dict, state: dict) -> list[WorkQueueItem]:
             "detector": "triage",
             "file": ".",
             "kind": "workflow_stage",
+            "force_visible": force_visible,
             "summary": f"Triage: {label_map.get(name, name)}",
             "detail": {
                 "total_review_issues": open_review_count,

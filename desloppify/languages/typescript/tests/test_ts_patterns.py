@@ -23,6 +23,11 @@ def _write(tmp_path: Path, name: str, content: str) -> Path:
     return p
 
 
+def _detect(path: Path) -> tuple[list[dict], int]:
+    result = detect_pattern_anomalies(path)
+    return result.entries, result.population_size
+
+
 # ── _build_census ────────────────────────────────────────────
 
 
@@ -92,7 +97,7 @@ class TestDetectPatternAnomalies:
                 "const p = usePersistentToolState<Config>();\n"
             ),
         )
-        anomalies, total_areas = detect_pattern_anomalies(tmp_path)
+        anomalies, total_areas = _detect(tmp_path)
         # With just 1 area, should return empty
         assert anomalies == []
 
@@ -118,7 +123,7 @@ class TestDetectPatternAnomalies:
                 (f"const s{i} = useAutoSaveSettings<Config>();\n"),
             )
 
-        anomalies, total_areas = detect_pattern_anomalies(tmp_path)
+        anomalies, total_areas = _detect(tmp_path)
         assert total_areas >= 5
         # The editor area should have a fragmentation anomaly
         frag = [a for a in anomalies if "editor" in a["area"]]
@@ -130,7 +135,7 @@ class TestDetectPatternAnomalies:
     def test_empty_directory(self, tmp_path):
         """Empty directory returns no anomalies."""
 
-        anomalies, total_areas = detect_pattern_anomalies(tmp_path)
+        anomalies, total_areas = _detect(tmp_path)
         assert anomalies == []
         assert total_areas == 0
 
@@ -149,7 +154,7 @@ class TestDetectPatternAnomalies:
                 ),
             )
 
-        anomalies, total_areas = detect_pattern_anomalies(tmp_path)
+        anomalies, total_areas = _detect(tmp_path)
         # No anomalies from complementary families (data_fetching is complementary)
         data_anomalies = [a for a in anomalies if a["family"] == "data_fetching"]
         assert len(data_anomalies) == 0
@@ -178,7 +183,7 @@ class TestDetectPatternAnomalies:
         for i in range(3, 7):
             _write(tmp_path, f"src/tools/tool{i}/main.ts", f"const x = {i};\n")
 
-        anomalies, _ = detect_pattern_anomalies(tmp_path)
+        anomalies, _ = _detect(tmp_path)
         if len(anomalies) >= 2:
             for i in range(len(anomalies) - 1):
                 assert (

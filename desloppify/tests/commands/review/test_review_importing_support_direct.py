@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from types import SimpleNamespace
 
 import pytest
@@ -10,7 +11,13 @@ import desloppify.app.commands.review.importing.cmd as import_cmd_mod
 import desloppify.app.commands.review.importing.flags as flags_mod
 import desloppify.app.commands.review.importing.plan_sync as plan_sync_mod
 import desloppify.app.commands.review.importing.results as results_mod
-import desloppify.engine.plan as plan_mod
+import desloppify.engine.plan_queue as plan_queue_mod
+
+
+def test_plan_sync_uses_narrow_plan_facades() -> None:
+    src = inspect.getsource(plan_sync_mod)
+    assert "from desloppify.engine.plan import" not in src
+    assert "desloppify.engine.plan_queue" in src
 
 
 def test_flags_validation_and_assessment_state_helpers() -> None:
@@ -54,7 +61,7 @@ def test_flags_validation_and_assessment_state_helpers() -> None:
 
 
 def test_sync_plan_after_import_no_living_plan(monkeypatch) -> None:
-    monkeypatch.setattr(plan_mod, "has_living_plan", lambda: False)
+    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda: False)
     plan_sync_mod.sync_plan_after_import(
         state={},
         diff={"new": 1, "reopened": 0},
@@ -63,8 +70,12 @@ def test_sync_plan_after_import_no_living_plan(monkeypatch) -> None:
 
 
 def test_sync_plan_after_import_handles_plan_exceptions(monkeypatch, capsys) -> None:
-    monkeypatch.setattr(plan_mod, "has_living_plan", lambda: True)
-    monkeypatch.setattr(plan_mod, "load_plan", lambda: (_ for _ in ()).throw(OSError("boom")))
+    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda: True)
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "load_plan",
+        lambda: (_ for _ in ()).throw(OSError("boom")),
+    )
     monkeypatch.setattr(plan_sync_mod, "PLAN_LOAD_EXCEPTIONS", (OSError,))
 
     plan_sync_mod.sync_plan_after_import(
@@ -80,15 +91,24 @@ def test_sync_plan_after_import_logs_triage_provenance(monkeypatch) -> None:
     plan: dict = {"queue_order": []}
     entries: list[tuple[str, dict]] = []
 
-    monkeypatch.setattr(plan_mod, "has_living_plan", lambda: True)
-    monkeypatch.setattr(plan_mod, "load_plan", lambda: plan)
-    monkeypatch.setattr(plan_mod, "save_plan", lambda _plan: None)
-    monkeypatch.setattr(plan_mod, "current_unscored_ids", lambda _state: set())
-    monkeypatch.setattr(plan_mod, "purge_ids", lambda _plan, _ids: None)
+    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda: True)
+    monkeypatch.setattr(plan_queue_mod, "load_plan", lambda: plan)
+    monkeypatch.setattr(plan_queue_mod, "save_plan", lambda _plan: None)
+    monkeypatch.setattr(plan_queue_mod, "current_unscored_ids", lambda _state: set())
+    monkeypatch.setattr(plan_queue_mod, "purge_ids", lambda _plan, _ids: None)
     monkeypatch.setattr(
-        plan_mod,
+        plan_queue_mod,
+        "sync_stale_dimensions",
+        lambda _plan, _state, policy=None: SimpleNamespace(
+            changes=False,
+            injected=[],
+            pruned=[],
+        ),
+    )
+    monkeypatch.setattr(
+        plan_queue_mod,
         "sync_plan_after_review_import",
-        lambda _plan, _state: SimpleNamespace(
+        lambda _plan, _state, policy=None: SimpleNamespace(
             new_ids={"review::x"},
             added_to_queue=["review::x"],
             triage_injected=True,
@@ -96,16 +116,29 @@ def test_sync_plan_after_import_logs_triage_provenance(monkeypatch) -> None:
             triage_deferred=False,
         ),
     )
-    monkeypatch.setattr(plan_mod, "ScoreSnapshot", lambda **kwargs: SimpleNamespace(**kwargs))
+    monkeypatch.setattr(plan_queue_mod, "ScoreSnapshot", lambda **kwargs: SimpleNamespace(**kwargs))
     monkeypatch.setattr(
-        plan_mod,
+        plan_queue_mod,
         "sync_communicate_score_needed",
         lambda _plan, _state, **_kwargs: SimpleNamespace(changes=False),
     )
-    monkeypatch.setattr(plan_mod, "sync_import_scores_needed", lambda _plan, _state, assessment_mode: SimpleNamespace(changes=False))
-    monkeypatch.setattr(plan_mod, "sync_create_plan_needed", lambda _plan, _state: SimpleNamespace(changes=False))
     monkeypatch.setattr(
-        plan_mod,
+        plan_queue_mod,
+        "sync_import_scores_needed",
+        lambda _plan, _state, assessment_mode: SimpleNamespace(changes=False),
+    )
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "compute_subjective_visibility",
+        lambda *_a, **_k: SimpleNamespace(has_objective_backlog=False),
+    )
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "sync_create_plan_needed",
+        lambda _plan, _state, policy=None: SimpleNamespace(changes=False),
+    )
+    monkeypatch.setattr(
+        plan_queue_mod,
         "append_log_entry",
         lambda _plan, action, **kwargs: entries.append((action, kwargs["detail"])),
     )
@@ -131,24 +164,37 @@ def test_sync_plan_after_import_keeps_workflow_before_triage(monkeypatch) -> Non
     }
     entries: list[tuple[str, dict]] = []
 
-    monkeypatch.setattr(plan_mod, "has_living_plan", lambda: True)
-    monkeypatch.setattr(plan_mod, "load_plan", lambda: plan)
-    monkeypatch.setattr(plan_mod, "save_plan", lambda _plan: None)
-    monkeypatch.setattr(plan_mod, "current_unscored_ids", lambda _state: set())
-    monkeypatch.setattr(plan_mod, "purge_ids", lambda _plan, _ids: None)
-    monkeypatch.setattr(plan_mod, "ScoreSnapshot", lambda **kwargs: SimpleNamespace(**kwargs))
+    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda: True)
+    monkeypatch.setattr(plan_queue_mod, "load_plan", lambda: plan)
+    monkeypatch.setattr(plan_queue_mod, "save_plan", lambda _plan: None)
+    monkeypatch.setattr(plan_queue_mod, "current_unscored_ids", lambda _state: set())
+    monkeypatch.setattr(plan_queue_mod, "purge_ids", lambda _plan, _ids: None)
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "sync_stale_dimensions",
+        lambda _plan, _state, policy=None: SimpleNamespace(
+            changes=False,
+            injected=[],
+            pruned=[],
+        ),
+    )
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "ScoreSnapshot",
+        lambda **kwargs: SimpleNamespace(**kwargs),
+    )
 
     def fake_communicate(_plan, _state, **_kwargs):
         _plan["queue_order"].append("workflow::communicate-score")
-        plan_mod.normalize_queue_workflow_and_triage_prefix(_plan["queue_order"])
+        plan_queue_mod.normalize_queue_workflow_and_triage_prefix(_plan["queue_order"])
         return SimpleNamespace(changes=True)
 
-    def fake_create_plan(_plan, _state):
+    def fake_create_plan(_plan, _state, policy=None):
         _plan["queue_order"].append("workflow::create-plan")
-        plan_mod.normalize_queue_workflow_and_triage_prefix(_plan["queue_order"])
+        plan_queue_mod.normalize_queue_workflow_and_triage_prefix(_plan["queue_order"])
         return SimpleNamespace(changes=True)
 
-    def fake_review_import(_plan, _state):
+    def fake_review_import(_plan, _state, policy=None):
         _plan["queue_order"].extend(["review::x", "triage::observe"])
         return SimpleNamespace(
             new_ids={"review::x"},
@@ -158,12 +204,21 @@ def test_sync_plan_after_import_keeps_workflow_before_triage(monkeypatch) -> Non
             triage_deferred=False,
         )
 
-    monkeypatch.setattr(plan_mod, "sync_communicate_score_needed", fake_communicate)
-    monkeypatch.setattr(plan_mod, "sync_import_scores_needed", lambda _plan, _state, assessment_mode: SimpleNamespace(changes=False))
-    monkeypatch.setattr(plan_mod, "sync_create_plan_needed", fake_create_plan)
-    monkeypatch.setattr(plan_mod, "sync_plan_after_review_import", fake_review_import)
+    monkeypatch.setattr(plan_queue_mod, "sync_communicate_score_needed", fake_communicate)
     monkeypatch.setattr(
-        plan_mod,
+        plan_queue_mod,
+        "sync_import_scores_needed",
+        lambda _plan, _state, assessment_mode: SimpleNamespace(changes=False),
+    )
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "compute_subjective_visibility",
+        lambda *_a, **_k: SimpleNamespace(has_objective_backlog=False),
+    )
+    monkeypatch.setattr(plan_queue_mod, "sync_create_plan_needed", fake_create_plan)
+    monkeypatch.setattr(plan_queue_mod, "sync_plan_after_review_import", fake_review_import)
+    monkeypatch.setattr(
+        plan_queue_mod,
         "append_log_entry",
         lambda _plan, action, **kwargs: entries.append((action, kwargs["detail"])),
     )
@@ -188,6 +243,150 @@ def test_sync_plan_after_import_keeps_workflow_before_triage(monkeypatch) -> Non
     ]
 
 
+def test_sync_plan_after_import_reuses_plan_aware_policy(monkeypatch) -> None:
+    plan: dict = {"queue_order": []}
+    policy = SimpleNamespace(has_objective_backlog=False)
+    seen: dict[str, object] = {}
+
+    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda: True)
+    monkeypatch.setattr(plan_queue_mod, "load_plan", lambda: plan)
+    monkeypatch.setattr(plan_queue_mod, "save_plan", lambda _plan: None)
+    monkeypatch.setattr(plan_queue_mod, "current_unscored_ids", lambda _state: set())
+    monkeypatch.setattr(plan_queue_mod, "purge_ids", lambda _plan, _ids: None)
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "sync_stale_dimensions",
+        lambda _plan, _state, policy=None: SimpleNamespace(
+            changes=False,
+            injected=[],
+            pruned=[],
+        ),
+    )
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "ScoreSnapshot",
+        lambda **kwargs: SimpleNamespace(**kwargs),
+    )
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "sync_communicate_score_needed",
+        lambda _plan, _state, **_kwargs: SimpleNamespace(changes=False),
+    )
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "sync_import_scores_needed",
+        lambda _plan, _state, assessment_mode: SimpleNamespace(changes=False),
+    )
+
+    def fake_compute_policy(_state, *, target_strict, plan):
+        seen["target_strict"] = target_strict
+        seen["plan"] = plan
+        return policy
+
+    def fake_create_plan(_plan, _state, *, policy=None):
+        seen["create_plan_policy"] = policy
+        return SimpleNamespace(changes=False)
+
+    def fake_review_import(_plan, _state, *, policy=None):
+        seen["import_policy"] = policy
+        return None
+
+    def fake_stale_sync(_plan, _state, *, policy=None):
+        seen["stale_policy"] = policy
+        return SimpleNamespace(changes=False, injected=[], pruned=[])
+
+    monkeypatch.setattr(plan_queue_mod, "compute_subjective_visibility", fake_compute_policy)
+    monkeypatch.setattr(plan_queue_mod, "sync_create_plan_needed", fake_create_plan)
+    monkeypatch.setattr(plan_queue_mod, "sync_plan_after_review_import", fake_review_import)
+    monkeypatch.setattr(plan_queue_mod, "sync_stale_dimensions", fake_stale_sync)
+
+    plan_sync_mod.sync_plan_after_import(
+        state={},
+        diff={"new": 1, "reopened": 0},
+        assessment_mode="issues_only",
+        config={"target_strict_score": 97},
+    )
+
+    assert seen["target_strict"] == 97.0
+    assert seen["plan"] is plan
+    assert seen["create_plan_policy"] is policy
+    assert seen["import_policy"] is policy
+    assert seen["stale_policy"] is policy
+
+
+def test_sync_plan_after_import_does_not_purge_subjective_ids(monkeypatch) -> None:
+    plan: dict = {"queue_order": ["subjective::naming_quality", "review::existing"]}
+    purge_calls: list[list[str]] = []
+
+    monkeypatch.setattr(plan_queue_mod, "has_living_plan", lambda: True)
+    monkeypatch.setattr(plan_queue_mod, "load_plan", lambda: plan)
+    monkeypatch.setattr(plan_queue_mod, "save_plan", lambda _plan: None)
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "compute_subjective_visibility",
+        lambda *_a, **_k: SimpleNamespace(has_objective_backlog=False),
+    )
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "ScoreSnapshot",
+        lambda **kwargs: SimpleNamespace(**kwargs),
+    )
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "sync_communicate_score_needed",
+        lambda _plan, _state, **_kwargs: SimpleNamespace(changes=False),
+    )
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "sync_import_scores_needed",
+        lambda _plan, _state, assessment_mode: SimpleNamespace(changes=False),
+    )
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "sync_create_plan_needed",
+        lambda _plan, _state, policy=None: SimpleNamespace(changes=False),
+    )
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "sync_plan_after_review_import",
+        lambda _plan, _state, policy=None: SimpleNamespace(
+            new_ids={"review::new"},
+            added_to_queue=["review::new"],
+            triage_injected=False,
+            triage_injected_ids=[],
+            triage_deferred=False,
+        ),
+    )
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "sync_stale_dimensions",
+        lambda _plan, _state, policy=None: SimpleNamespace(
+            changes=False,
+            injected=[],
+            pruned=[],
+        ),
+    )
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "purge_ids",
+        lambda _plan, ids: purge_calls.append(list(ids)),
+    )
+    monkeypatch.setattr(
+        plan_queue_mod,
+        "append_log_entry",
+        lambda *_a, **_k: None,
+    )
+
+    plan_sync_mod.sync_plan_after_import(
+        state={"issues": {"review::new": {"summary": "new review issue"}}},
+        diff={"new": 1, "reopened": 0},
+        assessment_mode="issues_only",
+    )
+
+    assert purge_calls == []
+    assert "subjective::naming_quality" in plan["queue_order"]
+
+
 def test_refresh_scorecard_after_import_only_for_trusted_assessments(monkeypatch) -> None:
     calls: list[tuple[object, dict, dict]] = []
     monkeypatch.setattr(
@@ -198,20 +397,76 @@ def test_refresh_scorecard_after_import_only_for_trusted_assessments(monkeypatch
 
     trusted = SimpleNamespace(assessments_present=True, trusted=True)
     skipped = SimpleNamespace(assessments_present=True, trusted=False)
+    scan_state = {
+        "last_scan": "2026-03-10T00:00:00+00:00",
+        "dimension_scores": {
+            "Code quality": {
+                "checks": 10,
+                "score": 95.0,
+                "strict": 95.0,
+                "detectors": {"smells": {"potential": 10}},
+            },
+            "Naming quality": {
+                "checks": 10,
+                "score": 80.0,
+                "strict": 80.0,
+                "detectors": {
+                    "subjective_assessment": {"dimension_key": "naming_quality"}
+                },
+            },
+        },
+    }
 
     assert import_cmd_mod._refresh_scorecard_after_import(
-        state={"strict_score": 74.5},
+        state=scan_state,
         config={"badge_path": "scorecard.png"},
         assessment_policy=trusted,
     ) is True
     assert len(calls) == 1
 
     assert import_cmd_mod._refresh_scorecard_after_import(
-        state={"strict_score": 74.5},
+        state=scan_state,
         config={"badge_path": "scorecard.png"},
         assessment_policy=skipped,
     ) is False
     assert len(calls) == 1
+
+    assert import_cmd_mod._refresh_scorecard_after_import(
+        state={"strict_score": 74.5},
+        config={"badge_path": "scorecard.png"},
+        assessment_policy=trusted,
+    ) is False
+    assert len(calls) == 1
+
+
+def test_refresh_scorecard_after_import_skips_subjective_only_state(monkeypatch) -> None:
+    calls: list[tuple[object, dict, dict]] = []
+    monkeypatch.setattr(
+        import_cmd_mod,
+        "emit_scorecard_badge",
+        lambda args, config, state: (calls.append((args, config, state)), (None, None))[1],
+    )
+    trusted = SimpleNamespace(assessments_present=True, trusted=True)
+    subjective_only_state = {
+        "last_scan": "2026-03-10T00:00:00+00:00",
+        "dimension_scores": {
+            "Naming quality": {
+                "checks": 10,
+                "score": 100.0,
+                "strict": 100.0,
+                "detectors": {
+                    "subjective_assessment": {"dimension_key": "naming_quality"}
+                },
+            }
+        },
+    }
+
+    assert import_cmd_mod._refresh_scorecard_after_import(
+        state=subjective_only_state,
+        config={"badge_path": "scorecard.png"},
+        assessment_policy=trusted,
+    ) is False
+    assert calls == []
 
 
 def test_print_import_results_writes_query_payload(monkeypatch) -> None:

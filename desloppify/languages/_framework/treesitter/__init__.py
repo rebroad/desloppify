@@ -1,6 +1,11 @@
-"""Tree-sitter integration — optional, gracefully degrades when not installed.
+"""Canonical public API for tree-sitter specs and phase factories.
 
-Install with: pip install tree-sitter-language-pack
+Install with: ``pip install tree-sitter-language-pack``
+
+Internal layout:
+- ``specs``: language-spec catalogs and variants
+- ``imports``: import graph + resolver/cache helpers
+- ``analysis``: detectors/extractors/complexity helpers
 """
 
 from __future__ import annotations
@@ -29,72 +34,28 @@ def is_available() -> bool:
 
 def enable_parse_cache() -> None:
     """Enable scan-scoped parse tree cache."""
-    from ._cache import enable_parse_cache as _enable
+    from .imports.cache import enable_parse_cache as _enable
 
     _enable()
 
 
 def disable_parse_cache() -> None:
     """Disable parse tree cache and free memory."""
-    from ._cache import disable_parse_cache as _disable
+    from .imports.cache import disable_parse_cache as _disable
 
     _disable()
 
 
 def is_parse_cache_enabled() -> bool:
     """Check if parse cache is currently enabled."""
-    from ._cache import is_parse_cache_enabled as _is_enabled
+    from .imports.cache import is_parse_cache_enabled as _is_enabled
 
     return _is_enabled()
 
 
-def _build_treesitter_specs() -> dict[str, TreeSitterLangSpec]:
-    """Build the TREESITTER_SPECS dict from the three spec modules."""
-    from . import _specs_compiled as _sc, _specs_functional as _sf, _specs_scripting as _ss
-
-    return {
-        "go": _sc.GO_SPEC, "rust": _sc.RUST_SPEC, "java": _sc.JAVA_SPEC,
-        "kotlin": _sc.KOTLIN_SPEC, "csharp": _sc.CSHARP_SPEC,
-        "swift": _sc.SWIFT_SPEC, "php": _sc.PHP_SPEC, "dart": _sc.DART_SPEC,
-        "c": _sc.C_SPEC, "cpp": _sc.CPP_SPEC, "scala": _sc.SCALA_SPEC,
-        "elixir": _sf.ELIXIR_SPEC, "erlang": _sf.ERLANG_SPEC,
-        "fsharp": _sf.FSHARP_SPEC, "haskell": _sf.HASKELL_SPEC,
-        "ocaml": _sf.OCAML_SPEC, "clojure": _sf.CLOJURE_SPEC,
-        "ruby": _ss.RUBY_SPEC, "javascript": _ss.JS_SPEC,
-        "typescript": _ss.TYPESCRIPT_SPEC, "bash": _ss.BASH_SPEC,
-        "lua": _ss.LUA_SPEC, "perl": _ss.PERL_SPEC, "zig": _ss.ZIG_SPEC,
-        "nim": _ss.NIM_SPEC, "powershell": _ss.POWERSHELL_SPEC,
-        "gdscript": _ss.GDSCRIPT_SPEC, "r": _ss.R_SPEC,
-    }
-
-
-def get_spec(language: str) -> TreeSitterLangSpec | None:
-    """Return tree-sitter spec for a language key, if configured."""
-    key = str(language or "").strip().lower()
-    if not key:
-        return None
-    return _build_treesitter_specs().get(key)
-
-
-def list_specs() -> dict[str, TreeSitterLangSpec]:
-    """Return a shallow copy of the public tree-sitter spec registry."""
-    return dict(_build_treesitter_specs())
-
-
 @dataclass(frozen=True)
 class TreeSitterLangSpec:
-    """Per-language tree-sitter configuration.
-
-    Fields:
-        grammar: tree-sitter grammar name (e.g. "go", "rust")
-        function_query: S-expression query capturing @func, @name, @body
-        comment_node_types: AST node types considered comments
-        string_node_types: AST node types considered strings (for normalization)
-        import_query: S-expression query capturing @import and @path
-        resolve_import: (import_text, source_file, scan_path) -> abs_path | None
-        class_query: S-expression query capturing @class, @name, @body
-        log_patterns: regexes for log/debug lines to strip during normalization
-    """
+    """Per-language tree-sitter configuration."""
 
     grammar: str
     function_query: str
@@ -116,46 +77,105 @@ class TreeSitterLangSpec:
     )
 
 
-# Common exception tuple for tree-sitter parser/query initialisation failures.
-# Used across all treesitter modules to avoid repeating the same 4-tuple.
 PARSE_INIT_ERRORS: tuple[type[Exception], ...] = (
-    ImportError, OSError, ValueError, RuntimeError
+    ImportError,
+    OSError,
+    ValueError,
+    RuntimeError,
 )
 
+from .specs.specs import (  # noqa: E402
+    BASH_SPEC,
+    CLOJURE_SPEC,
+    CPP_SPEC,
+    CSHARP_SPEC,
+    C_SPEC,
+    DART_SPEC,
+    ELIXIR_SPEC,
+    ERLANG_SPEC,
+    FSHARP_SPEC,
+    GDSCRIPT_SPEC,
+    GO_SPEC,
+    HASKELL_SPEC,
+    JAVA_SPEC,
+    JS_SPEC,
+    KOTLIN_SPEC,
+    LUA_SPEC,
+    NIM_SPEC,
+    OCAML_SPEC,
+    PERL_SPEC,
+    PHP_SPEC,
+    POWERSHELL_SPEC,
+    R_SPEC,
+    RUBY_SPEC,
+    RUST_SPEC,
+    SCALA_SPEC,
+    SWIFT_SPEC,
+    TREESITTER_SPECS,
+    TYPESCRIPT_SPEC,
+    ZIG_SPEC,
+)
+from .phases import (  # noqa: E402
+    all_treesitter_phases,
+    make_ast_smells_phase,
+    make_cohesion_phase,
+    make_unused_imports_phase,
+)
+
+
+def get_spec(language: str) -> TreeSitterLangSpec | None:
+    """Return tree-sitter spec for a language key, if configured."""
+    key = str(language or "").strip().lower()
+    if not key:
+        return None
+    return TREESITTER_SPECS.get(key)
+
+
+def list_specs() -> dict[str, TreeSitterLangSpec]:
+    """Return a shallow copy of the public tree-sitter spec registry."""
+    return dict(TREESITTER_SPECS)
+
+
 __all__ = [
+    "BASH_SPEC",
+    "CLOJURE_SPEC",
+    "CPP_SPEC",
+    "CSHARP_SPEC",
+    "C_SPEC",
+    "DART_SPEC",
+    "ELIXIR_SPEC",
+    "ERLANG_SPEC",
+    "FSHARP_SPEC",
+    "GDSCRIPT_SPEC",
+    "GO_SPEC",
+    "HASKELL_SPEC",
+    "JAVA_SPEC",
+    "JS_SPEC",
+    "KOTLIN_SPEC",
+    "LUA_SPEC",
+    "NIM_SPEC",
+    "OCAML_SPEC",
     "PARSE_INIT_ERRORS",
+    "PERL_SPEC",
+    "PHP_SPEC",
+    "POWERSHELL_SPEC",
+    "R_SPEC",
+    "RUBY_SPEC",
+    "RUST_SPEC",
+    "SCALA_SPEC",
+    "SWIFT_SPEC",
+    "TREESITTER_SPECS",
+    "TYPESCRIPT_SPEC",
     "TreeSitterLangSpec",
+    "ZIG_SPEC",
+    "all_treesitter_phases",
     "disable_parse_cache",
     "enable_parse_cache",
     "get_spec",
     "is_available",
     "is_parse_cache_enabled",
     "list_specs",
+    "make_ast_smells_phase",
+    "make_cohesion_phase",
+    "make_unused_imports_phase",
 ]
-
-# Re-export phase factories for convenience.
-# Actual definitions live in .phases to avoid circular imports at import time.
-def __getattr__(name: str):  # noqa: N807
-    _PHASE_EXPORTS = {
-        "all_treesitter_phases",
-        "make_ast_smells_phase",
-        "make_cohesion_phase",
-        "make_unused_imports_phase",
-    }
-    if name in _PHASE_EXPORTS:
-        from desloppify.languages._framework.treesitter import phases as phases_mod
-
-        return getattr(phases_mod, name)
-    if name == "TREESITTER_SPECS":
-        return _build_treesitter_specs()
-    if name.endswith("_SPEC"):
-        from desloppify.languages._framework.treesitter import (
-            _specs_compiled as _sc,
-            _specs_functional as _sf,
-            _specs_scripting as _ss,
-        )
-
-        for _mod in (_sc, _sf, _ss):
-            if hasattr(_mod, name):
-                return getattr(_mod, name)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -60,6 +60,34 @@ def test_gather_auth_context_excludes_server_only_service_role_paths():
     assert "service_role_usage" not in result
 
 
+def test_gather_auth_context_ignores_non_source_guidance_files():
+    file_contents = {
+        "README.md": "@app.get('/docs') should use request.user and useAuth",
+        "docs/security.txt": "createClient(url, service_role) example",
+    }
+    result = signal_auth_mod.gather_auth_context(file_contents, rel_fn=lambda p: p)
+    assert result == {}
+
+
+def test_gather_auth_context_counts_public_route_markers_separately():
+    file_contents = {
+        "api.py": (
+            "@app.get('/health')\n"
+            "def health():\n"
+            "    # public_route: anonymous health check\n"
+            "    return {'ok': True}\n"
+            "@app.get('/private')\n"
+            "def private():\n"
+            "    return {'ok': True}\n"
+        )
+    }
+    result = signal_auth_mod.gather_auth_context(file_contents, rel_fn=lambda p: p)
+    ra = result["route_auth_coverage"]["api.py"]
+    assert ra["handlers"] == 2
+    assert ra["public_routes"] == 1
+    assert ra["without_auth"] == 1
+
+
 def test_gather_migration_signals_and_classify_error_strategy():
     file_contents = {
         "old.ts": "@deprecated\nTODO migrate legacy handler\nfoo.oldApi()\n",

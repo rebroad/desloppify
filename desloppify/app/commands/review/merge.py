@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from typing import Any, TypedDict
+from typing import Any, NamedTuple, TypedDict
 
 from desloppify import state as state_mod
 from desloppify.app.commands.helpers.query import write_query
@@ -11,7 +11,7 @@ from desloppify.app.commands.helpers.queue_progress import show_score_with_plan_
 from desloppify.app.commands.helpers.runtime import command_runtime
 from desloppify.base.output.issues import issue_weight
 from desloppify.base.output.terminal import colorize
-from desloppify.engine._work_queue.issues import list_open_review_issues
+from desloppify.engine.work_queue import list_open_review_issues
 from desloppify.intelligence.narrative.core import NarrativeContext, compute_narrative
 from desloppify.intelligence.review.issue_merge import (
     merge_list_fields,
@@ -19,7 +19,9 @@ from desloppify.intelligence.review.issue_merge import (
     pick_longer_text,
     track_merged_from,
 )
-from desloppify.state import save_state, utc_now
+
+save_state = state_mod.save_state
+utc_now = state_mod.utc_now
 
 
 class ResolutionAttestationPayload(TypedDict, total=False):
@@ -54,6 +56,22 @@ class ReviewIssueStatePayload(TypedDict, total=False):
     resolved_at: str
     note: str
     resolution_attestation: ResolutionAttestationPayload | dict[str, Any]
+
+
+class _ScoreSnapshot(NamedTuple):
+    overall: float | None
+    objective: float | None
+    strict: float | None
+    verified: float | None
+
+
+def _score_snapshot(state: state_mod.StateModel) -> _ScoreSnapshot:
+    return _ScoreSnapshot(
+        overall=state_mod.get_overall_score(state),
+        objective=state_mod.get_objective_score(state),
+        strict=state_mod.get_strict_score(state),
+        verified=state_mod.get_verified_strict_score(state),
+    )
 
 
 def _summary_similarity(a: str, b: str) -> float:
@@ -189,7 +207,7 @@ def do_merge(args: argparse.Namespace) -> None:
         return
 
     dry_run = bool(getattr(args, "dry_run", False))
-    prev = state_mod.score_snapshot(state)
+    prev = _score_snapshot(state)
     timestamp = utc_now()
     merged_pairs: list[tuple[str, list[str]]] = []
     for group in merge_groups:

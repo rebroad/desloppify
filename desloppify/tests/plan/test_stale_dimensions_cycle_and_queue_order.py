@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from desloppify.engine._plan.sync_dimensions import (
+from desloppify.engine._plan.sync.dimensions import (
     sync_stale_dimensions,
     sync_unscored_dimensions,
 )
@@ -148,7 +148,7 @@ def test_plan_reset_does_not_trigger_cycle_completed():
     _cycle_just_completed = not plan.get("plan_start_scores") is False.
     The next scan seeds real scores over the sentinel.
     """
-    from desloppify.engine._plan.operations_lifecycle import reset_plan
+    from desloppify.engine._plan.operations.lifecycle import reset_plan
 
     plan = _plan_with_queue("some_issue::file.py::abc123")
     plan["plan_start_scores"] = {"strict": 80.0, "overall": 80.0}
@@ -163,7 +163,7 @@ def test_plan_reset_does_not_trigger_cycle_completed():
 def test_triage_appends_to_back():
     """Triage stage IDs append to back, never reorder existing items."""
     from desloppify.engine._plan.constants import TRIAGE_STAGE_IDS
-    from desloppify.engine._plan.sync_triage import sync_triage_needed
+    from desloppify.engine._plan.sync.triage import sync_triage_needed
 
     plan = _plan_with_queue("issue_a", "issue_b")
     plan["epic_triage_meta"] = {"issue_snapshot_hash": "old_hash"}

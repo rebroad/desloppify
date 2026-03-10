@@ -101,15 +101,22 @@ def _validate_dimension_judgment(
     key: str,
     raw: object,
     *,
+    require_complete: bool = False,
     log_fn,
 ) -> BatchDimensionJudgmentPayload | None:
     """Validate a single dimension_judgment entry. Returns cleaned payload or None."""
     if not isinstance(raw, dict):
+        if require_complete:
+            raise ValueError(f"dimension_judgment.{key} must be an object")
         log_fn(f"  dimension_judgment.{key}: expected object, skipping")
         return None
 
     strengths_raw = raw.get("strengths")
     if not isinstance(strengths_raw, list):
+        if require_complete:
+            raise ValueError(
+                f"dimension_judgment.{key}.strengths must be an array"
+            )
         strengths: list[str] = []
     else:
         strengths = [
@@ -123,6 +130,10 @@ def _validate_dimension_judgment(
     if isinstance(ic_raw, str) and ic_raw.strip():
         issue_character = ic_raw.strip()
     else:
+        if require_complete:
+            raise ValueError(
+                f"dimension_judgment.{key}.issue_character must be a non-empty string"
+            )
         log_fn(f"  dimension_judgment.{key}.issue_character: missing or empty")
 
     score_rationale = ""
@@ -135,6 +146,10 @@ def _validate_dimension_judgment(
                 f"too short ({len(score_rationale)} chars, want ≥50)"
             )
     else:
+        if require_complete:
+            raise ValueError(
+                f"dimension_judgment.{key}.score_rationale must be a non-empty string"
+            )
         log_fn(f"  dimension_judgment.{key}.score_rationale: missing or empty")
 
     if not issue_character and not score_rationale and not strengths:
@@ -379,15 +394,26 @@ def normalize_batch_result(
             dimension_notes[key]["sub_axes"] = normalized_sub_axes
 
     raw_judgment = payload.get("dimension_judgment", {})
+    if not isinstance(raw_judgment, dict):
+        raise ValueError("dimension_judgment must be an object")
     dimension_judgment: dict[str, BatchDimensionJudgmentPayload] = {}
-    if isinstance(raw_judgment, dict):
-        for key in assessments:
-            judgment_raw = raw_judgment.get(key)
-            if judgment_raw is None:
-                continue
-            validated = _validate_dimension_judgment(key, judgment_raw, log_fn=log_fn)
-            if validated is not None:
-                dimension_judgment[key] = validated
+    for key in assessments:
+        if key not in raw_judgment:
+            raise ValueError(
+                f"dimension_judgment missing entry for assessed dimension: {key}"
+            )
+        judgment_raw = raw_judgment.get(key)
+        validated = _validate_dimension_judgment(
+            key,
+            judgment_raw,
+            require_complete=True,
+            log_fn=log_fn,
+        )
+        if validated is None:
+            raise ValueError(
+                f"dimension_judgment.{key} must include strengths, issue_character, and score_rationale"
+            )
+        dimension_judgment[key] = validated
 
     issues = _normalize_issues(
         payload.get("issues"),

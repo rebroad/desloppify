@@ -209,6 +209,17 @@ def test_core_normalize_helpers_and_batch_normalization() -> None:
                 "fix_scope": "single_edit",
             }
         },
+        "dimension_judgment": {
+            "naming_quality": {
+                "strengths": ["Naming conventions are mostly consistent."],
+                "issue_character": "Inconsistency is isolated to a few ambiguous identifiers.",
+                "score_rationale": (
+                    "Most modules use descriptive names and consistent style, but a handful of "
+                    "generic names still obscure intent at handoff points. "
+                    "That keeps the score strong but not top-tier."
+                ),
+            }
+        },
     }
     assessments, issues_payload, notes_payload, judgments, norm_quality = core_normalize_mod.normalize_batch_result(
         payload,
@@ -220,7 +231,7 @@ def test_core_normalize_helpers_and_batch_normalization() -> None:
     assert assessments == {"naming_quality": 80.0}
     assert len(issues_payload) == 1
     assert "naming_quality" in notes_payload
-    assert judgments == {}
+    assert "naming_quality" in judgments
     assert "dimension_coverage" in norm_quality
 
 

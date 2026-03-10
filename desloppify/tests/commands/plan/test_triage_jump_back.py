@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 
-import desloppify.app.commands.plan.triage_handlers as triage_mod
+import desloppify.app.commands.plan.triage.command as triage_mod
 from desloppify.engine._plan.schema import empty_plan
 from desloppify.engine._plan.constants import TRIAGE_STAGE_IDS
 

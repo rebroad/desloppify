@@ -6,18 +6,25 @@ from pathlib import Path
 
 from desloppify.base.output.terminal import log
 from desloppify.engine.policy.zones import adjust_potential
+from desloppify.languages._framework.base.smell_contracts import (
+    normalize_smell_entries,
+)
 from desloppify.languages._framework.base.types import LangRuntimeContract
 from desloppify.languages._framework.issue_factories import make_smell_issues
-from desloppify.languages.typescript.detectors import react_context as react_context_mod
-from desloppify.languages.typescript.detectors import react_hook_bloat as react_hook_bloat_mod
-from desloppify.languages.typescript.detectors import react_state_sync as react_state_sync_mod
-from desloppify.languages.typescript.detectors import smells as smells_detector_mod
+import desloppify.languages.typescript.detectors.react_context as react_context_mod
+import desloppify.languages.typescript.detectors.react_hook_bloat as react_hook_bloat_mod
+import desloppify.languages.typescript.detectors.react_state_sync as react_state_sync_mod
+import desloppify.languages.typescript.detectors.smells as smells_detector_mod
 from desloppify.state import Issue, make_issue
 
 
 def phase_smells(path: Path, lang: LangRuntimeContract) -> tuple[list[Issue], dict[str, int]]:
     smell_entries, total_smell_files = smells_detector_mod.detect_smells(path)
-    results = make_smell_issues(smell_entries, log)
+    normalized_smells = normalize_smell_entries(smell_entries)
+    results = make_smell_issues(
+        [entry.to_mapping() for entry in normalized_smells],
+        log,
+    )
 
     react_entries, total_effects = react_state_sync_mod.detect_state_sync(path)
     for entry in react_entries:

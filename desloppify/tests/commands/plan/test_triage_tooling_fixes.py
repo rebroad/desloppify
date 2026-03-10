@@ -7,7 +7,7 @@ from pathlib import Path
 
 from desloppify.app.commands.plan import cluster_update as cluster_update_mod
 
-from desloppify.app.commands.plan.triage._stage_validation import (
+from desloppify.app.commands.plan.triage.validation.core import (
     _cluster_file_overlaps,
     _steps_with_bad_paths,
     _steps_without_effort,
@@ -180,7 +180,7 @@ def test_cluster_file_overlaps_auto_excluded() -> None:
 
 def test_depends_on_persisted(monkeypatch, capsys, tmp_path: Path) -> None:
     """--depends-on should persist on cluster dict."""
-    from desloppify.app.commands.plan import cluster_handlers
+    from desloppify.app.commands.plan.cluster import dispatch as cluster_handlers
 
     test_plan = {
         "clusters": {
@@ -209,7 +209,7 @@ def test_depends_on_persisted(monkeypatch, capsys, tmp_path: Path) -> None:
 
 def test_depends_on_invalid_cluster(monkeypatch, capsys) -> None:
     """--depends-on with invalid cluster name should error."""
-    from desloppify.app.commands.plan import cluster_handlers
+    from desloppify.app.commands.plan.cluster import dispatch as cluster_handlers
 
     test_plan = {
         "clusters": {
@@ -238,7 +238,7 @@ def test_depends_on_invalid_cluster(monkeypatch, capsys) -> None:
 
 def test_effort_persisted_add_step(monkeypatch, capsys) -> None:
     """--effort should persist on new step."""
-    from desloppify.app.commands.plan import cluster_handlers
+    from desloppify.app.commands.plan.cluster import dispatch as cluster_handlers
 
     test_plan = {
         "clusters": {
@@ -268,7 +268,7 @@ def test_effort_persisted_add_step(monkeypatch, capsys) -> None:
 
 def test_effort_persisted_update_step(monkeypatch, capsys) -> None:
     """--effort should persist on updated step."""
-    from desloppify.app.commands.plan import cluster_handlers
+    from desloppify.app.commands.plan.cluster import dispatch as cluster_handlers
 
     test_plan = {
         "clusters": {
@@ -304,7 +304,7 @@ def test_effort_persisted_update_step(monkeypatch, capsys) -> None:
 
 def test_long_title_warning(monkeypatch, capsys) -> None:
     """Long step title should trigger warning."""
-    from desloppify.app.commands.plan import cluster_handlers
+    from desloppify.app.commands.plan.cluster import dispatch as cluster_handlers
 
     test_plan = {
         "clusters": {
@@ -335,7 +335,7 @@ def test_long_title_warning(monkeypatch, capsys) -> None:
 
 def test_short_title_no_warning(monkeypatch, capsys) -> None:
     """Short step title should not trigger warning."""
-    from desloppify.app.commands.plan import cluster_handlers
+    from desloppify.app.commands.plan.cluster import dispatch as cluster_handlers
 
     test_plan = {
         "clusters": {
@@ -367,7 +367,7 @@ def test_short_title_no_warning(monkeypatch, capsys) -> None:
 
 def test_issue_refs_persisted_add_step(monkeypatch, capsys) -> None:
     """--issue-refs should persist on new step."""
-    from desloppify.app.commands.plan import cluster_handlers
+    from desloppify.app.commands.plan.cluster import dispatch as cluster_handlers
 
     test_plan = {
         "clusters": {
@@ -399,7 +399,7 @@ def test_issue_refs_persisted_add_step(monkeypatch, capsys) -> None:
 
 def test_steps_missing_issue_refs() -> None:
     """Steps without issue_refs should be flagged."""
-    from desloppify.app.commands.plan.triage._stage_validation import _steps_missing_issue_refs
+    from desloppify.app.commands.plan.triage.validation.core import _steps_missing_issue_refs
 
     plan = _plan_with_steps([
         {"title": "step 1", "detail": "fix things", "issue_refs": ["review::a::b"]},
@@ -415,7 +415,7 @@ def test_steps_missing_issue_refs() -> None:
 
 def test_steps_missing_issue_refs_all_have_refs() -> None:
     """Steps with issue_refs should not be flagged."""
-    from desloppify.app.commands.plan.triage._stage_validation import _steps_missing_issue_refs
+    from desloppify.app.commands.plan.triage.validation.core import _steps_missing_issue_refs
 
     plan = _plan_with_steps([
         {"title": "step 1", "detail": "fix things", "issue_refs": ["review::a::b"]},
@@ -426,7 +426,7 @@ def test_steps_missing_issue_refs_all_have_refs() -> None:
 
 def test_steps_with_vague_detail_flagged(tmp_path: Path) -> None:
     """Short detail with no file paths should be flagged as vague."""
-    from desloppify.app.commands.plan.triage._stage_validation import _steps_with_vague_detail
+    from desloppify.app.commands.plan.triage.validation.core import _steps_with_vague_detail
 
     plan = _plan_with_steps([{"title": "fix", "detail": "Fix the error handling"}])
     result = _steps_with_vague_detail(plan, tmp_path)
@@ -438,7 +438,7 @@ def test_steps_with_vague_detail_flagged(tmp_path: Path) -> None:
 
 def test_steps_with_vague_detail_ok_with_path(tmp_path: Path) -> None:
     """Short detail with a file path should not be flagged."""
-    from desloppify.app.commands.plan.triage._stage_validation import _steps_with_vague_detail
+    from desloppify.app.commands.plan.triage.validation.core import _steps_with_vague_detail
 
     plan = _plan_with_steps([{"title": "fix", "detail": "Fix src/foo.ts error"}])
     result = _steps_with_vague_detail(plan, tmp_path)
@@ -447,7 +447,7 @@ def test_steps_with_vague_detail_ok_with_path(tmp_path: Path) -> None:
 
 def test_steps_with_vague_detail_ok_long(tmp_path: Path) -> None:
     """Long detail (80+ chars) without a path should not be flagged."""
-    from desloppify.app.commands.plan.triage._stage_validation import _steps_with_vague_detail
+    from desloppify.app.commands.plan.triage.validation.core import _steps_with_vague_detail
 
     plan = _plan_with_steps([{"title": "fix", "detail": "x" * 80}])
     result = _steps_with_vague_detail(plan, tmp_path)
@@ -456,7 +456,7 @@ def test_steps_with_vague_detail_ok_long(tmp_path: Path) -> None:
 
 def test_steps_referencing_skipped_issues() -> None:
     """Steps with issue_refs pointing to wontfixed issues should be flagged."""
-    from desloppify.app.commands.plan.triage._stage_validation import _steps_referencing_skipped_issues
+    from desloppify.app.commands.plan.triage.validation.core import _steps_referencing_skipped_issues
 
     plan = _plan_with_steps([
         {"title": "fix", "detail": "d", "issue_refs": ["review::a::b", "review::skipped::c"]},
@@ -470,7 +470,7 @@ def test_steps_referencing_skipped_issues() -> None:
 
 def test_steps_referencing_skipped_issues_clean() -> None:
     """Steps with no skipped refs should not be flagged."""
-    from desloppify.app.commands.plan.triage._stage_validation import _steps_referencing_skipped_issues
+    from desloppify.app.commands.plan.triage.validation.core import _steps_referencing_skipped_issues
 
     plan = _plan_with_steps([
         {"title": "fix", "detail": "d", "issue_refs": ["review::a::b"]},
@@ -485,7 +485,7 @@ def test_steps_referencing_skipped_issues_clean() -> None:
 
 def test_directory_scatter_detected() -> None:
     """Cluster with steps spanning 5+ directories should be flagged."""
-    from desloppify.app.commands.plan.triage._stage_validation import _clusters_with_directory_scatter
+    from desloppify.app.commands.plan.triage.validation.core import _clusters_with_directory_scatter
 
     plan = _plan_with_steps([
         {"title": "s1", "detail": "Fix src/domains/billing/hooks/useAutoTopup.ts"},
@@ -504,7 +504,7 @@ def test_directory_scatter_detected() -> None:
 
 def test_directory_scatter_not_flagged_few_dirs() -> None:
     """Cluster with steps in few directories should not be flagged."""
-    from desloppify.app.commands.plan.triage._stage_validation import _clusters_with_directory_scatter
+    from desloppify.app.commands.plan.triage.validation.core import _clusters_with_directory_scatter
 
     plan = _plan_with_steps([
         {"title": "s1", "detail": "Fix src/domains/billing/hooks/useAutoTopup.ts"},
@@ -520,7 +520,7 @@ def test_directory_scatter_not_flagged_few_dirs() -> None:
 
 def test_high_step_ratio_detected() -> None:
     """Cluster with more steps than issues should be flagged."""
-    from desloppify.app.commands.plan.triage._stage_validation import _clusters_with_high_step_ratio
+    from desloppify.app.commands.plan.triage.validation.core import _clusters_with_high_step_ratio
 
     plan = {
         "clusters": {
@@ -543,7 +543,7 @@ def test_high_step_ratio_detected() -> None:
 
 def test_high_step_ratio_ok() -> None:
     """Cluster with fewer steps than issues should not be flagged."""
-    from desloppify.app.commands.plan.triage._stage_validation import _clusters_with_high_step_ratio
+    from desloppify.app.commands.plan.triage.validation.core import _clusters_with_high_step_ratio
 
     plan = {
         "clusters": {
@@ -561,7 +561,7 @@ def test_high_step_ratio_ok() -> None:
 
 def test_high_step_ratio_skips_small_clusters() -> None:
     """Small clusters (< 3 issues) should not be checked."""
-    from desloppify.app.commands.plan.triage._stage_validation import _clusters_with_high_step_ratio
+    from desloppify.app.commands.plan.triage.validation.core import _clusters_with_high_step_ratio
 
     plan = {
         "clusters": {
@@ -582,7 +582,7 @@ def test_high_step_ratio_skips_small_clusters() -> None:
 
 def test_auto_start_preserves_existing_stages(monkeypatch) -> None:
     """Auto-start in stage commands should NOT clear existing triage_stages."""
-    from desloppify.app.commands.plan.triage import stage_flow_commands
+    from desloppify.app.commands.plan.triage.stages import commands as stage_flow_commands
 
     existing_stages = {
         "observe": {"report": "analysis", "confirmed_at": "2026-01-01"},

@@ -83,6 +83,25 @@ class TestLoadSaveConfig:
         cfg = load_config(p)
         assert cfg == default_config()
 
+    def test_corrupted_file_tries_backup(self, tmp_path, capsys):
+        p = tmp_path / "config.json"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("not valid json{{{")
+        backup = tmp_path / "config.json.bak"
+        backup.write_text(json.dumps({"review_max_age_days": 14}))
+
+        cfg = load_config(p)
+        assert cfg["review_max_age_days"] == 14
+        assert "Config file corrupted" in capsys.readouterr().err
+
+    def test_corrupted_file_renamed_when_no_backup(self, tmp_path):
+        p = tmp_path / "config.json"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("not valid json{{{")
+
+        load_config(p)
+        assert (tmp_path / "config.json.corrupted").exists()
+
     def test_legacy_csharp_keys_are_not_auto_migrated(self, tmp_path):
         p = tmp_path / "config.json"
         p.parent.mkdir(parents=True, exist_ok=True)

@@ -9,14 +9,16 @@ from types import SimpleNamespace
 
 import pytest
 
-import desloppify.app.commands.plan.triage._stage_validation_completion_policy as completion_policy_mod
-import desloppify.app.commands.plan.triage._stage_validation_completion_stages as completion_stages_mod
-import desloppify.app.commands.plan.triage._stage_validation_enrich_checks as enrich_checks_mod
-import desloppify.app.commands.plan.triage.confirmations_basic as confirmations_basic_mod
-import desloppify.app.commands.plan.triage.confirmations_enrich as confirmations_enrich_mod
-import desloppify.app.commands.plan.triage.confirmations_organize as confirmations_organize_mod
-import desloppify.app.commands.plan.triage.display_layout as display_layout_mod
+import desloppify.app.commands.plan.triage.validation.completion_policy as completion_policy_mod
+import desloppify.app.commands.plan.triage.validation.completion_stages as completion_stages_mod
+import desloppify.app.commands.plan.triage.validation.enrich_checks as enrich_checks_mod
+import desloppify.app.commands.plan.triage.validation.core as stage_validation_mod
+import desloppify.app.commands.plan.triage.confirmations.basic as confirmations_basic_mod
+import desloppify.app.commands.plan.triage.confirmations.enrich as confirmations_enrich_mod
+import desloppify.app.commands.plan.triage.confirmations.organize as confirmations_organize_mod
+import desloppify.app.commands.plan.triage.display.layout as display_layout_mod
 import desloppify.app.commands.plan.triage.runner.orchestrator_claude as orchestrator_claude_mod
+import desloppify.app.commands.plan.triage.runner.codex_runner as codex_runner_mod
 import desloppify.app.commands.plan.triage.runner.orchestrator_codex_observe as orchestrator_observe_mod
 import desloppify.app.commands.plan.triage.runner.orchestrator_codex_pipeline as orchestrator_pipeline_mod
 import desloppify.app.commands.plan.triage.runner.orchestrator_codex_sense as orchestrator_sense_mod
@@ -192,6 +194,78 @@ def test_confirmation_modules_stage_presence_guards(capsys) -> None:
     assert "Cannot confirm" in out
 
 
+def test_confirmation_pipeline_structures_enrich_level_results(monkeypatch) -> None:
+    monkeypatch.setattr(
+        stage_validation_mod,
+        "_underspecified_steps",
+        lambda _plan: [("cluster-a", 2, 4)],
+    )
+    monkeypatch.setattr(
+        stage_validation_mod,
+        "_steps_with_bad_paths",
+        lambda _plan, _root: [("cluster-a", 1, ["src/missing.py"])],
+    )
+    monkeypatch.setattr(
+        stage_validation_mod,
+        "_steps_without_effort",
+        lambda _plan: [("cluster-a", 1, 4)],
+    )
+    monkeypatch.setattr(
+        stage_validation_mod,
+        "_steps_missing_issue_refs",
+        lambda _plan: [("cluster-a", 3, 4)],
+    )
+    monkeypatch.setattr(
+        stage_validation_mod,
+        "_steps_with_vague_detail",
+        lambda _plan, _root: [("cluster-a", 2, "Fix")],
+    )
+    monkeypatch.setattr(
+        stage_validation_mod,
+        "_steps_referencing_skipped_issues",
+        lambda _plan: [("cluster-a", 2, ["review::a.py::id1"])],
+    )
+    monkeypatch.setattr("desloppify.base.discovery.paths.get_project_root", lambda: Path("."))
+
+    report = confirmations_enrich_mod._collect_enrich_level_confirmation_checks(
+        {"clusters": {}},
+        include_stale_issue_ref_warning=True,
+    )
+
+    assert [issue.code for issue in report.failures] == [
+        "underspecified",
+        "bad_paths",
+        "missing_effort",
+        "missing_issue_refs",
+        "vague_detail",
+    ]
+    assert report.failure("underspecified") is not None
+    assert report.failure("bad_paths") is not None
+    assert report.warning("stale_issue_refs") is not None
+
+
+def test_confirmation_pipeline_can_skip_stale_issue_ref_warnings(monkeypatch) -> None:
+    monkeypatch.setattr(stage_validation_mod, "_underspecified_steps", lambda _plan: [])
+    monkeypatch.setattr(stage_validation_mod, "_steps_with_bad_paths", lambda _plan, _root: [])
+    monkeypatch.setattr(stage_validation_mod, "_steps_without_effort", lambda _plan: [])
+    monkeypatch.setattr(stage_validation_mod, "_steps_missing_issue_refs", lambda _plan: [])
+    monkeypatch.setattr(stage_validation_mod, "_steps_with_vague_detail", lambda _plan, _root: [])
+    monkeypatch.setattr(
+        stage_validation_mod,
+        "_steps_referencing_skipped_issues",
+        lambda _plan: [("cluster-a", 1, ["review::a.py::id1"])],
+    )
+    monkeypatch.setattr("desloppify.base.discovery.paths.get_project_root", lambda: Path("."))
+
+    report = confirmations_enrich_mod._collect_enrich_level_confirmation_checks(
+        {"clusters": {}},
+        include_stale_issue_ref_warning=False,
+    )
+
+    assert report.failures == []
+    assert report.warnings == []
+
+
 def test_validate_attestation_rules() -> None:
     assert confirmations_basic_mod.validate_attestation("mentions naming", "observe", dimensions=["Naming"]) is None
     err = confirmations_basic_mod.validate_attestation(
@@ -311,7 +385,7 @@ def test_orchestrator_observe_helpers_and_dry_run(monkeypatch, tmp_path, capsys)
         lambda **_kwargs: "prompt",
     )
 
-    ok, report = orchestrator_observe_mod.run_observe(
+    result = orchestrator_observe_mod.run_observe(
         si=SimpleNamespace(),
         repo_root=tmp_path,
         prompts_dir=tmp_path / "prompts",
@@ -320,8 +394,9 @@ def test_orchestrator_observe_helpers_and_dry_run(monkeypatch, tmp_path, capsys)
         timeout_seconds=60,
         dry_run=True,
     )
-    assert ok is True
-    assert report == ""
+    assert result.status == "dry_run"
+    assert result.reason == "dry_run"
+    assert result.merged_output is None
     out = capsys.readouterr().out
     assert "[dry-run]" in out
 
@@ -339,7 +414,7 @@ def test_orchestrator_sense_dry_run(monkeypatch, tmp_path, capsys) -> None:
         lambda **_kwargs: "structure prompt",
     )
 
-    ok, report = orchestrator_sense_mod.run_sense_check(
+    result = orchestrator_sense_mod.run_sense_check(
         plan={"clusters": {"cluster-a": {"issue_ids": ["id1"]}}},
         repo_root=tmp_path,
         prompts_dir=tmp_path / "prompts",
@@ -348,10 +423,129 @@ def test_orchestrator_sense_dry_run(monkeypatch, tmp_path, capsys) -> None:
         timeout_seconds=60,
         dry_run=True,
     )
-    assert ok is True
-    assert report == ""
+    assert result.status == "dry_run"
+    assert result.reason == "dry_run"
+    assert result.merged_output is None
     out = capsys.readouterr().out
     assert "[dry-run]" in out
+
+
+def test_orchestrator_sense_non_dry_run_merges_outputs(monkeypatch, tmp_path, capsys) -> None:
+    monkeypatch.setattr(orchestrator_sense_mod, "manual_clusters_with_issues", lambda _plan: ["cluster-a"])
+    monkeypatch.setattr(
+        orchestrator_sense_mod,
+        "build_sense_check_content_prompt",
+        lambda **_kwargs: "content prompt",
+    )
+    monkeypatch.setattr(
+        orchestrator_sense_mod,
+        "build_sense_check_structure_prompt",
+        lambda **_kwargs: "structure prompt",
+    )
+
+    def fake_run_triage_stage(
+        *,
+        prompt,
+        repo_root,
+        output_file,
+        log_file,
+        timeout_seconds,
+        validate_output_fn,
+    ):
+        del repo_root, log_file, timeout_seconds
+        if "content" in prompt:
+            output_file.write_text("content batch output", encoding="utf-8")
+        else:
+            output_file.write_text("structure batch output", encoding="utf-8")
+        assert validate_output_fn(output_file)
+        return codex_runner_mod.TriageStageRunResult(exit_code=0)
+
+    monkeypatch.setattr(
+        orchestrator_sense_mod,
+        "run_triage_stage",
+        fake_run_triage_stage,
+    )
+
+    def fake_run_parallel_batches(
+        *,
+        tasks,
+        stage_label,
+        batch_label_fn,
+        append_run_log,
+        heartbeat_seconds,
+    ):
+        del stage_label, batch_label_fn, append_run_log, heartbeat_seconds
+        for task in tasks.values():
+            assert task().ok
+        return []
+
+    monkeypatch.setattr(orchestrator_sense_mod, "run_parallel_batches", fake_run_parallel_batches)
+
+    prompts_dir = tmp_path / "prompts"
+    output_dir = tmp_path / "out"
+    logs_dir = tmp_path / "logs"
+    prompts_dir.mkdir()
+    output_dir.mkdir()
+    logs_dir.mkdir()
+
+    result = orchestrator_sense_mod.run_sense_check(
+        plan={"clusters": {"cluster-a": {"issue_ids": ["id1"]}}},
+        repo_root=tmp_path,
+        prompts_dir=prompts_dir,
+        output_dir=output_dir,
+        logs_dir=logs_dir,
+        timeout_seconds=60,
+        dry_run=False,
+    )
+
+    assert result.ok
+    assert result.merged_output is not None
+    assert "content:cluster-a" in result.merged_output
+    assert "structure" in result.merged_output
+    out = capsys.readouterr().out
+    assert "merged 2 batch outputs" in out
+
+
+def test_orchestrator_sense_non_dry_run_reports_parallel_failures(monkeypatch, tmp_path, capsys) -> None:
+    monkeypatch.setattr(orchestrator_sense_mod, "manual_clusters_with_issues", lambda _plan: ["cluster-a"])
+    monkeypatch.setattr(
+        orchestrator_sense_mod,
+        "build_sense_check_content_prompt",
+        lambda **_kwargs: "content prompt",
+    )
+    monkeypatch.setattr(
+        orchestrator_sense_mod,
+        "build_sense_check_structure_prompt",
+        lambda **_kwargs: "structure prompt",
+    )
+    monkeypatch.setattr(
+        orchestrator_sense_mod,
+        "run_parallel_batches",
+        lambda **_kwargs: [1],
+    )
+
+    prompts_dir = tmp_path / "prompts"
+    output_dir = tmp_path / "out"
+    logs_dir = tmp_path / "logs"
+    prompts_dir.mkdir()
+    output_dir.mkdir()
+    logs_dir.mkdir()
+
+    result = orchestrator_sense_mod.run_sense_check(
+        plan={"clusters": {"cluster-a": {"issue_ids": ["id1"]}}},
+        repo_root=tmp_path,
+        prompts_dir=prompts_dir,
+        output_dir=output_dir,
+        logs_dir=logs_dir,
+        timeout_seconds=60,
+        dry_run=False,
+    )
+
+    assert result.status == "failed"
+    assert result.reason == "parallel_execution_failed"
+    assert result.merged_output is None
+    out = capsys.readouterr().out
+    assert "batch(es) failed" in out
 
 
 def test_orchestrator_pipeline_summary_writer(tmp_path) -> None:
@@ -459,7 +653,7 @@ def test_execute_stage_records_output_only_reflect_report(monkeypatch, tmp_path:
     def fake_run_triage_stage(*, prompt, repo_root, output_file, log_file, timeout_seconds):
         del prompt, repo_root, log_file, timeout_seconds
         output_file.write_text("Reflect analysis report with enough detail.", encoding="utf-8")
-        return 0
+        return codex_runner_mod.TriageStageRunResult(exit_code=0)
 
     monkeypatch.setattr(orchestrator_pipeline_mod, "run_triage_stage", fake_run_triage_stage)
     monkeypatch.setitem(
@@ -514,7 +708,7 @@ def test_execute_stage_uses_self_record_mode_for_organize(monkeypatch, tmp_path:
     def fake_run_triage_stage(*, prompt, repo_root, output_file, log_file, timeout_seconds):
         del prompt, repo_root, log_file, timeout_seconds
         output_file.write_text("Organize summary.", encoding="utf-8")
-        return 0
+        return codex_runner_mod.TriageStageRunResult(exit_code=0)
 
     monkeypatch.setattr(orchestrator_pipeline_mod, "build_stage_prompt", fake_build_stage_prompt)
     monkeypatch.setattr(orchestrator_pipeline_mod, "run_triage_stage", fake_run_triage_stage)
@@ -599,7 +793,11 @@ Cluster "alpha" owns the actual code changes.
 1. alpha
 """
 
-    monkeypatch.setattr(orchestrator_pipeline_mod, "run_triage_stage", lambda **_kwargs: 0)
+    monkeypatch.setattr(
+        orchestrator_pipeline_mod,
+        "run_triage_stage",
+        lambda **_kwargs: codex_runner_mod.TriageStageRunResult(exit_code=0),
+    )
     monkeypatch.setattr(orchestrator_pipeline_mod, "build_stage_prompt", lambda *a, **k: "repair prompt")
     monkeypatch.setattr(
         orchestrator_pipeline_mod,
@@ -639,7 +837,11 @@ def test_execute_stage_fails_when_handler_does_not_persist_stage(monkeypatch, tm
         (tmp_path / dirname).mkdir()
 
     monkeypatch.setattr(orchestrator_pipeline_mod, "build_stage_prompt", lambda *a, **k: "prompt")
-    monkeypatch.setattr(orchestrator_pipeline_mod, "run_triage_stage", lambda **_kwargs: 0)
+    monkeypatch.setattr(
+        orchestrator_pipeline_mod,
+        "run_triage_stage",
+        lambda **_kwargs: codex_runner_mod.TriageStageRunResult(exit_code=0),
+    )
     monkeypatch.setattr(orchestrator_pipeline_mod, "_read_stage_output", lambda _path: "x" * 120)
     monkeypatch.setitem(
         orchestrator_pipeline_mod._STAGE_HANDLERS,

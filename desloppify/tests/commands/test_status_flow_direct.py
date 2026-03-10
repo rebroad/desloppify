@@ -33,7 +33,7 @@ def test_print_score_section_frozen_mode_uses_frozen_renderer(monkeypatch) -> No
 
 
 def test_render_terminal_status_writes_query_payload(monkeypatch) -> None:
-    written: list[dict] = []
+    written: list[flow_mod.StatusQueryRequest] = []
     monkeypatch.setattr(flow_mod, "check_skill_version", lambda: None)
     monkeypatch.setattr(flow_mod, "check_config_staleness", lambda _cfg: None)
     monkeypatch.setattr(
@@ -57,7 +57,7 @@ def test_render_terminal_status_writes_query_payload(monkeypatch) -> None:
     monkeypatch.setattr(flow_mod, "render_uncommitted_reminder", lambda *_a, **_k: None)
     monkeypatch.setattr(flow_mod, "show_agent_plan", lambda *_a, **_k: None)
     monkeypatch.setattr(flow_mod, "show_ignore_summary", lambda *_a, **_k: None)
-    monkeypatch.setattr(flow_mod, "write_status_query", lambda **payload: written.append(payload))
+    monkeypatch.setattr(flow_mod, "write_status_query", lambda request: written.append(request))
 
     flow_mod.render_terminal_status(
         argparse.Namespace(),
@@ -72,6 +72,6 @@ def test_render_terminal_status_writes_query_payload(monkeypatch) -> None:
 
     assert written
     payload = written[0]
-    assert payload["overall_score"] == 90.0
-    assert payload["strict_score"] == 88.0
-    assert payload["plan"] == {"queue_order": ["x"]}
+    assert payload.overall_score == 90.0
+    assert payload.strict_score == 88.0
+    assert payload.plan == {"queue_order": ["x"]}

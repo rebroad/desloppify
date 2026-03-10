@@ -10,7 +10,7 @@ from desloppify.engine._plan.cluster_strategy import (
     cluster_name_from_key,
     grouping_key,
 )
-from desloppify.engine._plan.operations_cluster import (
+from desloppify.engine._plan.operations.cluster import (
     add_to_cluster,
     create_cluster,
     remove_from_cluster,

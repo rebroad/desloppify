@@ -5,16 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from desloppify.engine.plan import TriageInput
+from desloppify.engine.plan_triage import TriageInput
 
-from .._stage_evidence_parsing import (
+from ..stages.evidence_parsing import (
     parse_observe_evidence,
     validate_observe_evidence,
     validate_reflect_skip_evidence,
     validate_report_has_file_paths,
     validate_report_references_clusters,
 )
-from .._stage_validation import (
+from ..validation.core import (
     _cluster_file_overlaps,
     _clusters_with_directory_scatter,
     _clusters_with_high_step_ratio,
@@ -26,7 +26,7 @@ from .._stage_validation import (
     _underspecified_steps,
 )
 from ..helpers import count_log_activity_since, manual_clusters_with_issues, observe_dimension_breakdown
-from ..stage_helpers import unclustered_review_issues, unenriched_clusters
+from ..stages.helpers import unclustered_review_issues, unenriched_clusters
 
 
 @dataclass(frozen=True)

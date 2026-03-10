@@ -142,6 +142,43 @@ def test_plan_ordered_stale_subjective_gated_with_objective_backlog():
     assert len(subj_with_plan) == 0
 
 
+def test_force_visible_subjective_bypasses_endgame_gate():
+    """Escalated subjective reruns should remain visible with objective backlog."""
+    from desloppify.engine._plan.schema import empty_plan
+
+    state = _state(
+        [_issue("smells::src/a.py::x", detector="smells", tier=3)],
+        dimension_scores={
+            "Naming quality": {
+                "score": 70.0,
+                "strict": 70.0,
+                "failing": 1,
+                "detectors": {
+                    "subjective_assessment": {"dimension_key": "naming_quality"},
+                },
+            },
+        },
+    )
+    state["subjective_assessments"] = {
+        "naming_quality": {
+            "score": 70.0,
+            "needs_review_refresh": True,
+            "stale_since": "2026-01-01T00:00:00+00:00",
+        }
+    }
+
+    plan = empty_plan()
+    plan["queue_order"] = ["subjective::naming_quality", "smells::src/a.py::x"]
+    plan["subjective_defer_meta"] = {
+        "force_visible_ids": ["subjective::naming_quality"],
+    }
+
+    queue = build_work_queue(state, count=None, include_subjective=True, plan=plan)
+    ids = [item["id"] for item in queue["items"]]
+    assert "subjective::naming_quality" in ids
+    assert "smells::src/a.py::x" in ids
+
+
 def test_triage_pending_does_not_unhide_stale_subjective_items():
     """Triage presence must not bypass stale-subjective gating."""
     from desloppify.engine._plan.schema import empty_plan
@@ -200,6 +237,21 @@ def test_triage_pending_does_not_unhide_stale_subjective_items():
     assert "smells::src/b.py::x" in ids
     assert "subjective::naming_quality" not in ids
     assert "subjective::error_consistency" not in ids
+
+
+def test_force_visible_triage_stage_bypasses_objective_gate():
+    """Escalated triage stages should surface even while objective work exists."""
+    from desloppify.engine._plan.schema import empty_plan
+
+    state = _state([_issue("smells::src/a.py::x", detector="smells", tier=3)])
+    plan = empty_plan()
+    plan["queue_order"] = ["triage::observe", "smells::src/a.py::x"]
+    plan["epic_triage_meta"] = {"triage_force_visible": True}
+
+    queue = build_work_queue(state, count=None, include_subjective=True, plan=plan)
+    ids = [item["id"] for item in queue["items"]]
+    assert "triage::observe" in ids
+    assert "smells::src/a.py::x" in ids
 
 
 # ── Lifecycle filter runs after plan_presort ───────────
@@ -358,6 +410,45 @@ def test_triage_stages_hidden_during_initial_reviews():
     ids = [item["id"] for item in queue["items"]]
 
     # Only initial review visible — triage and workflow hidden
+    assert ids == ["subjective::naming_quality"]
+
+
+def test_subjective_phase_precedes_score_and_triage_when_objective_drained():
+    """With no objective backlog, stale/under-target subjective reruns come first."""
+    state = _state(
+        [],
+        dimension_scores={
+            "Naming quality": {
+                "score": 80.0,
+                "strict": 80.0,
+                "failing": 0,
+                "detectors": {
+                    "subjective_assessment": {
+                        "dimension_key": "naming_quality",
+                        "placeholder": False,
+                    },
+                },
+            },
+        },
+    )
+    state["subjective_assessments"] = {
+        "naming_quality": {
+            "score": 80.0,
+            "placeholder": False,
+            "needs_review_refresh": True,
+        }
+    }
+
+    plan = {
+        "queue_order": [
+            "workflow::communicate-score",
+            "triage::observe",
+            "subjective::naming_quality",
+        ],
+        "queue_skipped": {},
+    }
+    queue = build_work_queue(state, count=None, include_subjective=True, plan=plan)
+    ids = [item["id"] for item in queue["items"]]
     assert ids == ["subjective::naming_quality"]
 
 

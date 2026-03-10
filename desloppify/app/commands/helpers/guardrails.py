@@ -8,12 +8,14 @@ from dataclasses import dataclass, field
 from desloppify.app.commands.helpers.display import short_issue_id
 from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS, CommandError
 from desloppify.base.output.terminal import colorize
-from desloppify.engine.plan import (
-    TRIAGE_CMD_RUN_STAGES_CLAUDE,
-    TRIAGE_CMD_RUN_STAGES_CODEX,
+from desloppify.engine.plan_queue import (
     compute_new_issue_ids,
     is_triage_stale,
-    load_plan,
+)
+from desloppify.engine.plan_state import load_plan
+from desloppify.engine.plan_triage import (
+    TRIAGE_CMD_RUN_STAGES_CLAUDE,
+    TRIAGE_CMD_RUN_STAGES_CODEX,
     triage_phase_banner,
 )
 

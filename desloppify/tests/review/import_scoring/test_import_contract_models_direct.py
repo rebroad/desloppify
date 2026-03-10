@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from desloppify.intelligence.review.importing.contracts_types import (
+    ReviewImportPayload,
+)
 from desloppify.intelligence.review.importing.contracts_models import (
     AssessmentImportPolicyModel,
     AssessmentProvenanceModel,
@@ -44,3 +47,19 @@ def test_assessment_import_policy_model_round_trip():
     assert dumped["mode"] == "trusted_internal"
     assert dumped["assessment_count"] == 2
     assert dumped["provenance"]["trusted"] is True
+
+
+def test_review_import_payload_is_raw_optional_envelope() -> None:
+    """Parser validates required keys; raw payload TypedDict should not over-promise."""
+    required = set(getattr(ReviewImportPayload, "__required_keys__", set()))
+    optional = set(getattr(ReviewImportPayload, "__optional_keys__", set()))
+    assert required == set()
+    assert {
+        "issues",
+        "assessments",
+        "reviewed_files",
+        "review_scope",
+        "provenance",
+        "dimension_notes",
+        "_assessment_policy",
+    }.issubset(optional)

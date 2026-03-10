@@ -14,7 +14,7 @@ pytestmark = pytest.mark.skipif(
 
 class TestASTComplexity:
     def test_nesting_depth(self, tmp_path):
-        from desloppify.languages._framework.treesitter._cache import (
+        from desloppify.languages._framework.treesitter.imports.cache import (
             disable_parse_cache,
             enable_parse_cache,
         )
@@ -50,7 +50,7 @@ func complex() {
             disable_parse_cache()
 
     def test_nesting_depth_flat_file(self, tmp_path):
-        from desloppify.languages._framework.treesitter._cache import (
+        from desloppify.languages._framework.treesitter.imports.cache import (
             disable_parse_cache,
             enable_parse_cache,
         )
@@ -81,7 +81,7 @@ func simple() {
             disable_parse_cache()
 
     def test_long_functions_compute(self, tmp_path):
-        from desloppify.languages._framework.treesitter._cache import (
+        from desloppify.languages._framework.treesitter.imports.cache import (
             disable_parse_cache,
             enable_parse_cache,
         )
@@ -109,7 +109,7 @@ func simple() {
             disable_parse_cache()
 
     def test_long_functions_no_big_fn(self, tmp_path):
-        from desloppify.languages._framework.treesitter._cache import (
+        from desloppify.languages._framework.treesitter.imports.cache import (
             disable_parse_cache,
             enable_parse_cache,
         )
@@ -280,7 +280,7 @@ class TestNewLanguageIntegration:
 
 class TestCyclomaticComplexity:
     def test_cyclomatic_simple(self, tmp_path):
-        from desloppify.languages._framework.treesitter._cache import (
+        from desloppify.languages._framework.treesitter.imports.cache import (
             disable_parse_cache,
             enable_parse_cache,
         )
@@ -322,7 +322,7 @@ func decide(x int) int {
             disable_parse_cache()
 
     def test_cyclomatic_trivial(self, tmp_path):
-        from desloppify.languages._framework.treesitter._cache import (
+        from desloppify.languages._framework.treesitter.imports.cache import (
             disable_parse_cache,
             enable_parse_cache,
         )
@@ -347,7 +347,7 @@ func decide(x int) int {
 
 class TestMaxParams:
     def test_many_params(self, tmp_path):
-        from desloppify.languages._framework.treesitter._cache import (
+        from desloppify.languages._framework.treesitter.imports.cache import (
             disable_parse_cache,
             enable_parse_cache,
         )
@@ -380,7 +380,7 @@ func manyArgs(a, b, c, d, e, f, g int) int {
 
 class TestCallbackDepth:
     def test_nested_callbacks(self, tmp_path):
-        from desloppify.languages._framework.treesitter._cache import (
+        from desloppify.languages._framework.treesitter.imports.cache import (
             disable_parse_cache,
             enable_parse_cache,
         )
@@ -533,7 +533,7 @@ function foo(x) {
 
 class TestResponsibilityCohesion:
     def test_cohesive_file_no_flags(self, tmp_path):
-        from desloppify.languages._framework.treesitter._cohesion import (
+        from desloppify.languages._framework.treesitter.analysis.cohesion import (
             detect_responsibility_cohesion,
         )
         from desloppify.languages._framework.treesitter._specs_compiled import GO_SPEC
@@ -555,7 +555,7 @@ class TestResponsibilityCohesion:
         assert checked == 1
 
     def test_disconnected_singletons_not_flagged(self, tmp_path):
-        from desloppify.languages._framework.treesitter._cohesion import (
+        from desloppify.languages._framework.treesitter.analysis.cohesion import (
             detect_responsibility_cohesion,
         )
         from desloppify.languages._framework.treesitter._specs_compiled import GO_SPEC
@@ -576,7 +576,7 @@ class TestResponsibilityCohesion:
         assert checked == 1
 
     def test_mixed_responsibilities_flagged(self, tmp_path):
-        from desloppify.languages._framework.treesitter._cohesion import (
+        from desloppify.languages._framework.treesitter.analysis.cohesion import (
             detect_responsibility_cohesion,
         )
         from desloppify.languages._framework.treesitter._specs_compiled import GO_SPEC

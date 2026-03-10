@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from desloppify.base.output.terminal import log
+from desloppify.languages._framework.base.smell_contracts import normalize_smell_matches
 from desloppify.languages._framework.base.types import DetectorPhase
 from desloppify.state import Issue, make_issue
 
@@ -28,7 +29,7 @@ def make_ast_smells_phase(spec: TreeSitterLangSpec) -> DetectorPhase:
     """Create an AST smells phase: empty catches + unreachable code."""
 
     def run(path: Path, lang: LangRuntimeContract) -> tuple[list[Issue], dict[str, int]]:
-        from desloppify.languages._framework.treesitter._smells import (
+        from desloppify.languages._framework.treesitter.analysis.smells import (
             detect_empty_catches,
             detect_unreachable_code,
         )
@@ -37,23 +38,31 @@ def make_ast_smells_phase(spec: TreeSitterLangSpec) -> DetectorPhase:
         issues: list[Issue] = []
         potentials: dict[str, int] = {}
 
-        catches = detect_empty_catches(file_list, spec)
-        for e in catches:
+        catches = normalize_smell_matches(
+            detect_empty_catches(file_list, spec),
+            content_key="type",
+            default_content="catch",
+        )
+        for match in catches:
             issues.append(make_issue(
-                "smells", e["file"], f"empty_catch::{e['line']}",
+                "smells", match.file, f"empty_catch::{match.line}",
                 tier=3, confidence="high",
-                summary=f"Empty {e['type']} — swallows errors silently",
+                summary=f"Empty {match.content} — swallows errors silently",
             ))
         if catches:
             potentials["empty_catch"] = len(catches)
             log(f"         empty catch blocks: {len(catches)}")
 
-        unreachable = detect_unreachable_code(file_list, spec)
-        for e in unreachable:
+        unreachable = normalize_smell_matches(
+            detect_unreachable_code(file_list, spec),
+            content_key="after",
+            default_content="return",
+        )
+        for match in unreachable:
             issues.append(make_issue(
-                "smells", e["file"], f"unreachable_code::{e['line']}",
+                "smells", match.file, f"unreachable_code::{match.line}",
                 tier=3, confidence="high",
-                summary=f"Unreachable code after {e['after']}",
+                summary=f"Unreachable code after {match.content}",
             ))
         if unreachable:
             potentials["unreachable_code"] = len(unreachable)
@@ -68,7 +77,7 @@ def make_cohesion_phase(spec: TreeSitterLangSpec) -> DetectorPhase:
     """Create a responsibility cohesion phase."""
 
     def run(path: Path, lang: LangRuntimeContract) -> tuple[list[Issue], dict[str, int]]:
-        from desloppify.languages._framework.treesitter._cohesion import (
+        from desloppify.languages._framework.treesitter.analysis.cohesion import (
             detect_responsibility_cohesion,
         )
 
@@ -106,7 +115,7 @@ def make_unused_imports_phase(spec: TreeSitterLangSpec) -> DetectorPhase:
     """Create an unused imports phase."""
 
     def run(path: Path, lang: LangRuntimeContract) -> tuple[list[Issue], dict[str, int]]:
-        from desloppify.languages._framework.treesitter._unused_imports import (
+        from desloppify.languages._framework.treesitter.analysis.unused_imports import (
             detect_unused_imports,
         )
 

@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-import desloppify.languages.typescript.phases as phases
+import desloppify.languages.typescript.phases_coupling as phases_coupling_mod
+import desloppify.languages.typescript.phases_structural as phases_structural_mod
 from desloppify.engine.detectors.coupling import CouplingEdgeCounts
 
 
@@ -69,7 +70,7 @@ def test_phase_structural_uses_lang_thresholds(monkeypatch, tmp_path: Path):
     )
 
     lang = _FakeLang()
-    issues, potentials = phases.phase_structural(tmp_path, lang)
+    issues, potentials = phases_structural_mod.phase_structural(tmp_path, lang)
 
     # Issues should be empty since all detectors return empty lists
     assert issues == []
@@ -139,7 +140,7 @@ def test_phase_coupling_passes_orphaned_options(monkeypatch, tmp_path: Path):
         lambda _graph: ([], 0),
     )
     monkeypatch.setattr(
-        "desloppify.languages.typescript.detectors.patterns_analysis.detect_pattern_anomalies_result",
+        "desloppify.languages.typescript.detectors.patterns_analysis.detect_pattern_anomalies",
         lambda _path: SimpleNamespace(entries=[], population_size=0),
     )
     monkeypatch.setattr(
@@ -148,7 +149,7 @@ def test_phase_coupling_passes_orphaned_options(monkeypatch, tmp_path: Path):
     )
 
     lang = _FakeCouplingLang()
-    issues, potentials = phases.phase_coupling(tmp_path, lang)
+    issues, potentials = phases_coupling_mod.phase_coupling(tmp_path, lang)
 
     # Issues should be empty since all detectors return empty lists
     assert issues == []
@@ -169,7 +170,10 @@ def test_phase_coupling_passes_orphaned_options(monkeypatch, tmp_path: Path):
     # Orphaned detector options were correctly constructed
     options = captured.get("options")
     assert options is not None
-    assert isinstance(options, phases.orphaned_detector_mod.OrphanedDetectionOptions)
+    assert isinstance(
+        options,
+        phases_coupling_mod.orphaned_detector_mod.OrphanedDetectionOptions,
+    )
     assert options.extra_entry_patterns == _FakeCouplingLang.entry_patterns
     assert options.extra_barrel_names == _FakeCouplingLang.barrel_names
     assert callable(options.dynamic_import_finder)

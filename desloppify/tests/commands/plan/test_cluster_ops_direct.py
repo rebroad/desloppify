@@ -6,12 +6,15 @@ import argparse
 from contextlib import nullcontext
 from types import SimpleNamespace
 
+import pytest
+
 import desloppify.app.commands.plan.cluster_ops_display as cluster_display_mod
 import desloppify.app.commands.plan.cluster_ops_manage as cluster_manage_mod
 import desloppify.app.commands.plan.cluster_ops_reorder as cluster_reorder_mod
 import desloppify.app.commands.plan.cluster_steps as cluster_steps_mod
 import desloppify.app.commands.plan.cluster_update as cluster_update_mod
 import desloppify.app.commands.plan.cluster_update_flow as cluster_update_flow_mod
+from desloppify.base.exception_sets import CommandError
 
 
 def test_cluster_steps_print_step_variants(capsys) -> None:
@@ -373,3 +376,43 @@ def test_cluster_update_direct_paths(capsys) -> None:
     )
     out2 = capsys.readouterr().out
     assert "Nothing to update" in out2
+
+
+def test_cluster_update_steps_file_parse_failure_raises_command_error(tmp_path) -> None:
+    plan = {"clusters": {"alpha": {"issue_ids": [], "action_steps": []}}}
+    steps_file = tmp_path / "steps.md"
+    steps_file.write_text("1. bad step", encoding="utf-8")
+
+    args = argparse.Namespace(
+        cluster_name="alpha",
+        description=None,
+        steps=None,
+        steps_file=str(steps_file),
+        add_step=None,
+        detail=None,
+        update_step=None,
+        remove_step=None,
+        done_step=None,
+        undone_step=None,
+        priority=None,
+        effort=None,
+        depends_on=None,
+        issue_refs=None,
+    )
+    services = cluster_update_flow_mod.ClusterUpdateServices(
+        load_plan_fn=lambda: plan,
+        save_plan_fn=lambda _payload: None,
+        append_log_entry_fn=lambda *_a, **_k: None,
+        parse_steps_file_fn=lambda _text: (_ for _ in ()).throw(ValueError("invalid format")),
+        normalize_step_fn=lambda step: {"title": str(step)},
+        step_summary_fn=lambda step: str(step),
+        utc_now_fn=lambda: "2026-03-09T00:00:00+00:00",
+        colorize_fn=lambda text, _tone: text,
+    )
+
+    with pytest.raises(CommandError, match="failed to load steps file"):
+        cluster_update_mod.cmd_cluster_update(
+            args,
+            services=services,
+            plan_lock_fn=lambda: nullcontext(),
+        )

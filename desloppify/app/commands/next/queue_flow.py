@@ -19,7 +19,7 @@ from desloppify.engine._work_queue.plan_order import (
     collapse_clusters,
     filter_cluster_focus,
 )
-from desloppify.engine.plan import load_plan
+from desloppify.engine.plan_state import load_plan
 from desloppify.engine.planning.scorecard_projection import scorecard_dimensions_payload
 from desloppify.intelligence.narrative.core import NarrativeContext, compute_narrative
 

@@ -97,7 +97,7 @@ def test_phases_basic_cover_logs_unused_exports_and_deprecated(monkeypatch) -> N
 
     monkeypatch.setattr(
         phases_basic_mod.logs_detector_mod,
-        "detect_logs_result",
+        "detect_logs",
         lambda _path: SimpleNamespace(
             entries=[
                 {"file": "src/a.ts", "tag": "DEBUG", "line": 1},
@@ -150,7 +150,21 @@ def test_phases_basic_cover_logs_unused_exports_and_deprecated(monkeypatch) -> N
 def test_phase_smells_aggregates_smells_and_react_issues(monkeypatch) -> None:
     lang = SimpleNamespace(zone_map=None)
 
-    monkeypatch.setattr(phases_smells_mod.smells_detector_mod, "detect_smells", lambda _path: ([{"id": "x"}], 9))
+    monkeypatch.setattr(
+        phases_smells_mod.smells_detector_mod,
+        "detect_smells",
+        lambda _path: (
+            [
+                {
+                    "id": "x",
+                    "label": "X smell",
+                    "severity": "medium",
+                    "matches": [{"file": "src/a.tsx", "line": 3, "content": "x"}],
+                }
+            ],
+            9,
+        ),
+    )
     monkeypatch.setattr(phases_smells_mod, "make_smell_issues", lambda entries, _log: [{"detector": "smells", "entries": entries}])
     monkeypatch.setattr(
         phases_smells_mod.react_state_sync_mod,
@@ -348,7 +362,7 @@ def test_phases_coupling_helpers_and_orchestration(monkeypatch) -> None:
 
     monkeypatch.setattr(
         phases_coupling_mod.patterns_detector_mod,
-        "detect_pattern_anomalies_result",
+        "detect_pattern_anomalies",
         lambda _path: SimpleNamespace(
             entries=[{"area": "shared", "family": "factory", "patterns_used": ["x", "y"], "pattern_count": 2, "review": "mixed patterns", "confidence": "low"}],
             population_size=3,

@@ -1,8 +1,8 @@
 """Shared issue-merge primitives.
 
 Both ``app/commands/review/merge.py`` (post-import CLI) and
-``app/commands/review/batch_core.py`` (batch accumulation) need the same
-dedup-and-merge mechanics.  Extracting them here prevents drift.
+``app/commands/review/batch/core_normalize.py`` (batch accumulation) need the
+same dedup-and-merge mechanics. Extracting them here prevents drift.
 """
 
 from __future__ import annotations

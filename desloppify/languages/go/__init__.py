@@ -7,9 +7,8 @@ Upgraded from generic_lang to full class-based plugin.
 from __future__ import annotations
 
 from desloppify.base.discovery.paths import get_area
-from desloppify.engine.policy.zones import COMMON_ZONE_RULES, Zone, ZoneRule
 from desloppify.engine.hook_registry import register_lang_hooks
-from desloppify.languages import register_lang
+from desloppify.engine.policy.zones import COMMON_ZONE_RULES, Zone, ZoneRule
 from desloppify.languages._framework.base.phase_builders import (
     detector_phase_security,
     detector_phase_signature,
@@ -18,6 +17,7 @@ from desloppify.languages._framework.base.phase_builders import (
 )
 from desloppify.languages._framework.base.types import DetectorPhase, LangConfig
 from desloppify.languages._framework.generic import make_tool_phase
+from desloppify.languages._framework.registration import register_full_plugin
 from desloppify.languages._framework.treesitter.phases import all_treesitter_phases
 from desloppify.languages.go import test_coverage as go_test_coverage_hooks
 from desloppify.languages.go.commands import get_detect_commands
@@ -44,10 +44,6 @@ GO_ZONE_RULES = [
     ZoneRule(Zone.TEST, ["_test.go"]),
 ] + COMMON_ZONE_RULES
 
-register_lang_hooks("go", test_coverage=go_test_coverage_hooks)
-
-
-@register_lang("go")
 class GoConfig(LangConfig):
     """Go language configuration."""
 
@@ -101,36 +97,33 @@ class GoConfig(LangConfig):
             zone_rules=GO_ZONE_RULES,
         )
 
+
+def register() -> None:
+    """Register Go language config + hooks through an explicit entrypoint."""
+    register_full_plugin(
+        "go",
+        GoConfig,
+        test_coverage=go_test_coverage_hooks,
+    )
+
+
+def register_hooks() -> None:
+    """Register Go hook modules without language-config bootstrap."""
+    register_lang_hooks("go", test_coverage=go_test_coverage_hooks)
+
+Config = GoConfig
+
+
 __all__ = [
-    "get_area",
-    "COMMON_ZONE_RULES",
-    "Zone",
-    "ZoneRule",
-    "register_lang_hooks",
-    "register_lang",
-    "detector_phase_security",
-    "detector_phase_signature",
-    "detector_phase_test_coverage",
-    "shared_subjective_duplicates_tail",
-    "DetectorPhase",
-    "LangConfig",
-    "make_tool_phase",
-    "all_treesitter_phases",
-    "go_test_coverage_hooks",
-    "get_detect_commands",
-    "build_go_dep_graph",
-    "GO_FILE_EXCLUSIONS",
-    "extract_functions",
-    "find_go_files",
-    "phase_structural",
+    "Config",
+    "GoConfig",
+    "register",
+    "register_hooks",
+    "GO_ENTRY_PATTERNS",
+    "GO_ZONE_RULES",
     "HOLISTIC_REVIEW_DIMENSIONS",
     "LOW_VALUE_PATTERN",
     "MIGRATION_MIXED_EXTENSIONS",
     "MIGRATION_PATTERN_PAIRS",
     "REVIEW_GUIDANCE",
-    "api_surface",
-    "module_patterns",
-    "GO_ENTRY_PATTERNS",
-    "GO_ZONE_RULES",
-    "GoConfig",
 ]

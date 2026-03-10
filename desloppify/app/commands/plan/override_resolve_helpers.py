@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from desloppify.base.output.terminal import colorize
-from desloppify.engine.plan import (
+from desloppify.engine.plan_queue import (
+    confirmed_triage_stage_names,
+    recorded_unconfirmed_triage_stage_names,
+)
+from desloppify.engine.plan_triage import (
     TRIAGE_IDS,
     TRIAGE_STAGE_DEPENDENCIES,
     TRIAGE_STAGE_IDS,
-    confirmed_triage_stage_names,
-    recorded_unconfirmed_triage_stage_names,
 )
 
 _CLUSTER_INDIVIDUAL_THRESHOLD = 10
@@ -77,11 +79,16 @@ def is_synthetic_id(issue_id: str) -> bool:
     )
 
 
-def resolve_synthetic_ids(patterns: list[str]) -> tuple[list[str], list[str]]:
-    """Separate synthetic IDs from real issue patterns."""
+def split_synthetic_patterns(patterns: list[str]) -> tuple[list[str], list[str]]:
+    """Partition synthetic workflow/triage patterns from real issue patterns."""
     synthetic = [pattern for pattern in patterns if is_synthetic_id(pattern)]
     remaining = [pattern for pattern in patterns if not is_synthetic_id(pattern)]
     return synthetic, remaining
+
+
+def resolve_synthetic_ids(patterns: list[str]) -> tuple[list[str], list[str]]:
+    """Compatibility alias for older call sites."""
+    return split_synthetic_patterns(patterns)
 
 
 def blocked_triage_stages(plan: dict) -> dict[str, list[str]]:
@@ -115,5 +122,6 @@ def blocked_triage_stages(plan: dict) -> dict[str, list[str]]:
 __all__ = [
     "blocked_triage_stages",
     "check_cluster_guard",
+    "split_synthetic_patterns",
     "resolve_synthetic_ids",
 ]

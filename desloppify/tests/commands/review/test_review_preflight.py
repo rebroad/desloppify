@@ -334,8 +334,10 @@ def test_run_batches_uses_prepared_query_dimensions_for_gate():
         "dimensions": ["dependency_health"],
         "investigation_batches": [{"name": "dependency_health"}],
     }
+    from desloppify.app.commands.helpers.query import QueryLoadResult
+    mock_result = QueryLoadResult(ok=True, payload=prepared_query)
     with (
-        patch("desloppify.app.commands.review.preflight.load_query", return_value=prepared_query),
+        patch("desloppify.app.commands.review.preflight.load_query_result", return_value=mock_result),
         patch(_QUEUE_CONTEXT, return_value=_mock_queue_context(objective_count=3)),
     ):
         review_rerun_preflight(state, args)

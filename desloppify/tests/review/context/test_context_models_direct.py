@@ -41,3 +41,17 @@ def test_holistic_context_to_dict_emits_stable_optional_sections():
     assert dumped["authorization"] == {}
     assert dumped["ai_debt_signals"] == {}
     assert dumped["migration_signals"] == {}
+
+
+def test_review_context_from_raw_rejects_non_mapping_payload():
+    with pytest.raises(ReviewContextSchemaError) as exc:
+        ReviewContext.from_raw("not-a-dict")
+
+    assert "payload must be an object" in str(exc.value)
+
+
+def test_review_context_from_raw_coerces_missing_sections_to_empty_dicts():
+    ctx = ReviewContext.from_raw({"naming_vocabulary": {"snake_case": 2}})
+
+    assert ctx.naming_vocabulary == {"snake_case": 2}
+    assert ctx.error_conventions == {}

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from desloppify.app.commands.plan.triage._stage_evidence_parsing import (
+from desloppify.app.commands.plan.triage.stages.evidence_parsing import (
     EvidenceFailure,
     ObserveAssessment,
     ObserveEvidence,
@@ -109,37 +109,14 @@ class TestParseObserveEvidence:
         evidence = parse_observe_evidence(report, self._ids("abc12345"))
         assert len(evidence.entries) == 0
 
-    # --- Legacy bracket format fallback ---
-
-    def test_legacy_bracket_format_fallback(self):
+    def test_legacy_bracket_format_is_not_parsed(self):
         report = (
             "[abc12345] GENUINE — src/services/funds.ts line 45 has raw SQL with interpolation.\n"
             "[def67890] FALSE POSITIVE — src/App.tsx line 12 already uses constants.\n"
         )
         valid_ids = self._ids("abc12345", "def67890")
         evidence = parse_observe_evidence(report, valid_ids)
-        assert len(evidence.entries) == 2
-        assert evidence.entries[0].issue_hash == "abc12345"
-        assert evidence.entries[0].verdict == "genuine"
-        assert evidence.entries[1].verdict == "false positive"
-
-    def test_bold_hash_format_legacy(self):
-        report = "**[abc12345]** GENUINE — found in src/foo.ts line 10.\n"
-        evidence = parse_observe_evidence(report, self._ids("abc12345"))
-        assert len(evidence.entries) == 1
-        assert evidence.entries[0].issue_hash == "abc12345"
-
-    def test_colon_separator_legacy(self):
-        report = "[abc12345]: genuine: src/foo.ts line 10 has the issue.\n"
-        evidence = parse_observe_evidence(report, self._ids("abc12345"))
-        assert len(evidence.entries) == 1
-        assert evidence.entries[0].verdict == "genuine"
-
-    def test_file_path_extraction_legacy(self):
-        report = "[abc12345] GENUINE — found in src/services/funds.ts line 45 and utils/helpers.js:20.\n"
-        evidence = parse_observe_evidence(report, self._ids("abc12345"))
-        assert len(evidence.entries[0].files_read) >= 1
-        assert "src/services/funds.ts" in evidence.entries[0].files_read
+        assert evidence.entries == []
 
     def test_unparsed_citation_count(self):
         report = (
@@ -154,8 +131,7 @@ class TestParseObserveEvidence:
         # abc12345 is cited but not in an assessment entry
         assert evidence.unparsed_citation_count >= 0  # may vary based on exact matching
 
-    def test_yaml_preferred_over_legacy_when_both_present(self):
-        """When YAML entries are found, legacy lines should be ignored."""
+    def test_yaml_entries_parse_when_legacy_lines_are_present(self):
         report = (
             "- hash: abc12345\n"
             "  verdict: genuine\n"
@@ -167,7 +143,6 @@ class TestParseObserveEvidence:
         )
         valid_ids = self._ids("abc12345", "def67890")
         evidence = parse_observe_evidence(report, valid_ids)
-        # YAML found abc12345, so legacy parser not used; def67890 not parsed
         assert len(evidence.entries) == 1
         assert evidence.entries[0].issue_hash == "abc12345"
 

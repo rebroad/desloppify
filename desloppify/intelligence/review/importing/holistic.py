@@ -5,9 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from desloppify.engine._scoring.policy.core import HOLISTIC_POTENTIAL
-from desloppify.engine._state.merge import MergeScanOptions, merge_scan
-from desloppify.engine._state.schema import StateModel, utc_now
+from desloppify import state as state_mod
+from desloppify.engine.concerns import cleanup_stale_dismissals, generate_concerns
+from desloppify.engine.scoring import HOLISTIC_POTENTIAL
 from desloppify.intelligence.review.dimensions import normalize_dimension_name
 from desloppify.intelligence.review.dimensions.data import load_dimensions_for_lang
 from desloppify.intelligence.review.importing.assessments import store_assessments
@@ -31,7 +31,7 @@ from desloppify.intelligence.review.importing.payload import (
     parse_review_import_payload,
 )
 from desloppify.intelligence.review.importing.state_helpers import (
-    _lang_potentials,
+    ensure_lang_potentials,
 )
 
 
@@ -45,11 +45,11 @@ def parse_holistic_import_payload(
 
 def import_holistic_issues(
     issues_data: ReviewImportPayload,
-    state: StateModel,
+    state: state_mod.StateModel,
     lang_name: str,
     *,
     project_root: Path | str | None = None,
-    utc_now_fn=utc_now,
+    utc_now_fn=state_mod.utc_now,
 ) -> dict[str, Any]:
     """Import holistic (codebase-wide) issues into state."""
     payload: ReviewImportEnvelope = parse_review_import_payload(
@@ -97,8 +97,6 @@ def import_holistic_issues(
     )
 
     if dismissed_concerns:
-        from desloppify.engine._concerns.generators import generate_concerns
-
         store = state.setdefault("concern_dismissals", {})
         now = utc_now_fn()
         current_concerns = generate_concerns(state)
@@ -116,7 +114,7 @@ def import_holistic_issues(
                 "source_issue_ids": concern_sources.get(fingerprint, []),
             }
 
-    potentials = _lang_potentials(state, lang_name)
+    potentials = ensure_lang_potentials(state, lang_name)
     existing_review = potentials.get("review", 0)
     potentials["review"] = max(existing_review, HOLISTIC_POTENTIAL)
 
@@ -128,10 +126,10 @@ def import_holistic_issues(
     if potentials.get("concerns", 0) > 0:
         merge_potentials_dict["concerns"] = potentials["concerns"]
 
-    diff = merge_scan(
+    diff = state_mod.merge_scan(
         state,
         review_issues,
-        options=MergeScanOptions(
+        options=state_mod.MergeScanOptions(
             lang=lang_name,
             potentials=merge_potentials_dict,
             merge_potentials=True,
@@ -172,8 +170,6 @@ def import_holistic_issues(
         utc_now_fn=utc_now_fn,
     )
     resolve_holistic_coverage_issues(state, diff, utc_now_fn=utc_now_fn)
-
-    from desloppify.engine._concerns.generators import cleanup_stale_dismissals
 
     cleanup_stale_dismissals(state)
 

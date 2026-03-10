@@ -8,6 +8,7 @@ from typing import Any, cast
 from desloppify.base.registry import DETECTORS
 from desloppify.engine._scoring.results.health import compute_health_breakdown
 from desloppify.engine._scoring.results.impact import get_dimension_for_detector
+from desloppify.engine._state.filtering import path_scoped_issues
 from desloppify.engine._state.schema import StateModel
 from desloppify.engine._work_queue.helpers import (
     ACTION_TYPE_PRIORITY,
@@ -30,7 +31,6 @@ from desloppify.engine._work_queue.ranking_output import (
 from desloppify.engine._work_queue.synthetic import subjective_strict_scores
 from desloppify.engine._work_queue.types import WorkQueueItem
 from desloppify.engine.planning.helpers import CONFIDENCE_ORDER
-from desloppify.state import path_scoped_issues
 
 logger = logging.getLogger(__name__)
 

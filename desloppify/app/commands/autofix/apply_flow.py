@@ -27,8 +27,7 @@ from .apply_retro import (
 from .options import _COMMAND_POST_FIX
 
 if TYPE_CHECKING:
-    from desloppify.languages._framework.base.types import FixerConfig
-    from desloppify.languages._framework.runtime import LangRun
+    from desloppify.languages.framework import FixerConfig, LangRun
 
 
 def _detect(fixer: FixerConfig, path: Path) -> list[dict]:

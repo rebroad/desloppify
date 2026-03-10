@@ -15,7 +15,7 @@ from .apply_flow import (
     _report_dry_run,
     _warn_uncommitted_changes,
 )
-from .options import _load_fixer
+from .options import _resolve_fixer_config
 
 
 def cmd_autofix(args: argparse.Namespace) -> None:
@@ -25,7 +25,7 @@ def cmd_autofix(args: argparse.Namespace) -> None:
     dry_run = getattr(args, "dry_run", False)
     path = Path(args.path)
 
-    lang, fixer = _load_fixer(args, fixer_name)
+    lang, fixer = _resolve_fixer_config(args, fixer_name)
 
     if not dry_run:
         _warn_uncommitted_changes()

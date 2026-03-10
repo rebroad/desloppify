@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 
@@ -10,7 +11,11 @@ from desloppify.base.discovery.file_paths import safe_write_text
 from desloppify.base.output.terminal import colorize
 
 from ..helpers import group_issues_into_observe_batches
-from .codex_runner import _output_file_has_text, run_triage_stage
+from .codex_runner import (
+    TriageStageRunResult,
+    _output_file_has_text,
+    run_triage_stage,
+)
 from .orchestrator_codex_parallel import run_parallel_batches
 from .stage_prompts import build_observe_batch_prompt
 
@@ -48,7 +53,7 @@ def run_observe(
     timeout_seconds: int,
     dry_run: bool = False,
     append_run_log=None,
-) -> tuple[bool, str]:
+) -> TriageStageRunResult:
     """Run observe stage via codex subprocess batches."""
     _log = append_run_log or _noop_log
 
@@ -57,7 +62,7 @@ def run_observe(
     print(colorize(f"\n  Observe: splitting into {total} parallel batches.", "bold"))
     _log(f"observe-parallel batches={total}")
 
-    tasks: dict[int, object] = {}
+    tasks: dict[int, Callable[[], TriageStageRunResult]] = {}
     batch_meta: list[tuple[list[str], Path]] = []
 
     for i, (dims, issues_subset) in enumerate(batches):
@@ -92,7 +97,7 @@ def run_observe(
 
     if dry_run:
         print(colorize("  [dry-run] Would execute parallel observe batches.", "dim"))
-        return True, ""
+        return TriageStageRunResult(exit_code=0, reason="dry_run", dry_run=True)
 
     def _heartbeat(event: BatchProgressEvent) -> None:
         details = event.details or {}
@@ -120,12 +125,18 @@ def run_observe(
             log_file = logs_dir / f"observe_batch_{idx}.log"
             print(colorize(f"    Check log: {log_file}", "dim"))
         _log(f"observe-parallel-failed failures={failures}")
-        return False, ""
+        return TriageStageRunResult(
+            exit_code=1,
+            reason="parallel_execution_failed",
+        )
 
     merged = _merge_observe_outputs(batch_meta)
     print(colorize(f"  Observe: merged {total} batch outputs ({len(merged)} chars).", "green"))
     _log(f"observe-parallel-done merged_chars={len(merged)}")
-    return True, merged
+    return TriageStageRunResult(
+        exit_code=0,
+        merged_output=merged,
+    )
 
 
 __all__ = ["run_observe"]

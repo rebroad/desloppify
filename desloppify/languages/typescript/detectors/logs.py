@@ -15,18 +15,11 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-from desloppify.base.discovery.file_paths import (
-
-    rel,
-
-    resolve_path,
-
-)
-
+from desloppify.base.discovery.file_paths import rel, resolve_path
 from desloppify.base.discovery.source import find_ts_and_tsx_files
 from desloppify.base.output.fallbacks import log_best_effort_failure
-from desloppify.base.search.grep import grep_files
 from desloppify.base.output.terminal import colorize, print_table
+from desloppify.base.search.grep import grep_files
 from desloppify.languages.typescript.detectors.contracts import DetectorResult
 
 logger = logging.getLogger(__name__)
@@ -40,12 +33,7 @@ _PAT1 = r"console\.(log|warn|info|debug)\s*\(\s*['\"`].{0,4}\["
 _PAT2 = r"console\.(log|warn|info|debug)\s*\(\s*`\$\{\w*(TAG|DEBUG|LOG)\w*\}"
 
 
-def detect_logs(path: Path) -> tuple[list[dict], int]:
-    """Logs detector entrypoint."""
-    return detect_logs_result(path).as_tuple()
-
-
-def detect_logs_result(path: Path) -> DetectorResult[dict]:
+def detect_logs(path: Path) -> DetectorResult[dict]:
     """Detect tagged logs with explicit population semantics."""
     ts_files = find_ts_and_tsx_files(path)
     total_files = len(ts_files)
@@ -70,7 +58,8 @@ def detect_logs_result(path: Path) -> DetectorResult[dict]:
 
 
 def cmd_logs(args: argparse.Namespace) -> None:
-    entries, _ = detect_logs(Path(args.path))
+    result = detect_logs(Path(args.path))
+    entries = result.entries
     if args.json:
         print(json.dumps({"count": len(entries), "entries": entries}, indent=2))
         return

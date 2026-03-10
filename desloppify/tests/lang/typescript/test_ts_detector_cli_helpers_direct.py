@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from types import SimpleNamespace
 
 import desloppify.languages.typescript.detectors._smell_helpers_blocks as blocks_mod
 import desloppify.languages.typescript.detectors._smell_helpers_line_state as line_state_mod
@@ -79,16 +80,15 @@ def test_patterns_cli_json_output(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         patterns_cli_mod,
         "detect_pattern_anomalies",
-        lambda _path: (
-            [
+        lambda _path: SimpleNamespace(
+            entries=[
                 {
                     "area": "ui",
                     "family": "state",
                     "confidence": "medium",
                     "patterns_used": ["redux"],
                 }
-            ],
-            {},
+            ]
         ),
     )
     args = argparse.Namespace(path=".", json=True, top=5)

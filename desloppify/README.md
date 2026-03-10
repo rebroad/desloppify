@@ -7,7 +7,7 @@ Traditional tools catch mechanical issues — linters, formatters, dead code fin
 ```
 desloppify/
 ├── cli.py              # Argparse, main()
-├── state.py            # Persistent-state facade
+├── state.py            # Compatibility facade (prefer state_io/state_scoring)
 ├── app/                # CLI layer (commands, parser, output)
 ├── base/               # Foundational shared infrastructure
 │   ├── config.py       # Configuration loading and helpers
@@ -24,6 +24,11 @@ desloppify/
 ├── engine/             # Scan/scoring/state internals
 │   ├── detectors/      # Generic algorithms (zero language knowledge)
 │   ├── hook_registry.py # Detector-safe language hook registry
+│   ├── plan.py         # Compatibility shim over plan facades
+│   ├── plan_state.py   # Public plan state/schema/policy facade
+│   ├── plan_ops.py     # Public plan mutation facade
+│   ├── plan_queue.py   # Public queue/sync/reconcile facade
+│   ├── plan_triage.py  # Public triage commands/prompts facade
 │   ├── planning/       # Prioritization and plan generation
 │   ├── policy/         # Zones, scoring policy
 │   ├── _scoring/
@@ -89,8 +94,9 @@ detect:  LangConfig.detect_commands[name](args) → display
 ## Rules
 
 - Entry command modules stay thin — behavioral logic in delegated modules
+- Prefer narrow plan facades (`engine.plan_state`, `engine.plan_ops`, `engine.plan_queue`, `engine.plan_triage`) over `engine.plan` in new code
 - Dynamic imports only in `languages/__init__.py` (discovery) and `engine/hook_registry.py` (hooks)
-- Persistent schema owned by `state.py` + `engine/_state/`. Command modules don't introduce ad-hoc persisted fields
+- Persistent schema is owned by `engine/_state/`; `state.py` is compatibility-only. Command modules don't introduce ad-hoc persisted fields
 - `LangRun` owns per-run mutable state, not `LangConfig`
 - `base/` has zero upward imports — it never imports from `engine/`, `app/`, `intelligence/`, or `languages/`
 

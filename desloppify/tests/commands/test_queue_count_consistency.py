@@ -13,7 +13,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from desloppify.engine._plan.subjective_policy import compute_subjective_visibility
+from desloppify.engine._plan.policy.subjective import compute_subjective_visibility
 from desloppify.engine._state.merge_issues import auto_resolve_disappeared
 
 # ---------------------------------------------------------------------------

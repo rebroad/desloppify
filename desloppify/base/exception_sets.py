@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 
 class CommandError(Exception):
     """Raised by command helpers to signal a user-facing CLI error.
@@ -31,12 +33,10 @@ class TriageValidationError(CommandError):
 
 
 PLAN_LOAD_EXCEPTIONS = (
-    ImportError,
-    AttributeError,
     OSError,
     ValueError,
-    TypeError,
-    KeyError,
+    UnicodeDecodeError,
+    json.JSONDecodeError,
 )
 
 __all__ = [

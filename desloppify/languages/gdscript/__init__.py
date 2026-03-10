@@ -5,7 +5,6 @@ from __future__ import annotations
 from desloppify.base.discovery.paths import get_area
 from desloppify.engine.policy.zones import COMMON_ZONE_RULES, Zone, ZoneRule
 from desloppify.engine.hook_registry import register_lang_hooks
-from desloppify.languages import register_lang
 from desloppify.languages._framework.base.phase_builders import (
     detector_phase_security,
     detector_phase_signature,
@@ -13,6 +12,7 @@ from desloppify.languages._framework.base.phase_builders import (
     shared_subjective_duplicates_tail,
 )
 from desloppify.languages._framework.base.types import DetectorPhase, LangConfig
+from desloppify.languages._framework.registration import register_full_plugin
 from desloppify.languages._framework.treesitter.phases import all_treesitter_phases
 from desloppify.languages.gdscript import test_coverage as gdscript_test_coverage_hooks
 from desloppify.languages.gdscript.commands import get_detect_commands
@@ -49,11 +49,6 @@ GDSCRIPT_ZONE_RULES = [
     ZoneRule(Zone.GENERATED, ["/.import/", ".import", ".uid"]),
 ] + COMMON_ZONE_RULES
 
-
-register_lang_hooks("gdscript", test_coverage=gdscript_test_coverage_hooks)
-
-
-@register_lang("gdscript")
 class GdscriptConfig(LangConfig):
     """GDScript language configuration."""
 
@@ -98,36 +93,34 @@ class GdscriptConfig(LangConfig):
             zone_rules=GDSCRIPT_ZONE_RULES,
         )
 
+
+def register() -> None:
+    """Register GDScript language config + hooks via explicit entrypoint."""
+    register_full_plugin(
+        "gdscript",
+        GdscriptConfig,
+        test_coverage=gdscript_test_coverage_hooks,
+    )
+
+
+def register_hooks() -> None:
+    """Register GDScript hook modules without language-config bootstrap."""
+    register_lang_hooks("gdscript", test_coverage=gdscript_test_coverage_hooks)
+
+
+Config = GdscriptConfig
+
+
 __all__ = [
-    "get_area",
-    "COMMON_ZONE_RULES",
-    "Zone",
-    "ZoneRule",
-    "register_lang_hooks",
-    "register_lang",
-    "detector_phase_security",
-    "detector_phase_signature",
-    "detector_phase_test_coverage",
-    "shared_subjective_duplicates_tail",
-    "DetectorPhase",
-    "LangConfig",
-    "all_treesitter_phases",
-    "gdscript_test_coverage_hooks",
-    "get_detect_commands",
-    "build_gdscript_dep_graph",
-    "GDSCRIPT_FILE_EXCLUSIONS",
-    "extract_functions",
-    "find_gdscript_files",
-    "phase_coupling",
-    "phase_structural",
+    "Config",
+    "GdscriptConfig",
+    "register",
+    "register_hooks",
+    "GDSCRIPT_ENTRY_PATTERNS",
+    "GDSCRIPT_ZONE_RULES",
     "HOLISTIC_REVIEW_DIMENSIONS",
     "LOW_VALUE_PATTERN",
     "MIGRATION_MIXED_EXTENSIONS",
     "MIGRATION_PATTERN_PAIRS",
     "REVIEW_GUIDANCE",
-    "api_surface",
-    "module_patterns",
-    "GDSCRIPT_ENTRY_PATTERNS",
-    "GDSCRIPT_ZONE_RULES",
-    "GdscriptConfig",
 ]

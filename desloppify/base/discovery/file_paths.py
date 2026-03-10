@@ -43,9 +43,9 @@ def safe_relpath(path: str | Path, start: str | Path) -> str:
         return str(Path(path).resolve())
 
 
-def rel(path: str | Path) -> str:
+def rel(path: str | Path, *, project_root: str | Path | None = None) -> str:
     """Return a normalized project-relative path when possible."""
-    root = get_project_root()
+    root = get_project_root(project_root=project_root)
     resolved = Path(path).resolve()
     try:
         return normalize_path_separators(str(resolved.relative_to(root)))
@@ -53,18 +53,19 @@ def rel(path: str | Path) -> str:
         return normalize_path_separators(safe_relpath(resolved, root))
 
 
-def resolve_path(filepath: str) -> str:
+def resolve_path(filepath: str, *, project_root: str | Path | None = None) -> str:
     """Resolve a filepath to absolute, handling both relative and absolute."""
     p = Path(filepath)
     if p.is_absolute():
         return str(p.resolve())
-    return str((get_project_root() / filepath).resolve())
+    return str((get_project_root(project_root=project_root) / filepath).resolve())
 
 
 def resolve_scan_file(
     filepath: str | Path,
     *,
     scan_root: str | Path | None = None,
+    project_root: str | Path | None = None,
 ) -> Path:
     """Resolve a scan file path with explicit scan-root-first semantics.
 
@@ -75,7 +76,7 @@ def resolve_scan_file(
     if p.is_absolute():
         return p.resolve()
 
-    root = get_project_root()
+    root = get_project_root(project_root=project_root)
     if scan_root is not None:
         scan_root_path = Path(scan_root)
         scan_root_abs = (

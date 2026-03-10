@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import desloppify.app.commands.plan.triage.confirmations_shared as shared_mod
+import desloppify.app.commands.plan.triage.confirmations.shared as shared_mod
 
 
 def test_ensure_stage_is_confirmable_guards_missing_and_already_confirmed(capsys) -> None:
@@ -31,17 +31,17 @@ def test_finalize_stage_confirmation_rejects_short_attestation(capsys) -> None:
     ok = shared_mod.finalize_stage_confirmation(
         plan={"queue_order": []},
         stages={"observe": {}},
-        stage="observe",
-        attestation="short",
-        min_attestation_len=10,
-        command_hint="desloppify plan triage --confirm observe ...",
-        validation_stage="observe",
-        validate_attestation_fn=lambda *_a, **_k: None,
-        validation_kwargs=None,
-        log_action="triage_confirm_observe",
-        log_detail=None,
+        request=shared_mod.StageConfirmationRequest(
+            stage="observe",
+            attestation="short",
+            min_attestation_len=10,
+            command_hint="desloppify plan triage --confirm observe ...",
+            validation_stage="observe",
+            validate_attestation_fn=lambda *_a, **_k: None,
+            log_action="triage_confirm_observe",
+            not_satisfied_hint="Re-run observe first.",
+        ),
         services=services,
-        not_satisfied_hint="Re-run observe first.",
     )
     assert ok is False
     out = capsys.readouterr().out
@@ -66,15 +66,17 @@ def test_finalize_stage_confirmation_sets_state_and_logs(monkeypatch, capsys) ->
     ok = shared_mod.finalize_stage_confirmation(
         plan=plan,
         stages=stages,
-        stage="reflect",
-        attestation="validated the reflect strategy and conflict resolution path",
-        min_attestation_len=10,
-        command_hint="desloppify plan triage --confirm reflect ...",
-        validation_stage="reflect",
-        validate_attestation_fn=lambda *_a, **_k: None,
-        validation_kwargs={"cluster_names": ["epic/a"]},
-        log_action="triage_confirm_reflect",
-        log_detail={"cluster_count": 1},
+        request=shared_mod.StageConfirmationRequest(
+            stage="reflect",
+            attestation="validated the reflect strategy and conflict resolution path",
+            min_attestation_len=10,
+            command_hint="desloppify plan triage --confirm reflect ...",
+            validation_stage="reflect",
+            validate_attestation_fn=lambda *_a, **_k: None,
+            validation_kwargs={"cluster_names": ["epic/a"]},
+            log_action="triage_confirm_reflect",
+            log_detail={"cluster_count": 1},
+        ),
         services=services,
     )
 

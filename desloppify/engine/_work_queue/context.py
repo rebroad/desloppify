@@ -15,10 +15,11 @@ from desloppify.base.config import (
     target_strict_score_from_config,
 )
 from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS
-from desloppify.engine import plan as plan_mod
-from desloppify.engine._plan.subjective_policy import (
+from desloppify.engine.plan_queue import (
     SubjectiveVisibility,
     compute_subjective_visibility,
+    has_living_plan,
+    load_plan,
 )
 from desloppify.engine._state.schema import StateModel
 
@@ -64,11 +65,11 @@ def resolve_plan_load_status(
     if not isinstance(plan, _PlanAutoLoad):
         return PlanLoadStatus(plan=plan, degraded=False, error_kind=None)
 
-    if not plan_mod.has_living_plan():
+    if not has_living_plan():
         return PlanLoadStatus(plan=None, degraded=False, error_kind=None)
 
     try:
-        resolved_plan = plan_mod.load_plan()
+        resolved_plan = load_plan()
     except PLAN_LOAD_EXCEPTIONS as exc:
         return PlanLoadStatus(
             plan=None,

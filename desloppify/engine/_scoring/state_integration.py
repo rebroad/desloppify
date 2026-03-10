@@ -22,7 +22,7 @@ from desloppify.engine._scoring.state_integration_subjective import (
 from desloppify.engine._scoring.state_coverage import (
     apply_scan_coverage_to_dimension_scores as _apply_scan_coverage_to_dimension_scores,
 )
-from desloppify.engine._state.filtering import path_scoped_issues
+from desloppify.engine._state.scope import path_scoped_issues
 from desloppify.engine._state.schema import StateModel, ensure_state_defaults
 
 _EMPTY_COUNTERS = tuple(sorted(issue_status_tokens()))

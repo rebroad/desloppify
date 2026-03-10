@@ -8,23 +8,25 @@ from pathlib import Path
 from desloppify import state as state_mod
 from desloppify.app.commands.helpers.runtime import command_runtime
 from desloppify.app.commands.helpers.state import require_completed_scan, state_path
-from desloppify.app.commands.plan._resolve import resolve_ids_from_patterns
+from desloppify.app.commands.plan.shared.patterns import resolve_ids_from_patterns
 from desloppify.app.commands.plan.override_io import (
     _plan_file_for_state,
     save_plan_state_transactional,
 )
 from desloppify.base.output.terminal import colorize
-from desloppify.engine.plan import (
-    annotate_issue,
-    append_log_entry,
-    clear_focus,
-    clear_postflight_scan_completion,
-    describe_issue,
+from desloppify.engine.plan_state import (
     load_plan,
     purge_uncommitted_ids,
     save_plan,
+)
+from desloppify.engine.plan_ops import (
+    annotate_issue,
+    append_log_entry,
+    clear_focus,
+    describe_issue,
     set_focus,
 )
+from desloppify.engine.plan_queue import clear_postflight_scan_completion
 
 
 def cmd_plan_describe(args: argparse.Namespace) -> None:

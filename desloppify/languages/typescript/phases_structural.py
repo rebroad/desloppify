@@ -15,8 +15,8 @@ from desloppify.languages._framework.base.structural import (
     merge_structural_signals,
 )
 from desloppify.languages._framework.base.types import LangRuntimeContract
-from desloppify.languages.typescript.detectors import concerns as concerns_detector_mod
-from desloppify.languages.typescript.detectors import props as props_detector_mod
+import desloppify.languages.typescript.detectors.concerns as concerns_detector_mod
+import desloppify.languages.typescript.detectors.props as props_detector_mod
 from desloppify.languages.typescript.extractors_components import (
     detect_passthrough_components,
     extract_ts_components,

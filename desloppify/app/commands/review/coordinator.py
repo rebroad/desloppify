@@ -1,4 +1,4 @@
-"""Shared coordination helpers for review packet lifecycle and session baseline checks."""
+"""Session-baseline coordination helpers for external review submit guards."""
 
 from __future__ import annotations
 
@@ -9,21 +9,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
-from desloppify.engine._state.schema import StateModel
-
 from . import runner_packets as runner_packets_mod
-from .packet.build import (
-    ReviewPacketContext,
-    build_holistic_packet,
-    require_non_empty_packet,
-)
-from .packet.policy import redacted_review_config
-from .runtime.setup import setup_lang_concrete
-from .runtime_paths import (
-    blind_packet_path,
-    review_packet_dir,
-    runtime_project_root,
-)
 
 
 def _stable_json_sha256(payload: Any) -> str:
@@ -205,64 +191,9 @@ def _git_drift_reasons(
     return reasons
 
 
-def build_review_packet_payload(
-    *,
-    state: StateModel,
-    lang,
-    config: dict[str, Any],
-    context: ReviewPacketContext,
-    next_command: str,
-    setup_lang_fn=setup_lang_concrete,
-    prepare_holistic_review_fn=None,
-) -> dict[str, Any]:
-    """Build and validate a holistic review packet without persisting artifacts."""
-    packet, _lang_name = build_holistic_packet(
-        state=state,
-        lang=lang,
-        config=config,
-        context=context,
-        setup_lang_fn=setup_lang_fn,
-        prepare_holistic_review_fn=prepare_holistic_review_fn,
-    )
-    packet["config"] = redacted_review_config(config)
-    packet["next_command"] = next_command
-    require_non_empty_packet(packet, path=context.path)
-    return packet
-
-
-def write_review_packet_snapshot(
-    packet: dict[str, Any],
-    *,
-    stamp: str,
-    project_root_override: Path | None = None,
-    review_packet_dir_override: Path | None = None,
-    blind_path_override: Path | None = None,
-    safe_write_text_fn,
-) -> tuple[Path, Path]:
-    """Persist immutable + blind packet snapshots and return their paths."""
-    runtime_root = runtime_project_root(project_root_override=project_root_override)
-    blind_path = blind_path_override or blind_packet_path(
-        project_root_override=runtime_root,
-        stamp=stamp,
-    )
-    packet_dir = review_packet_dir(
-        project_root_override=runtime_root,
-        review_packet_dir_override=review_packet_dir_override,
-    )
-    return runner_packets_mod.write_packet_snapshot(
-        packet,
-        stamp=stamp,
-        review_packet_dir=packet_dir,
-        blind_path=blind_path,
-        safe_write_text_fn=safe_write_text_fn,
-    )
-
-
 __all__ = [
     "blind_packet_semantic_sha256",
-    "build_review_packet_payload",
     "build_review_session_baseline",
     "evaluate_session_baseline_drift",
     "state_sha256",
-    "write_review_packet_snapshot",
 ]

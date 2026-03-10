@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
-from desloppify.engine._plan.triage_playbook import (
+from desloppify.engine.plan_queue import (
+    WORKFLOW_COMMUNICATE_SCORE_ID,
+    WORKFLOW_CREATE_PLAN_ID,
+    WORKFLOW_DEFERRED_DISPOSITION_ID,
+    WORKFLOW_IMPORT_SCORES_ID,
+    WORKFLOW_SCORE_CHECKPOINT_ID,
+)
+from desloppify.engine.plan_triage import (
     triage_manual_stage_command,
     triage_run_stages_command,
     triage_runner_commands,
@@ -47,54 +54,55 @@ def _runner_planning_tools(
     return tools
 
 
-def _create_plan_primary_command(plan: dict) -> str:
+def _triage_progression_target(plan: dict) -> tuple[str | None, bool]:
+    """Return current triage stage target and whether it requires confirmation."""
     meta = plan.get("epic_triage_meta", {})
     triage_stages = meta.get("triage_stages", {}) or {}
-
-    # If a recorded stage isn't confirmed yet, guide to the confirm command first.
     for stage, _sid in _TRIAGE_STAGE_SPECS:
         stage_payload = triage_stages.get(stage)
         if isinstance(stage_payload, dict) and stage_payload and not stage_payload.get("confirmed_at"):
-            attestation = _confirm_attestation_hint(stage)
-            return (
-                f'desloppify plan triage --confirm {stage} '
-                f'--attestation "{attestation}"'
-            )
+            return stage, True
 
     order = set(plan.get("queue_order", []))
     for stage, sid in _TRIAGE_STAGE_SPECS:
         if sid not in order:
             continue
-        return triage_run_stages_command(only_stages=stage)
+        return stage, False
 
     if "triage::commit" in order:
-        return triage_run_stages_command()
+        return "commit", False
 
-    return triage_run_stages_command()
+    return None, False
+
+
+def _create_plan_primary_command(plan: dict) -> str:
+    stage, needs_confirm = _triage_progression_target(plan)
+    if stage is None:
+        return triage_run_stages_command()
+    if needs_confirm:
+        attestation = _confirm_attestation_hint(stage)
+        return (
+            f'desloppify plan triage --confirm {stage} '
+            f'--attestation "{attestation}"'
+        )
+    if stage == "commit":
+        return triage_run_stages_command()
+    return triage_run_stages_command(only_stages=stage)
 
 
 def _create_plan_planning_tools(plan: dict) -> list[dict[str, str]]:
-    meta = plan.get("epic_triage_meta", {})
-    triage_stages = meta.get("triage_stages", {}) or {}
-
-    for stage, _sid in _TRIAGE_STAGE_SPECS:
-        stage_payload = triage_stages.get(stage)
-        if isinstance(stage_payload, dict) and stage_payload and not stage_payload.get("confirmed_at"):
-            return []
-
-    order = set(plan.get("queue_order", []))
-    for stage, sid in _TRIAGE_STAGE_SPECS:
-        if sid in order:
-            return _runner_planning_tools(
-                only_stages=stage,
-                manual_fallback=triage_manual_stage_command(stage),
-            )
-
-    if "triage::commit" in order:
+    stage, needs_confirm = _triage_progression_target(plan)
+    if needs_confirm:
+        return []
+    if stage == "commit":
         return _runner_planning_tools(
             manual_fallback=triage_manual_stage_command("commit"),
         )
-
+    if stage:
+        return _runner_planning_tools(
+            only_stages=stage,
+            manual_fallback=triage_manual_stage_command(stage),
+        )
     return _runner_planning_tools(
         only_stages="observe",
         manual_fallback=triage_manual_stage_command("observe"),
@@ -103,8 +111,6 @@ def _create_plan_planning_tools(plan: dict) -> list[dict[str, str]]:
 
 def build_score_checkpoint_item(plan: dict, state: dict) -> WorkQueueItem | None:
     """Build a synthetic work item for ``workflow::score-checkpoint`` if queued."""
-    from desloppify.engine._plan.constants import WORKFLOW_SCORE_CHECKPOINT_ID
-
     if WORKFLOW_SCORE_CHECKPOINT_ID not in plan.get("queue_order", []):
         return None
 
@@ -141,8 +147,6 @@ def build_score_checkpoint_item(plan: dict, state: dict) -> WorkQueueItem | None
 
 def build_create_plan_item(plan: dict) -> WorkQueueItem | None:
     """Build a synthetic work item for ``workflow::create-plan`` if queued."""
-    from desloppify.engine._plan.constants import WORKFLOW_CREATE_PLAN_ID
-
     if WORKFLOW_CREATE_PLAN_ID not in plan.get("queue_order", []):
         return None
 
@@ -165,8 +169,6 @@ def build_create_plan_item(plan: dict) -> WorkQueueItem | None:
 
 def build_import_scores_item(plan: dict, state: dict) -> WorkQueueItem | None:
     """Build a synthetic work item for ``workflow::import-scores`` if queued."""
-    from desloppify.engine._plan.constants import WORKFLOW_IMPORT_SCORES_ID
-
     if WORKFLOW_IMPORT_SCORES_ID not in plan.get("queue_order", []):
         return None
 
@@ -196,8 +198,6 @@ def build_import_scores_item(plan: dict, state: dict) -> WorkQueueItem | None:
 
 def build_communicate_score_item(plan: dict, state: dict) -> WorkQueueItem | None:
     """Build a synthetic work item for ``workflow::communicate-score`` if queued."""
-    from desloppify.engine._plan.constants import WORKFLOW_COMMUNICATE_SCORE_ID
-
     if WORKFLOW_COMMUNICATE_SCORE_ID not in plan.get("queue_order", []):
         return None
 
@@ -282,8 +282,6 @@ def _deferred_cluster_breakdown(
 
 def build_deferred_disposition_item(plan: dict) -> WorkQueueItem | None:
     """Build a synthetic item prompting deferred backlog disposition."""
-    from desloppify.engine._plan.constants import WORKFLOW_DEFERRED_DISPOSITION_ID
-
     deferred_ids = _temporary_skipped_ids(plan)
     if not deferred_ids:
         return None

@@ -7,7 +7,10 @@ from collections import Counter
 from pathlib import Path
 
 from desloppify.base.discovery.paths import get_project_root
-from desloppify.engine.plan import TriageInput, build_triage_prompt
+from desloppify.engine.plan_triage import (
+    TriageInput,
+    build_triage_prompt,
+)
 
 from ..services import TriageServices, default_triage_services
 from .stage_prompts_instruction_blocks import _STAGE_INSTRUCTIONS

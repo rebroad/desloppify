@@ -471,11 +471,11 @@ def test_extract_ts_classes_populates_methods_and_handles_errors(monkeypatch) ->
     out_of_class_fn = SimpleNamespace(file="src/a.py", line=40)
 
     monkeypatch.setattr(
-        "desloppify.languages._framework.treesitter._extractors.ts_extract_classes",
+        "desloppify.languages._framework.treesitter.analysis.extractors.ts_extract_classes",
         lambda _path, _spec, _files: [fake_class],
     )
     monkeypatch.setattr(
-        "desloppify.languages._framework.treesitter._extractors.ts_extract_functions",
+        "desloppify.languages._framework.treesitter.analysis.extractors.ts_extract_functions",
         lambda _path, _spec, _files: [in_class_fn, out_of_class_fn],
     )
 
@@ -488,7 +488,7 @@ def test_extract_ts_classes_populates_methods_and_handles_errors(monkeypatch) ->
     assert fake_class.methods == [in_class_fn]
 
     monkeypatch.setattr(
-        "desloppify.languages._framework.treesitter._extractors.ts_extract_classes",
+        "desloppify.languages._framework.treesitter.analysis.extractors.ts_extract_classes",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(ImportError("missing tree-sitter")),
     )
     assert (

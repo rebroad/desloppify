@@ -19,7 +19,7 @@ class PlanClusterRef(TypedDict, total=False):
     name: str
     description: str | None
     total_items: int
-    action_steps: list[str]
+    action_steps: list[dict[str, Any]]
 
 
 class WorkQueueItem(TypedDict, total=False):

@@ -63,7 +63,7 @@ def _render_output_schema(context: PromptBatchContext, batch_index: int) -> str:
         '      "strengths": ["0-5 specific things the codebase does well from this dimension\'s perspective"],\n'
         '      "issue_character": "one sentence characterizing the nature/pattern of issues from this dimension\'s perspective",\n'
         '      "score_rationale": "2-3 sentences explaining the score from this dimension\'s perspective, referencing global anchors"\n'
-        "    }\n"
+        "    }  // required for every assessed dimension; do not omit\n"
         "  },\n"
         '  "issues": [{\n'
         '    "dimension": "<dimension>",\n'

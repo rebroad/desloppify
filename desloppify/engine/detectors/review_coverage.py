@@ -21,6 +21,10 @@ from desloppify.base.discovery.file_paths import (
 
 from desloppify.base.discovery.source import read_file_text
 from desloppify.engine.hook_registry import get_lang_hook
+from desloppify.engine.policy.zones import (
+    REVIEW_COVERAGE_EXCLUDED_ZONES,
+    zone_in,
+)
 
 _LOW_VALUE_NAMES = re.compile(
     r"(?:^|/)(?:types|constants|enums|index)\.[a-z]+$|(?:^|/).+\.d\.[a-z]+$"
@@ -146,7 +150,7 @@ def detect_review_coverage(
         # Skip non-production files
         if zone_map is not None:
             zone = zone_map.get(filepath)
-            if zone.value in ("test", "generated", "vendor", "config", "script"):
+            if zone_in(zone, REVIEW_COVERAGE_EXCLUDED_ZONES):
                 continue
 
         # Skip low-value files (language-specific + generic patterns)

@@ -2,24 +2,21 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from desloppify import state as state_mod
 from desloppify.app.commands.helpers.display import short_issue_id
+from desloppify.base.config import target_strict_score_from_config
 from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS
 from desloppify.base.output.terminal import colorize
-from desloppify.engine.plan import (
+import desloppify.engine.plan_queue as plan_queue_mod
+from desloppify.engine.plan_triage import (
     TRIAGE_CMD_RUN_STAGES_CLAUDE,
     TRIAGE_CMD_RUN_STAGES_CODEX,
 )
 
-if TYPE_CHECKING:
-    from desloppify.engine.plan import ReviewImportSyncResult
-
 
 def _print_review_import_sync(
     state: dict,
-    result: ReviewImportSyncResult,
+    result: plan_queue_mod.ReviewImportSyncResult,
     *,
     workflow_injected: bool,
 ) -> None:
@@ -56,32 +53,29 @@ def _print_review_import_sync(
     ))
 
 
-def sync_plan_after_import(state: dict, diff: dict, assessment_mode: str) -> None:
+def sync_plan_after_import(
+    state: dict,
+    diff: dict,
+    assessment_mode: str,
+    *,
+    config: dict | None = None,
+) -> None:
     """Apply issue/workflow syncs after import in one load/save cycle."""
     try:
-        from desloppify.engine.plan import (
-            ScoreSnapshot,
-            append_log_entry,
-            current_unscored_ids,
-            has_living_plan,
-            load_plan,
-            purge_ids,
-            save_plan,
-            sync_communicate_score_needed,
-            sync_create_plan_needed,
-            sync_import_scores_needed,
-            sync_plan_after_review_import,
-        )
-
-        if not has_living_plan():
+        if not plan_queue_mod.has_living_plan():
             return
 
-        plan = load_plan()
+        plan = plan_queue_mod.load_plan()
         dirty = False
         workflow_injected_ids: list[str] = []
+        policy = plan_queue_mod.compute_subjective_visibility(
+            state,
+            target_strict=target_strict_score_from_config(config),
+            plan=plan,
+        )
 
         snapshot = state_mod.score_snapshot(state)
-        current_scores = ScoreSnapshot(
+        current_scores = plan_queue_mod.ScoreSnapshot(
             strict=snapshot.strict,
             overall=snapshot.overall,
             objective=snapshot.objective,
@@ -89,9 +83,10 @@ def sync_plan_after_import(state: dict, diff: dict, assessment_mode: str) -> Non
         )
         trusted_score_import = assessment_mode in {"trusted_internal", "attested_external"}
 
-        communicate_result = sync_communicate_score_needed(
+        communicate_result = plan_queue_mod.sync_communicate_score_needed(
             plan,
             state,
+            policy=policy,
             scores_just_imported=trusted_score_import,
             current_scores=current_scores,
         )
@@ -105,12 +100,13 @@ def sync_plan_after_import(state: dict, diff: dict, assessment_mode: str) -> Non
         )
         import_result = None
         covered_ids: list[str] = []
+        stale_sync_result = None
 
         injected_parts: list[str] = []
         if communicate_result.changes:
             injected_parts.append("`workflow::communicate-score`")
 
-        import_scores_result = sync_import_scores_needed(
+        import_scores_result = plan_queue_mod.sync_import_scores_needed(
             plan,
             state,
             assessment_mode=assessment_mode,
@@ -120,51 +116,60 @@ def sync_plan_after_import(state: dict, diff: dict, assessment_mode: str) -> Non
             workflow_injected_ids.append("workflow::import-scores")
             injected_parts.append("`workflow::import-scores`")
 
-        create_plan_result = sync_create_plan_needed(plan, state)
+        create_plan_result = plan_queue_mod.sync_create_plan_needed(
+            plan,
+            state,
+            policy=policy,
+        )
         if create_plan_result.changes:
             dirty = True
             workflow_injected_ids.append("workflow::create-plan")
             injected_parts.append("`workflow::create-plan`")
 
         if has_new_issues:
-            import_result = sync_plan_after_review_import(plan, state)
+            import_result = plan_queue_mod.sync_plan_after_review_import(
+                plan,
+                state,
+                policy=policy,
+            )
             if import_result is not None:
                 dirty = True
 
-            still_unscored = current_unscored_ids(state)
-            order = plan.get("queue_order", [])
-            covered_ids = [
-                finding_id for finding_id in order
-                if finding_id.startswith("subjective::") and finding_id not in still_unscored
-            ]
-            if covered_ids:
-                purge_ids(plan, covered_ids)
+            # Keep stale/under-target subjective queue entries aligned with the
+            # latest imported assessments/issues. Importing review findings for
+            # one dimension must not globally evict other subjective dimensions.
+            stale_sync_result = plan_queue_mod.sync_stale_dimensions(
+                plan,
+                state,
+                policy=policy,
+            )
+            if stale_sync_result.changes:
                 dirty = True
 
         if dirty:
             if communicate_result.changes:
-                append_log_entry(
+                plan_queue_mod.append_log_entry(
                     plan,
                     "sync_communicate_score",
                     actor="system",
                     detail={"trigger": "review_import", "injected": True},
                 )
             if import_scores_result.changes:
-                append_log_entry(
+                plan_queue_mod.append_log_entry(
                     plan,
                     "sync_import_scores",
                     actor="system",
                     detail={"trigger": "review_import", "injected": True},
                 )
             if create_plan_result.changes:
-                append_log_entry(
+                plan_queue_mod.append_log_entry(
                     plan,
                     "sync_create_plan",
                     actor="system",
                     detail={"trigger": "review_import", "injected": True},
                 )
             if import_result is not None or workflow_injected_ids or covered_ids:
-                append_log_entry(
+                plan_queue_mod.append_log_entry(
                     plan,
                     "review_import_sync",
                     actor="system",
@@ -187,9 +192,17 @@ def sync_plan_after_import(state: dict, diff: dict, assessment_mode: str) -> Non
                         "diff_new": diff.get("new", 0),
                         "diff_reopened": diff.get("reopened", 0),
                         "covered_subjective": covered_ids,
+                        "stale_sync_injected": (
+                            sorted(stale_sync_result.injected)
+                            if stale_sync_result is not None else []
+                        ),
+                        "stale_sync_pruned": (
+                            sorted(stale_sync_result.pruned)
+                            if stale_sync_result is not None else []
+                        ),
                     },
                 )
-            save_plan(plan)
+            plan_queue_mod.save_plan(plan)
 
         if import_result is not None:
             _print_review_import_sync(

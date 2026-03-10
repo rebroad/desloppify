@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import desloppify.engine._plan.epic_triage_parsing as parsing_mod
+import desloppify.engine._plan.triage.parsing as parsing_mod
 
 
 def test_extract_issue_citations_matches_full_ids_and_suffixes() -> None:
@@ -36,6 +36,26 @@ def test_extract_issue_citations_ignores_unknown_matches() -> None:
     assert cited == set()
 
 
+def test_extract_issue_citations_matches_hierarchical_ids_and_bracket_short_ids() -> None:
+    valid_ids = {
+        "review::.::holistic::abstraction_fitness::planmodel_used_as_parameter_bag",
+        "review::.::holistic::api_surface_coherence::triage_runner_result_shape_drift",
+        "review::.::holistic::type_safety::zone_enum_string_literal_comparison",
+    }
+    text = (
+        "Focus on review::.::holistic::abstraction_fitness::planmodel_used_as_parameter_bag "
+        "and [triage_r]. Ignore [deadbeef]. Also include [zone_enu]."
+    )
+
+    cited = parsing_mod.extract_issue_citations(text, valid_ids)
+
+    assert cited == {
+        "review::.::holistic::abstraction_fitness::planmodel_used_as_parameter_bag",
+        "review::.::holistic::api_surface_coherence::triage_runner_result_shape_drift",
+        "review::.::holistic::type_safety::zone_enum_string_literal_comparison",
+    }
+
+
 def test_parse_triage_result_filters_ids_and_normalizes_direction() -> None:
     valid_ids = {"review::abcdef12", "review::1234abcd"}
     raw = {
@@ -50,7 +70,11 @@ def test_parse_triage_result_filters_ids_and_normalizes_direction() -> None:
                 "dismissed": ["review::1234abcd", "review::other"],
                 "agent_safe": 1,
                 "dependency_order": "3",
-                "action_steps": ["step 1", 2, "step 3"],
+                "action_steps": [
+                    {"title": "step 1", "detail": "touch src/a.py", "issue_refs": ["review::abcdef12"]},
+                    2,
+                    "step 3",
+                ],
                 "status": "pending",
             }
         ],
@@ -77,7 +101,10 @@ def test_parse_triage_result_filters_ids_and_normalizes_direction() -> None:
     assert epic["dismissed"] == ["review::1234abcd"]
     assert epic["agent_safe"] is True
     assert epic["dependency_order"] == 3
-    assert epic["action_steps"] == ["step 1", "step 3"]
+    assert epic["action_steps"] == [
+        {"title": "step 1", "detail": "touch src/a.py", "issue_refs": ["review::abcdef12"]},
+        {"title": "step 3"},
+    ]
 
     assert [d.issue_id for d in result.dismissed_issues] == ["review::abcdef12"]
     assert len(result.contradiction_notes) == 1

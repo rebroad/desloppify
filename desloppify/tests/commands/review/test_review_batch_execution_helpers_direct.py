@@ -11,6 +11,7 @@ import pytest
 from desloppify.app.commands.review.batch import execution_dry_run as dry_run_mod
 from desloppify.app.commands.review.batch import execution_progress as progress_mod
 from desloppify.app.commands.review.batch import execution_results as results_mod
+from desloppify.app.commands.review.batch import orchestrator as orchestrator_mod
 from desloppify.app.commands.review.runner_parallel import BatchProgressEvent
 from desloppify.base.exception_sets import CommandError
 
@@ -244,3 +245,133 @@ def test_import_and_finalize_raises_when_followup_scan_fails(tmp_path: Path) -> 
         )
 
 
+def test_do_import_run_reuses_merge_result_boundary(tmp_path: Path, monkeypatch) -> None:
+    run_dir = tmp_path / "run"
+    results_dir = run_dir / "results"
+    results_dir.mkdir(parents=True)
+    (results_dir / "batch-1.raw.txt").write_text("{}")
+
+    blind_packet = run_dir / "blind.json"
+    blind_packet.write_text("{}")
+    immutable_packet = run_dir / "packet.json"
+    immutable_packet.write_text(
+        json.dumps(
+            {
+                "dimensions": ["mid_level_elegance"],
+                "investigation_batches": [
+                    {
+                        "name": "mid_level_elegance",
+                        "dimensions": ["mid_level_elegance"],
+                        "files_to_read": ["a.py"],
+                    }
+                ],
+            }
+        )
+    )
+    (run_dir / "run_summary.json").write_text(
+        json.dumps(
+            {
+                "runner": "codex",
+                "run_stamp": "r1",
+                "successful_batches": [1],
+                "blind_packet": str(blind_packet),
+                "immutable_packet": str(immutable_packet),
+            }
+        )
+    )
+
+    monkeypatch.setattr(
+        orchestrator_mod,
+        "collect_batch_results",
+        lambda **_kwargs: ([{"dummy": True}], []),
+    )
+
+    merge_calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        orchestrator_mod,
+        "_merge_and_write_results",
+        lambda **kwargs: (
+            merge_calls.append(kwargs)
+            or (run_dir / "holistic_issues_merged.json", ["missing_dim"])
+        ),
+    )
+    coverage_calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        orchestrator_mod,
+        "_enforce_import_coverage",
+        lambda **kwargs: coverage_calls.append(kwargs),
+    )
+    monkeypatch.setattr(orchestrator_mod, "_do_import", lambda *_args, **_kwargs: None)
+
+    orchestrator_mod.do_import_run(
+        str(run_dir),
+        state={},
+        lang=SimpleNamespace(name="python"),
+        state_file=str(tmp_path / "state.json"),
+        config={},
+        allow_partial=True,
+        scan_after_import=False,
+        dry_run=True,
+    )
+
+    assert len(merge_calls) == 1
+    assert merge_calls[0]["merge_batch_results_fn"] is orchestrator_mod._merge_batch_results
+    assert len(coverage_calls) == 1
+    assert coverage_calls[0]["allow_partial"] is True
+
+
+def test_try_load_prepared_packet_accepts_matching_contract(tmp_path: Path, monkeypatch) -> None:
+    expected_contract = {
+        "path": "/repo",
+        "dimensions": [],
+        "retrospective": False,
+        "retrospective_max_issues": 30,
+        "retrospective_max_batch_items": 20,
+        "config_hash": "abc",
+    }
+    query_path = tmp_path / "query.json"
+    query_path.write_text(
+        json.dumps(
+            {
+                "investigation_batches": [{"name": "mid_level_elegance"}],
+                "prepared_packet_contract": dict(expected_contract),
+            }
+        )
+    )
+    monkeypatch.setattr(orchestrator_mod, "query_file_path", lambda: query_path)
+
+    packet, mismatch = orchestrator_mod._try_load_prepared_packet(
+        expected_contract=expected_contract
+    )
+    assert packet is not None
+    assert mismatch is None
+
+
+def test_try_load_prepared_packet_rejects_contract_mismatch(tmp_path: Path, monkeypatch) -> None:
+    expected_contract = {
+        "path": "/repo/new",
+        "dimensions": [],
+        "retrospective": False,
+        "retrospective_max_issues": 30,
+        "retrospective_max_batch_items": 20,
+        "config_hash": "abc",
+    }
+    query_path = tmp_path / "query.json"
+    query_path.write_text(
+        json.dumps(
+            {
+                "investigation_batches": [{"name": "mid_level_elegance"}],
+                "prepared_packet_contract": {
+                    **expected_contract,
+                    "path": "/repo/old",
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(orchestrator_mod, "query_file_path", lambda: query_path)
+
+    packet, mismatch = orchestrator_mod._try_load_prepared_packet(
+        expected_contract=expected_contract
+    )
+    assert packet is None
+    assert mismatch == "contract field 'path' differs"

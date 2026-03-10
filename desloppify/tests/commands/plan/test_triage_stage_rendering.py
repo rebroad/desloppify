@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import desloppify.app.commands.plan.triage._stage_rendering as stage_rendering_mod
+import desloppify.app.commands.plan.triage.stages.rendering as stage_rendering_mod
 
 
 def test_print_observe_report_requirement_emits_guidance(monkeypatch, capsys) -> None:

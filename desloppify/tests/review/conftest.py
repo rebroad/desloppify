@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-import desloppify.engine.plan as plan_mod
+import desloppify.engine.plan_state as plan_mod
 from desloppify.tests.review.shared_review_fixtures import (
     empty_state,
     mock_lang,

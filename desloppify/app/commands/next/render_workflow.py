@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from desloppify.engine.plan import (
+from desloppify.engine.plan_triage import (
     triage_manual_stage_command,
     triage_run_stages_command,
 )
 
 
 def step_text(step: str | dict) -> str:
-    """Extract display text from an action step (string or dict with title)."""
     if isinstance(step, dict):
         return step.get("title", str(step))
     return str(step)
@@ -75,8 +74,7 @@ def render_workflow_stage(item: dict, *, colorize_fn, workflow_stage_name_fn) ->
         _print_runner_commands(detail, colorize_fn=colorize_fn)
 
 
-def _render_workflow_action(item: dict, *, colorize_fn) -> None:
-    """Render a workflow action item (e.g. create-plan)."""
+def render_workflow_action(item: dict, *, colorize_fn) -> None:
     print(colorize_fn("  (Workflow step)", "bold"))
     print(colorize_fn("  " + "─" * 60, "dim"))
     print(f"  {colorize_fn(item.get('summary', ''), 'yellow')}")
@@ -111,11 +109,6 @@ def _render_workflow_action(item: dict, *, colorize_fn) -> None:
             elif label:
                 print(colorize_fn(f"  {idx}. {label}", "dim"))
     print(colorize_fn(f"\n  Action: {item.get('primary_command', '')}", "cyan"))
-
-
-def render_workflow_action(item: dict, *, colorize_fn) -> None:
-    """Public compatibility wrapper for workflow-action rendering."""
-    _render_workflow_action(item, colorize_fn=colorize_fn)
 
 
 __all__ = ["render_workflow_action", "render_workflow_stage", "step_text"]

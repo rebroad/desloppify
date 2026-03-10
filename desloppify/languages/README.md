@@ -15,7 +15,7 @@ These have custom detectors, language-specific smell analysis, subjective review
 | **GDScript** | `gdscript/` | Godot scene-aware, tree-sitter phases, shared framework helpers |
 | **Go** | `go/` | golangci-lint + go vet adapters, regex function extraction, test coverage mapping |
 
-Example: `python/` — see `python/__init__.py` for the full `@register_lang()` config with 15+ detector phases, custom extractors, security hooks, and review guidance.
+Example: `python/` — see `python/__init__.py` for the full plugin registration flow (`register_full_plugin(...)`) with 15+ detector phases, custom extractors, security hooks, and review guidance.
 
 ## Generic Plugins
 
@@ -88,7 +88,7 @@ Create `languages/<name>/__init__.py`:
 
 ```python
 from desloppify.languages._framework.generic import generic_lang
-from desloppify.languages._framework.treesitter._specs import MY_SPEC  # if available
+from desloppify.languages._framework.treesitter.specs.specs import MY_SPEC  # if available
 
 generic_lang(
     name="mylang",
@@ -114,7 +114,7 @@ The path is incremental:
 
 1. **Start generic** — `generic_lang()` with tool specs + tree-sitter
 2. **Extend in-place** — add zone rules, test coverage hooks, security hooks (stays generic)
-3. **Go full** — when you need custom detectors or fixers, switch to `@register_lang()` with a package directory
+3. **Go full** — when you need custom detectors or fixers, switch to `register_full_plugin(...)` with a package directory
 
 Bootstrap: `desloppify dev scaffold-lang <name> --extension .ext --marker <root-marker>`
 
@@ -126,26 +126,53 @@ A full plugin can still reuse generic building blocks — `_run_tool()` for exte
 
 ```
 _framework/
-├── generic.py           # generic_lang() factory for tool-based plugins
-├── base/                # LangConfig, DetectorPhase, FixerConfig contracts
-│   ├── types.py         # Core dataclasses
-│   ├── shared_phases.py # Shared detector phase runners
-│   ├── phase_builders.py # Phase builder helpers
-│   └── structural.py   # Structural analysis utilities
-├── treesitter/          # Tree-sitter integration (optional)
-│   ├── _specs.py        # Per-language tree-sitter query definitions
-│   ├── _extractors.py   # Function/class extraction via AST
-│   ├── _imports.py      # Import parsing + per-language resolvers
-│   ├── _complexity.py   # AST complexity signals
-│   ├── _smells.py       # Cross-language AST smell detectors
-│   ├── _cohesion.py     # Responsibility cohesion
-│   └── _unused_imports.py
-├── runtime.py           # LangRun (per-run mutable execution state)
-├── resolution.py        # get_lang/available_langs/auto_detect_lang
-├── discovery.py         # Plugin auto-discovery
-├── commands_base.py     # Shared detect-command factories
-└── review_data/         # Shared review dimension JSON payloads
+├── registration.py        # register_full_plugin() + class registration helpers
+├── generic.py             # generic_lang() factory for tool-based plugins
+├── generic_registration.py # generic plugin wiring and detector/fixer registration
+├── base/                  # LangConfig, DetectorPhase, FixerConfig contracts
+│   ├── types.py           # Core dataclasses and protocol contracts
+│   ├── phase_builders.py  # Shared phase builder helpers
+│   ├── shared_phases.py   # Shared detector phase runners
+│   └── structural.py      # Structural analysis utilities
+├── treesitter/            # Tree-sitter integration (optional)
+│   ├── specs/             # Per-language tree-sitter specs (grouped namespace)
+│   ├── imports/           # Import parsing + resolver adapters (grouped namespace)
+│   ├── analysis/          # Complexity/cohesion/smell/unused-import adapters
+│   └── phases.py          # Shared tree-sitter detector phase builders
+├── runtime.py             # LangRun (per-run mutable execution state)
+├── resolution.py          # get_lang/available_langs/auto_detect_lang
+├── discovery.py           # Plugin auto-discovery
+├── commands_base.py       # Shared detect-command factories
+├── commands_base_registry.py # Shared detect registry composition helpers
+└── review_data/           # Shared review dimension JSON payloads
 ```
+
+## Public Runtime Facade
+
+Runtime consumers in app/engine layers should import framework runtime access via
+`desloppify.languages.framework` (for example `make_lang_run`, `LangRun`,
+`DetectorPhase`, capability/parse-cache helpers) instead of importing broad
+`desloppify.languages._framework.*` paths directly.
+
+Plugin authors should continue to use `_framework` internals where appropriate.
+
+`desloppify.languages` module-level exports like `discovery`/`registry_state`/
+`resolution`/`runtime` are compatibility exports for legacy callers; they are
+not the canonical runtime surface.
+
+For TypeScript detectors, `languages/typescript/detectors/__init__.py` is a
+compatibility alias to `languages/typescript/compat/detectors.py`. Canonical imports are:
+- `desloppify.languages.typescript.detectors.cli`
+- `desloppify.languages.typescript.detectors.analysis`
+
+`languages/typescript/commands.py` and `languages/typescript/phases.py` are
+compatibility aliases to `languages/typescript/compat/{commands,phases}.py`.
+Canonical detect-command ownership lives in `detectors/cli.py`, and canonical
+phase ownership lives in `analysis.py`.
+
+For tree-sitter legacy bridges, compatibility runtime is under
+`desloppify.languages._framework.treesitter.compat`; canonical runtime imports
+should stay on grouped `analysis/`, `imports/`, and `specs/` namespaces.
 
 ## Design Rules
 

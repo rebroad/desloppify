@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from desloppify.app.commands.runner.run_logs import make_run_log_writer
 
 if TYPE_CHECKING:
     from .runner_parallel import BatchProgressEvent
@@ -150,18 +151,6 @@ def resolve_run_log_path(
         run_log_path = run_dir / "run.log"
     run_log_path.parent.mkdir(parents=True, exist_ok=True)
     return run_log_path
-
-
-def make_run_log_writer(run_log_path: Path) -> Callable[[str], None]:
-    def _append_run_log(message: str) -> None:
-        line = f"{datetime.now(UTC).isoformat(timespec='seconds')} {message}\n"
-        try:
-            with run_log_path.open("a", encoding="utf-8") as handle:
-                handle.write(line)
-        except OSError:
-            return
-
-    return _append_run_log
 
 
 def build_batch_tasks(

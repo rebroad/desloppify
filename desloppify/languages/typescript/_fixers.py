@@ -5,9 +5,9 @@ from __future__ import annotations
 import importlib
 
 from desloppify.languages._framework.base.types import FixerConfig
-from desloppify.languages.typescript.detectors import logs as logs_detector_mod
-from desloppify.languages.typescript.detectors import smells as smells_detector_mod
-from desloppify.languages.typescript.detectors import unused as unused_detector_mod
+import desloppify.languages.typescript.detectors.logs as logs_detector_mod
+import desloppify.languages.typescript.detectors.smells as smells_detector_mod
+import desloppify.languages.typescript.detectors.unused as unused_detector_mod
 
 _FIXERS_MODULE = "desloppify.languages.typescript.fixers"
 
@@ -27,7 +27,7 @@ def _det_unused(cat):
 
 def _det_logs(path):
     """Detect tagged debug logs."""
-    return logs_detector_mod.detect_logs(path)[0]
+    return logs_detector_mod.detect_logs(path).entries
 
 
 def _det_smell(smell_id):

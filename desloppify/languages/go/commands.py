@@ -1,11 +1,9 @@
-"""Go detect-subcommand wrappers + command registry.
+"""Go detect-subcommand registry using canonical framework composition.
 
 Originally contributed by tinker495 (KyuSeok Jung) in PR #128.
 """
 
 from __future__ import annotations
-
-import argparse
 
 from desloppify.languages._framework.commands_base import (
     make_cmd_complexity,
@@ -13,6 +11,7 @@ from desloppify.languages._framework.commands_base import (
 )
 from desloppify.languages._framework.commands_base_registry import (
     build_standard_detect_registry,
+    compose_detect_registry,
     make_cmd_cycles,
     make_cmd_deps,
     make_cmd_dupes,
@@ -22,56 +21,43 @@ from desloppify.languages.go.detectors.deps import build_dep_graph
 from desloppify.languages.go.extractors import extract_functions, find_go_files
 from desloppify.languages.go.phases import GO_COMPLEXITY_SIGNALS
 
-_cmd_large_impl = make_cmd_large(find_go_files, default_threshold=500)
-_cmd_complexity_impl = make_cmd_complexity(
-    find_go_files, GO_COMPLEXITY_SIGNALS, default_threshold=15
+cmd_large = make_cmd_large(
+    find_go_files,
+    default_threshold=500,
+    module_name=__name__,
 )
-_cmd_deps_impl = make_cmd_deps(
+cmd_complexity = make_cmd_complexity(
+    find_go_files,
+    GO_COMPLEXITY_SIGNALS,
+    default_threshold=15,
+    module_name=__name__,
+)
+cmd_deps = make_cmd_deps(
     build_dep_graph_fn=build_dep_graph,
     empty_message="No Go dependencies detected.",
     import_count_label="Imports",
     top_imports_label="Top imports",
+    module_name=__name__,
 )
-_cmd_cycles_impl = make_cmd_cycles(build_dep_graph_fn=build_dep_graph)
-_cmd_orphaned_impl = make_cmd_orphaned(
+cmd_cycles = make_cmd_cycles(build_dep_graph_fn=build_dep_graph, module_name=__name__)
+cmd_orphaned = make_cmd_orphaned(
     build_dep_graph_fn=build_dep_graph,
     extensions=[".go"],
     extra_entry_patterns=["/main.go", "/cmd/"],
     extra_barrel_names=set(),
+    module_name=__name__,
 )
-_cmd_dupes_impl = make_cmd_dupes(extract_functions_fn=extract_functions)
-
-
-def cmd_large(args: argparse.Namespace) -> None:
-    _cmd_large_impl(args)
-
-
-def cmd_complexity(args: argparse.Namespace) -> None:
-    _cmd_complexity_impl(args)
-
-
-def cmd_deps(args: argparse.Namespace) -> None:
-    _cmd_deps_impl(args)
-
-
-def cmd_cycles(args: argparse.Namespace) -> None:
-    _cmd_cycles_impl(args)
-
-
-def cmd_orphaned(args: argparse.Namespace) -> None:
-    _cmd_orphaned_impl(args)
-
-
-def cmd_dupes(args: argparse.Namespace) -> None:
-    _cmd_dupes_impl(args)
+cmd_dupes = make_cmd_dupes(extract_functions_fn=extract_functions, module_name=__name__)
 
 
 def get_detect_commands():
-    return build_standard_detect_registry(
-        cmd_deps=cmd_deps,
-        cmd_cycles=cmd_cycles,
-        cmd_orphaned=cmd_orphaned,
-        cmd_dupes=cmd_dupes,
-        cmd_large=cmd_large,
-        cmd_complexity=cmd_complexity,
+    return compose_detect_registry(
+        base_registry=build_standard_detect_registry(
+            cmd_deps=cmd_deps,
+            cmd_cycles=cmd_cycles,
+            cmd_orphaned=cmd_orphaned,
+            cmd_dupes=cmd_dupes,
+            cmd_large=cmd_large,
+            cmd_complexity=cmd_complexity,
+        ),
     )

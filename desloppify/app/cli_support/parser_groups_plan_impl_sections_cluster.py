@@ -73,19 +73,27 @@ def _add_cluster_subparser(plan_sub) -> None:
     p_cmerge.add_argument("source", type=str, help="Source cluster name (will be deleted)")
     p_cmerge.add_argument("target", type=str, help="Target cluster name (receives issues)")
 
-    # plan cluster update <name> [--description "..."] [--steps "..." ...]
+    # plan cluster update <name> [--description "..."] [structured step flags]
     p_cu = cluster_sub.add_parser("update", help="Update cluster description and/or action steps")
     p_cu.add_argument("cluster_name", type=str, help="Cluster name")
     p_cu.add_argument("--description", type=str, default=None, help="Cluster description")
-    p_cu.add_argument("--steps", nargs="+", metavar="STEP", default=None, help="Action steps list (legacy flat strings)")
+    p_cu.add_argument(
+        "--steps",
+        nargs="+",
+        metavar="STEP",
+        default=None,
+        help=argparse.SUPPRESS,  # legacy compatibility only; prefer structured step flags
+    )
     p_cu.add_argument("--steps-file", "-f", type=str, default=None,
                       help="Load steps from numbered-steps text file")
     p_cu.add_argument("--add-step", type=str, default=None, metavar="TITLE",
                       help="Append a single step")
     p_cu.add_argument("--detail", type=str, default=None,
                       help="Body text for --add-step or --update-step")
+    p_cu.add_argument("--update-title", type=str, default=None, metavar="TITLE",
+                      help="Replacement title for --update-step")
     p_cu.add_argument("--update-step", type=int, default=None, metavar="N",
-                      help="Replace step N (1-based) title; use --detail for body")
+                      help="Update step N (1-based); use --update-title, --detail, --effort, --issue-refs")
     p_cu.add_argument("--remove-step", type=int, default=None, metavar="N",
                       help="Remove step N (1-based)")
     p_cu.add_argument("--done-step", type=int, default=None, metavar="N",

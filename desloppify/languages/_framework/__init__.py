@@ -1,15 +1,18 @@
-"""Shared language-framework internals.
+"""Language framework root contract (types only).
 
-This package contains framework code used by all language plugins:
-- config/runtime contracts
-- plugin discovery/registration state
-- shared detect-command factories
-- shared issue factories and facade helpers
+Top-level role:
+- expose stable type contracts shared by language plugins.
+
+Non-role (owned by explicit submodules, not this root):
+- command composition scaffolding: ``commands_base`` / ``commands_base_registry``
+- plugin discovery and registration lifecycle: ``discovery`` / ``registration``
+- runtime wiring and accessors: ``runtime`` / ``runtime_accessors``
+- parser and tree-sitter infrastructure: ``treesitter.*``
+
+Keep this module minimal so ``languages._framework`` is not a catch-all entrypoint.
 """
 
 from __future__ import annotations
-
-from pathlib import Path
 
 from .base.types import (
     BoundaryRule,
@@ -20,40 +23,6 @@ from .base.types import (
     LangValueSpec,
 )
 
-
-def make_lang_config(name: str, cfg_cls: type) -> LangConfig:
-    from .resolution import make_lang_config as _make_lang_config
-
-    return _make_lang_config(name, cfg_cls)
-
-
-def get_lang(name: str, *, refresh_registry: bool = False) -> LangConfig:
-    from .resolution import get_lang as _get_lang
-
-    if not refresh_registry:
-        return _get_lang(name)
-    return _get_lang(name, refresh_registry=True)
-
-
-def auto_detect_lang(
-    project_root: Path,
-    *,
-    refresh_registry: bool = False,
-) -> str | None:
-    from .resolution import auto_detect_lang as _auto_detect_lang
-
-    if not refresh_registry:
-        return _auto_detect_lang(project_root)
-    return _auto_detect_lang(project_root, refresh_registry=True)
-
-
-def available_langs(*, refresh_registry: bool = False) -> list[str]:
-    from .resolution import available_langs as _available_langs
-
-    if not refresh_registry:
-        return _available_langs()
-    return _available_langs(refresh_registry=True)
-
 __all__ = [
     "BoundaryRule",
     "DetectorPhase",
@@ -61,8 +30,4 @@ __all__ = [
     "FixResult",
     "LangConfig",
     "LangValueSpec",
-    "auto_detect_lang",
-    "available_langs",
-    "get_lang",
-    "make_lang_config",
 ]

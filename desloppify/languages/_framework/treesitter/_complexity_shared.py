@@ -1,44 +1,17 @@
-"""Shared parser/bootstrap helpers for tree-sitter complexity signals."""
+"""Compatibility bridge to grouped tree-sitter namespace module.
+
+Canonical implementation now lives in
+desloppify.languages._framework.treesitter.analysis.complexity_shared.
+"""
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING, Any, Callable
+from importlib import import_module
 
-from . import PARSE_INIT_ERRORS
-from ._extractors import _get_parser
-
-if TYPE_CHECKING:
-    from desloppify.languages._framework.treesitter import TreeSitterLangSpec
-
-logger = logging.getLogger(__name__)
-
-ComputeFn = Callable[[str, list[str]], tuple[int, str] | None]
-"""Signature for complexity signal compute functions.
-
-Each factory returns a closure with this effective call shape:
-``(content, lines, *, _filepath=\"\") -> (count, label) | None``.
-"""
-
-
-def _ensure_parser(
-    cache: dict[str, Any],
-    spec: TreeSitterLangSpec,
-    *,
-    with_query: bool = False,
-) -> bool:
-    """Lazily initialise parser (and optionally function query) into *cache*."""
-    if "parser" in cache:
-        return True
-    try:
-        parser, lang = _get_parser(spec.grammar)
-        cache["parser"] = parser
-        cache["language"] = lang
-        if with_query:
-            from ._extractors import _make_query
-
-            cache["query"] = _make_query(lang, spec.function_query)
-    except PARSE_INIT_ERRORS as exc:
-        logger.debug("tree-sitter init failed: %s", exc)
-        return False
-    return True
+_IMPL = import_module("desloppify.languages._framework.treesitter.analysis.complexity_shared")
+_EXPORTS = [name for name in dir(_IMPL) if not name.startswith("__")]
+globals().update({name: getattr(_IMPL, name) for name in _EXPORTS})
+_PUBLIC = getattr(_IMPL, "__all__", None)
+if _PUBLIC is None:
+    _PUBLIC = [name for name in _EXPORTS if not name.startswith("_")]
+__all__ = list(_PUBLIC)

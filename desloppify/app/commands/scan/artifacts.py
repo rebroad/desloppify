@@ -19,7 +19,7 @@ from desloppify.base.output.terminal import colorize
 from desloppify.base.output.contract import OutputResult
 from desloppify.base.discovery.paths import get_project_root
 from desloppify.engine._scoring.results.core import compute_health_breakdown
-from desloppify.engine.plan import load_plan
+from desloppify.engine.plan_state import load_plan
 from desloppify.state import open_scope_breakdown, score_snapshot
 
 logger = logging.getLogger(__name__)

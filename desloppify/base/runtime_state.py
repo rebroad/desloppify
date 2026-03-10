@@ -122,6 +122,13 @@ def current_runtime_context() -> RuntimeContext:
     return _PROCESS_RUNTIME_CONTEXT
 
 
+def resolve_runtime_context(runtime: RuntimeContext | None = None) -> RuntimeContext:
+    """Resolve an explicit runtime context or fall back to ambient context."""
+    if runtime is not None:
+        return runtime
+    return current_runtime_context()
+
+
 @contextmanager
 def runtime_scope(runtime: RuntimeContext | None = None):
     """Run code with an isolated runtime context."""
@@ -140,5 +147,6 @@ __all__ = [
     "SourceFileCache",
     "current_runtime_context",
     "make_runtime_context",
+    "resolve_runtime_context",
     "runtime_scope",
 ]

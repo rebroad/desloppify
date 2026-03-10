@@ -10,7 +10,7 @@ from desloppify.engine._plan.auto_cluster_sync import (
     sync_subjective_clusters as _sync_subjective_clusters,
 )
 from desloppify.engine._plan.schema import PlanModel, ensure_plan_defaults
-from desloppify.engine._plan.subjective_policy import SubjectiveVisibility
+from desloppify.engine._plan.policy.subjective import SubjectiveVisibility
 from desloppify.engine._state.schema import StateModel, utc_now
 
 # ---------------------------------------------------------------------------

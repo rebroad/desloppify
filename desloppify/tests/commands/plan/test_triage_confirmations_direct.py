@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import desloppify.app.commands.plan.triage.confirmations_router as confirmations_mod
+import desloppify.app.commands.plan.triage.confirmations.router as confirmations_mod
 
 
 def test_validate_attestation_observe_requires_dimension_reference() -> None:

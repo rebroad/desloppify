@@ -4,17 +4,26 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+from typing import Any, cast
 
 from desloppify.base.output.terminal import colorize
-from desloppify.engine.plan import (
-    TRIAGE_IDS,
-    TRIAGE_STAGE_IDS,
-    normalize_queue_workflow_and_triage_prefix,
+from desloppify.engine._state.schema import Issue, StateModel
+from desloppify.engine.plan_state import (
+    Cluster,
+    PlanModel,
+)
+from desloppify.engine.plan_ops import purge_ids
+from desloppify.engine.plan_queue import (
     WORKFLOW_CREATE_PLAN_ID,
     WORKFLOW_SCORE_CHECKPOINT_ID,
+    normalize_queue_workflow_and_triage_prefix,
     open_review_ids,
-    purge_ids,
     review_issue_snapshot_hash,
+)
+from desloppify.engine.plan_triage import (
+    TRIAGE_IDS,
+    TRIAGE_STAGE_IDS,
+    TriageInput,
 )
 from desloppify.state import utc_now
 
@@ -23,13 +32,61 @@ from .services import TriageServices, default_triage_services
 _STAGE_ORDER = ["observe", "reflect", "organize", "enrich", "sense-check"]
 
 
+def _queue_order(plan: PlanModel) -> list[str]:
+    """Return normalized queue order list, seeding default if missing."""
+    order = plan.get("queue_order")
+    if isinstance(order, list):
+        return order
+    normalized: list[str] = []
+    plan["queue_order"] = normalized
+    return normalized
+
+
+def _skipped_map(plan: PlanModel) -> dict[str, Any]:
+    """Return normalized skipped map, seeding default if missing."""
+    skipped = plan.get("skipped")
+    if isinstance(skipped, dict):
+        return cast(dict[str, Any], skipped)
+    normalized: dict[str, Any] = {}
+    plan["skipped"] = normalized
+    return normalized
+
+
+def _cluster_map(plan: PlanModel) -> dict[str, Cluster]:
+    """Return normalized cluster map, seeding default if missing."""
+    clusters = plan.get("clusters")
+    if isinstance(clusters, dict):
+        return cast(dict[str, Cluster], clusters)
+    normalized: dict[str, Cluster] = {}
+    plan["clusters"] = normalized
+    return normalized
+
+
+def _triage_meta(plan: PlanModel) -> dict[str, Any]:
+    """Return normalized triage metadata map, seeding default if missing."""
+    meta = plan.get("epic_triage_meta")
+    if isinstance(meta, dict):
+        return cast(dict[str, Any], meta)
+    normalized: dict[str, Any] = {}
+    plan["epic_triage_meta"] = normalized
+    return normalized
+
+
+def _execution_log(plan: PlanModel) -> list[dict[str, Any]]:
+    """Return normalized execution log list, seeding default if missing."""
+    log = plan.get("execution_log")
+    if isinstance(log, list):
+        return [entry for entry in log if isinstance(entry, dict)]
+    normalized: list[dict[str, Any]] = []
+    plan["execution_log"] = normalized
+    return normalized
+
+
 def _normalize_summary_text(text: str | None) -> str:
-    """Collapse user-facing summary text to a single readable line."""
     return " ".join(str(text or "").split()).strip()
 
 
 def _truncate_summary_text(text: str, limit: int = 360) -> str:
-    """Trim long strategy summaries so completion output stays readable."""
     if len(text) <= limit:
         return text
     return text[: limit - 3].rstrip() + "..."
@@ -63,36 +120,34 @@ def _effective_completion_strategy_summary(
     return existing_strategy
 
 
-def has_triage_in_queue(plan: dict) -> bool:
-    """Check if any triage stage ID is in the queue."""
-    order = set(plan.get("queue_order", []))
+def has_triage_in_queue(plan: PlanModel) -> bool:
+    order = set(_queue_order(plan))
     return bool(order & TRIAGE_IDS)
 
 
-def _clear_triage_stage_skips(plan: dict) -> None:
-    """Remove triage stage IDs from ``plan['skipped']``."""
-    skipped = plan.get("skipped")
-    if not isinstance(skipped, dict):
-        return
+def _clear_triage_stage_skips(plan: PlanModel) -> None:
+    skipped = _skipped_map(plan)
     for sid in TRIAGE_STAGE_IDS:
         skipped.pop(sid, None)
 
 
-def inject_triage_stages(plan: dict) -> None:
-    """Inject all triage stage IDs into the queue (fresh start)."""
-    order: list[str] = plan.setdefault("queue_order", [])
+def inject_triage_stages(plan: PlanModel) -> None:
+    order = _queue_order(plan)
     _clear_triage_stage_skips(plan)
     remaining = [issue_id for issue_id in order if issue_id not in TRIAGE_IDS]
     order[:] = [*remaining, *TRIAGE_STAGE_IDS]
     normalize_queue_workflow_and_triage_prefix(order)
 
-def purge_triage_stage(plan: dict, stage_name: str) -> None:
-    """Purge a single triage stage ID from the queue."""
+
+def purge_triage_stage(plan: PlanModel, stage_name: str) -> None:
     sid = f"triage::{stage_name}"
     purge_ids(plan, [sid])
 
-def cascade_clear_later_confirmations(stages: dict, from_stage: str) -> list[str]:
-    """Clear confirmed_at/confirmed_text on stages AFTER *from_stage*. Returns cleared names."""
+
+def cascade_clear_later_confirmations(
+    stages: dict[str, dict[str, Any]],
+    from_stage: str,
+) -> list[str]:
     try:
         idx = _STAGE_ORDER.index(from_stage)
     except ValueError:
@@ -105,8 +160,11 @@ def cascade_clear_later_confirmations(stages: dict, from_stage: str) -> list[str
             cleared.append(later)
     return cleared
 
-def print_cascade_clear_feedback(cleared: list[str], stages: dict) -> None:
-    """Print yellow cascade-clear message with next-step guidance."""
+
+def print_cascade_clear_feedback(
+    cleared: list[str],
+    stages: dict[str, dict[str, Any]],
+) -> None:
     if not cleared:
         return
     print(colorize(f"  Cleared confirmations on: {', '.join(cleared)}", "yellow"))
@@ -120,54 +178,47 @@ def print_cascade_clear_feedback(cleared: list[str], stages: dict) -> None:
             "dim",
         ))
 
-def observe_dimension_breakdown(si) -> tuple[dict[str, int], list[str]]:
-    """Count issues per dimension from a TriageInput. Returns (by_dim, sorted_dim_names)."""
+
+def observe_dimension_breakdown(si: TriageInput) -> tuple[dict[str, int], list[str]]:
     by_dim: dict[str, int] = defaultdict(int)
-    for _fid, f in si.open_issues.items():
-        detail = f.get("detail", {}) if isinstance(f.get("detail"), dict) else {}
+    for _fid, issue in si.open_issues.items():
+        detail = issue.get("detail", {}) if isinstance(issue.get("detail"), dict) else {}
         dim = detail.get("dimension", "unknown")
         by_dim[dim] += 1
     dim_names = sorted(by_dim, key=lambda d: (-by_dim[d], d))
     return dict(by_dim), dim_names
 
-def group_issues_into_observe_batches(
-    si,
-    max_batches: int = 5,
-) -> list[tuple[list[str], dict[str, dict]]]:
-    """Group issues by dimension into batches for parallel observe.
 
-    Returns list of (dimension_names, issues_subset) tuples.
-    Single batch if only one dimension exists.
-    """
+def group_issues_into_observe_batches(
+    si: TriageInput,
+    max_batches: int = 5,
+) -> list[tuple[list[str], dict[str, Issue]]]:
+    """Group observe issues into dimension-balanced batches."""
     by_dim, dim_names = observe_dimension_breakdown(si)
 
     if len(dim_names) <= 1:
         return [(dim_names, dict(si.open_issues))]
 
-    # Distribute dimensions into balanced batches by issue count
     num_batches = min(max_batches, len(dim_names))
     batch_dims: list[list[str]] = [[] for _ in range(num_batches)]
     batch_counts: list[int] = [0] * num_batches
 
-    # Greedy: assign each dimension (largest first) to the lightest batch
     for dim in dim_names:
         lightest = min(range(num_batches), key=lambda i: batch_counts[i])
         batch_dims[lightest].append(dim)
         batch_counts[lightest] += by_dim[dim]
 
-    # Build issue subsets per batch
-    # Pre-index issues by dimension
-    dim_to_issues: dict[str, dict[str, dict]] = defaultdict(dict)
-    for fid, f in si.open_issues.items():
-        detail = f.get("detail", {}) if isinstance(f.get("detail"), dict) else {}
+    dim_to_issues: dict[str, dict[str, Issue]] = defaultdict(dict)
+    for fid, issue in si.open_issues.items():
+        detail = issue.get("detail", {}) if isinstance(issue.get("detail"), dict) else {}
         dim = detail.get("dimension", "unknown")
-        dim_to_issues[dim][fid] = f
+        dim_to_issues[dim][fid] = issue
 
-    result: list[tuple[list[str], dict[str, dict]]] = []
+    result: list[tuple[list[str], dict[str, Issue]]] = []
     for dims in batch_dims:
         if not dims:
             continue
-        subset: dict[str, dict] = {}
+        subset: dict[str, Issue] = {}
         for dim in dims:
             subset.update(dim_to_issues.get(dim, {}))
         if subset:
@@ -176,20 +227,20 @@ def group_issues_into_observe_batches(
     return result
 
 
-def open_review_ids_from_state(state: dict) -> set[str]:
-    """Return IDs of open review/concerns issues (excludes subjective_review placeholders)."""
+def open_review_ids_from_state(state: StateModel) -> set[str]:
     return open_review_ids(state)
 
+
 def triage_coverage(
-    plan: dict,
+    plan: PlanModel,
     open_review_ids: set[str] | None = None,
-) -> tuple[int, int, dict]:
+) -> tuple[int, int, dict[str, Cluster]]:
     """Return (organized, total, clusters) for review issues in triage.
 
     When *open_review_ids* is provided, use it as the full set of review
     issues (from state) instead of falling back to queue_order.
     """
-    clusters = plan.get("clusters", {})
+    clusters = _cluster_map(plan)
     all_cluster_ids: set[str] = set()
     for c in clusters.values():
         all_cluster_ids.update(c.get("issue_ids", []))
@@ -197,22 +248,22 @@ def triage_coverage(
         review_ids = list(open_review_ids)
     else:
         review_ids = [
-            fid for fid in plan.get("queue_order", [])
+            fid for fid in _queue_order(plan)
             if not fid.startswith("triage::") and not fid.startswith("workflow::") and (fid.startswith("review::") or fid.startswith("concerns::"))
         ]
     organized = sum(1 for fid in review_ids if fid in all_cluster_ids)
     return organized, len(review_ids), clusters
 
-def manual_clusters_with_issues(plan: dict) -> list[str]:
-    """Return names of non-auto clusters that have issues."""
+
+def manual_clusters_with_issues(plan: PlanModel) -> list[str]:
     return [
-        name for name, c in plan.get("clusters", {}).items()
+        name for name, c in _cluster_map(plan).items()
         if c.get("issue_ids") and not c.get("auto")
     ]
 
 def apply_completion(
     args: argparse.Namespace,
-    plan: dict,
+    plan: PlanModel,
     strategy: str,
     *,
     services: TriageServices | None = None,
@@ -228,7 +279,6 @@ def apply_completion(
         plan, open_review_ids=open_review_ids_from_state(state),
     )
 
-    # Purge all triage stage IDs and stale workflow items that point to triage.
     purge_ids(plan, [
         *TRIAGE_IDS,
         WORKFLOW_SCORE_CHECKPOINT_ID,
@@ -237,7 +287,7 @@ def apply_completion(
 
     current_hash = review_issue_snapshot_hash(state)
 
-    meta = plan.setdefault("epic_triage_meta", {})
+    meta = _triage_meta(plan)
     normalized_strategy = _normalize_summary_text(strategy)
     existing_strategy = _normalize_summary_text(meta.get("strategy_summary", ""))
     normalized_note = _normalize_summary_text(completion_note)
@@ -275,7 +325,7 @@ def apply_completion(
             if existing_strategy and existing_strategy != effective_strategy_summary:
                 last_triage["previous_strategy_summary"] = existing_strategy
         meta["last_triage"] = last_triage
-    meta["triage_stages"] = {}  # clear stages on completion
+    meta["triage_stages"] = {}
     meta.pop("triage_recommended", None)
     meta.pop("stage_refresh_required", None)
     meta.pop("stage_snapshot_hash", None)
@@ -296,19 +346,17 @@ def apply_completion(
         print(colorize(f"  Strategy: {effective_strategy_summary}", "cyan"))
     print(colorize("  Run `desloppify next` to start implementation.", "green"))
 
-def find_cluster_for(fid: str, clusters: dict) -> str | None:
-    """Return the cluster name containing *fid*, or None."""
+
+def find_cluster_for(fid: str, clusters: dict[str, Cluster]) -> str | None:
     for name, c in clusters.items():
         if fid in c.get("issue_ids", []):
             return name
     return None
 
-def count_log_activity_since(plan: dict, since: str) -> dict[str, int]:
-    """Count execution log entries by action since *since* timestamp."""
+
+def count_log_activity_since(plan: PlanModel, since: str) -> dict[str, int]:
     counts: dict[str, int] = defaultdict(int)
-    for raw_entry in plan.get("execution_log", []):
-        if not isinstance(raw_entry, dict):
-            continue
+    for raw_entry in _execution_log(plan):
         if "timestamp" not in raw_entry or "action" not in raw_entry:
             continue
         timestamp = raw_entry["timestamp"]

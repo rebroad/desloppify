@@ -4,14 +4,16 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import desloppify.engine._plan._sync_context as sync_context_mod
 import desloppify.engine._plan.auto_cluster_sync_issue as auto_cluster_sync_mod
-import desloppify.engine._plan.epic_triage_dismiss as triage_dismiss_mod
+import desloppify.engine._plan.constants as plan_constants_mod
+import desloppify.engine._plan.triage.dismiss as triage_dismiss_mod
 import desloppify.engine._plan.reconcile_review_import as reconcile_import_mod
 import desloppify.engine._plan.schema.helpers as schema_helpers_mod
-import desloppify.engine._plan.sync_auto_prune as sync_auto_prune_mod
-import desloppify.engine._plan.sync_workflow as sync_workflow_mod
-import desloppify.engine._plan.triage_playbook as triage_playbook_mod
+import desloppify.engine._plan.sync.auto_prune as sync_auto_prune_mod
+import desloppify.engine._plan.sync.context as sync_context_mod
+import desloppify.engine._plan.sync.triage_start_policy as triage_start_policy_mod
+import desloppify.engine._plan.sync.workflow as sync_workflow_mod
+import desloppify.engine._plan.triage.playbook as triage_playbook_mod
 import desloppify.engine._scoring.state_integration_subjective as scoring_subjective_mod
 import desloppify.engine._work_queue.lifecycle as lifecycle_mod
 
@@ -29,6 +31,58 @@ def test_sync_context_helpers_cover_policy_and_fallback_paths() -> None:
     assert sync_context_mod.has_objective_backlog(state, policy=None) is True
     assert sync_context_mod.is_mid_cycle({"plan_start_scores": {"strict": 75.0}}) is True
     assert sync_context_mod.is_mid_cycle({"plan_start_scores": {"reset": True}}) is False
+
+
+def test_triage_start_policy_decisions_cover_inject_defer_and_active(monkeypatch) -> None:
+    plan = {"queue_order": []}
+    monkeypatch.setattr(triage_start_policy_mod, "is_mid_cycle", lambda _plan: False)
+    assert triage_start_policy_mod.decide_triage_start(plan, state={"issues": {}}).action == "inject"
+
+    active_plan = {"queue_order": ["triage::observe"]}
+    assert (
+        triage_start_policy_mod.decide_triage_start(active_plan, state={"issues": {}}).action
+        == "already_active"
+    )
+
+    monkeypatch.setattr(triage_start_policy_mod, "is_mid_cycle", lambda _plan: True)
+    monkeypatch.setattr(
+        triage_start_policy_mod,
+        "has_objective_backlog",
+        lambda _state, _policy=None: True,
+    )
+    deferred = triage_start_policy_mod.decide_triage_start(
+        plan,
+        state={"issues": {"id1": {"status": "open"}}},
+        explicit_start=True,
+        attested_override=False,
+    )
+    assert deferred.action == "defer"
+    overridden = triage_start_policy_mod.decide_triage_start(
+        plan,
+        state={"issues": {"id1": {"status": "open"}}},
+        explicit_start=True,
+        attested_override=True,
+    )
+    assert overridden.action == "inject"
+
+    plan_with_defer_meta = {
+        "queue_order": [],
+        "epic_triage_meta": {"triage_defer_state": {"defer_count": 2}},
+    }
+    monkeypatch.setattr(triage_start_policy_mod, "is_mid_cycle", lambda _plan: False)
+    assert (
+        triage_start_policy_mod.decide_triage_start(
+            plan_with_defer_meta,
+            state={"issues": {}},
+        ).action
+        == "inject"
+    )
+
+
+def test_triage_stage_helpers_ignore_non_stage_meta_dicts() -> None:
+    meta = {"triage_defer_state": {"defer_count": 2}}
+    assert plan_constants_mod.confirmed_triage_stage_names(meta) == set()
+    assert plan_constants_mod.recorded_unconfirmed_triage_stage_names(meta) == set()
 
 
 def test_epic_triage_dismiss_moves_issues_to_skipped() -> None:
@@ -54,9 +108,10 @@ def test_epic_triage_dismiss_moves_issues_to_skipped() -> None:
 
 
 def test_reconcile_review_import_sync_result(monkeypatch) -> None:
-    plan = {"queue_order": ["id1"]}
+    plan = {"queue_order": ["id1"], "epic_triage_meta": {"triaged_ids": ["id1"]}}
     state = {"issues": {}}
 
+    monkeypatch.setattr(reconcile_import_mod, "compute_open_issue_ids", lambda _s: set())
     monkeypatch.setattr(reconcile_import_mod, "compute_new_issue_ids", lambda _p, _s: {"id2", "id3"})
     monkeypatch.setattr(
         reconcile_import_mod,
@@ -75,6 +130,30 @@ def test_reconcile_review_import_sync_result(monkeypatch) -> None:
     assert result.triage_injected_ids == ["triage::observe", "triage::reflect"]
     assert result.triage_deferred is False
     assert plan["queue_order"] == ["id1", "id2", "id3"]
+
+
+def test_reconcile_review_import_sync_uses_open_ids_without_triage_baseline(monkeypatch) -> None:
+    plan = {"queue_order": []}
+    state = {"issues": {}}
+
+    monkeypatch.setattr(reconcile_import_mod, "compute_open_issue_ids", lambda _s: {"rid::a"})
+    monkeypatch.setattr(reconcile_import_mod, "compute_new_issue_ids", lambda _p, _s: set())
+    monkeypatch.setattr(
+        reconcile_import_mod,
+        "sync_triage_needed",
+        lambda _p, _s, policy=None: SimpleNamespace(
+            injected=["triage::observe"],
+            deferred=False,
+        ),
+    )
+
+    result = reconcile_import_mod.sync_plan_after_review_import(plan, state, policy=None)
+    assert result is not None
+    assert result.new_ids == {"rid::a"}
+    assert result.added_to_queue == ["rid::a"]
+    assert result.triage_injected is True
+    assert result.triage_injected_ids == ["triage::observe"]
+    assert plan["queue_order"] == ["rid::a"]
 
 
 def test_schema_migration_helpers_cover_legacy_cleanup() -> None:
@@ -145,7 +224,11 @@ def test_auto_cluster_grouping_filters_to_open_unsuppressed_non_manual_items(
         "_grouping_key",
         lambda issue, _meta: f"{issue.get('detector')}::bucket",
     )
-    monkeypatch.setitem(auto_cluster_sync_mod.DETECTORS, "unused", {"name": "unused"})
+    monkeypatch.setattr(
+        auto_cluster_sync_mod,
+        "DETECTORS",
+        {"unused": {"name": "unused"}},
+    )
 
     issues = {
         "manual-1": {"status": "open", "suppressed": False, "detector": "unused"},
@@ -264,7 +347,11 @@ def test_sync_issue_clusters_handles_name_collisions_and_user_modified_clusters(
     monkeypatch.setattr(auto_cluster_sync_mod, "_cluster_name_from_key", lambda _k: "auto/shared")
     monkeypatch.setattr(auto_cluster_sync_mod, "_generate_description", lambda *_a, **_k: "desc")
     monkeypatch.setattr(auto_cluster_sync_mod, "_generate_action", lambda *_a, **_k: "act")
-    monkeypatch.setitem(auto_cluster_sync_mod.DETECTORS, "unused", {"name": "unused"})
+    monkeypatch.setattr(
+        auto_cluster_sync_mod,
+        "DETECTORS",
+        {"unused": {"name": "unused"}},
+    )
 
     changes = auto_cluster_sync_mod.sync_issue_clusters(
         plan,
@@ -408,6 +495,35 @@ def test_lifecycle_filter_respects_initial_reviews_triage_and_endgame_rules() ->
     ]
     filtered_endgame = lifecycle_mod.apply_lifecycle_filter(endgame_items)
     assert filtered_endgame == endgame_items
+
+    subjective_before_score_and_triage = [
+        {"kind": "workflow_action", "id": "workflow::communicate-score"},
+        {"kind": "workflow_stage", "id": "triage::observe"},
+        {"kind": "subjective_dimension", "id": "subjective::naming", "initial_review": False},
+    ]
+    filtered_subjective_phase = lifecycle_mod.apply_lifecycle_filter(
+        subjective_before_score_and_triage
+    )
+    assert filtered_subjective_phase == [subjective_before_score_and_triage[2]]
+
+    forced_items = [
+        {
+            "kind": "workflow_stage",
+            "id": "triage::observe",
+            "force_visible": True,
+        },
+        {"kind": "issue", "id": "unused::a", "detector": "unused"},
+        {
+            "kind": "subjective_dimension",
+            "id": "subjective::naming",
+            "initial_review": False,
+            "force_visible": True,
+        },
+    ]
+    filtered_forced = lifecycle_mod.apply_lifecycle_filter(forced_items)
+    forced_ids = {str(item.get("id", "")) for item in filtered_forced}
+    assert "triage::observe" in forced_ids
+    assert "subjective::naming" in forced_ids
 
 
 def test_lifecycle_filter_treats_clusters_as_objective() -> None:

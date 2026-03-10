@@ -18,11 +18,16 @@ def test_get_lang_hook_lazy_loads_language_hooks() -> None:
     assert hasattr(hook, "has_testable_logic")
 
 
-def test_get_lang_hook_reloads_after_test_clear() -> None:
+def test_get_lang_hook_bootstraps_after_test_clear_without_reload(monkeypatch) -> None:
     # Ensure module is imported at least once.
     importlib.import_module("desloppify.languages.python")
 
     clear_lang_hooks_for_tests()
+    monkeypatch.setattr(
+        registry_mod.importlib,
+        "reload",
+        lambda _module: (_ for _ in ()).throw(AssertionError("reload should not be used")),
+    )
     hook = get_lang_hook("python", "test_coverage")
 
     assert hook is not None
@@ -73,5 +78,4 @@ def test_get_lang_hook_bootstraps_module_register_entrypoint(monkeypatch) -> Non
     monkeypatch.setattr(registry_mod.importlib, "import_module", _fake_import_module)
 
     assert get_lang_hook("bootstraplang", "test_coverage") is sentinel
-
 

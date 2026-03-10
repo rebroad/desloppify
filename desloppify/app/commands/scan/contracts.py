@@ -4,10 +4,7 @@ from __future__ import annotations
 
 from typing import Any, TypedDict
 
-from desloppify.languages._framework.base.types import (
-    DetectorCoverageRecord,
-    ScanCoverageRecord,
-)
+from desloppify.languages.framework import DetectorCoverageRecord, ScanCoverageRecord
 
 
 class ScanQueuePayload(TypedDict, total=False):

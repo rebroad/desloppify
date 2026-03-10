@@ -8,7 +8,7 @@ from desloppify import state as state_mod
 from desloppify.base.config import DEFAULT_TARGET_STRICT_SCORE
 from desloppify.base.output.terminal import colorize
 from desloppify.engine._state.schema import StateModel
-from desloppify.engine.plan import has_living_plan, load_plan
+from desloppify.engine.plan_state import has_living_plan, load_plan
 import desloppify.intelligence.narrative.core as narrative_mod
 
 

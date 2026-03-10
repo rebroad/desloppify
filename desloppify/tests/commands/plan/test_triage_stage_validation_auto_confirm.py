@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from types import SimpleNamespace
 
-from desloppify.app.commands.plan.triage import _stage_validation as validation
+from desloppify.app.commands.plan.triage.validation import core as validation
 
 
 def _triage_input(*, dimension: str = "naming") -> SimpleNamespace:

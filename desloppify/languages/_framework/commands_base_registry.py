@@ -20,6 +20,13 @@ if TYPE_CHECKING:
     import argparse
 
 
+def _set_module(fn: Callable[..., Any], module_name: str | None) -> Callable[..., Any]:
+    """Set ``fn.__module__`` from an explicit module name."""
+    if module_name is not None:
+        fn.__module__ = module_name
+    return fn
+
+
 def build_standard_detect_registry(
     *,
     cmd_deps: Callable[[argparse.Namespace], None],
@@ -40,12 +47,25 @@ def build_standard_detect_registry(
     }
 
 
+def compose_detect_registry(
+    *,
+    base_registry: dict[str, Callable[[argparse.Namespace], None]],
+    extra_registry: dict[str, Callable[[argparse.Namespace], None]] | None = None,
+) -> dict[str, Callable[[argparse.Namespace], None]]:
+    """Compose a plugin detect registry from standard base + language extras."""
+    registry = dict(base_registry)
+    if extra_registry:
+        registry.update(extra_registry)
+    return registry
+
+
 def make_cmd_deps(
     *,
     build_dep_graph_fn: Callable[..., Any],
     empty_message: str,
     import_count_label: str,
     top_imports_label: str,
+    module_name: str | None = None,
 ) -> Callable[[argparse.Namespace], None]:
     """Build a deps command for lightweight graph-backed languages."""
 
@@ -87,10 +107,12 @@ def make_cmd_deps(
             [56, 8, 9, 45],
         )
 
-    return cmd_deps
+    return _set_module(cmd_deps, module_name)
 
 
-def make_cmd_cycles(*, build_dep_graph_fn) -> Callable[[argparse.Namespace], None]:
+def make_cmd_cycles(
+    *, build_dep_graph_fn, module_name: str | None = None
+) -> Callable[[argparse.Namespace], None]:
     """Build a cycles command using a dependency graph builder."""
 
     def cmd_cycles(args: argparse.Namespace) -> None:
@@ -113,7 +135,7 @@ def make_cmd_cycles(*, build_dep_graph_fn) -> Callable[[argparse.Namespace], Non
         ]
         print_table(["Length", "Files"], rows, [8, 95])
 
-    return cmd_cycles
+    return _set_module(cmd_cycles, module_name)
 
 
 def make_cmd_orphaned(
@@ -122,6 +144,7 @@ def make_cmd_orphaned(
     extensions: list[str],
     extra_entry_patterns: list[str],
     extra_barrel_names: set[str],
+    module_name: str | None = None,
 ) -> Callable[[argparse.Namespace], None]:
     """Build an orphaned-file command for language-specific roots/barrels."""
 
@@ -162,10 +185,12 @@ def make_cmd_orphaned(
         rows = [[rel(entry["file"]), str(entry["loc"])] for entry in entries[:top]]
         print_table(["File", "LOC"], rows, [85, 6])
 
-    return cmd_orphaned
+    return _set_module(cmd_orphaned, module_name)
 
 
-def make_cmd_dupes(*, extract_functions_fn) -> Callable[[argparse.Namespace], None]:
+def make_cmd_dupes(
+    *, extract_functions_fn, module_name: str | None = None
+) -> Callable[[argparse.Namespace], None]:
     """Build a duplicate-function command from an extractor."""
 
     def cmd_dupes(args: argparse.Namespace) -> None:
@@ -198,4 +223,4 @@ def make_cmd_dupes(*, extract_functions_fn) -> Callable[[argparse.Namespace], No
             )
         print_table(["Function A", "Function B", "Sim", "Kind"], rows, [40, 40, 5, 14])
 
-    return cmd_dupes
+    return _set_module(cmd_dupes, module_name)

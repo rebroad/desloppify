@@ -2,43 +2,63 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 from pathlib import Path
 from types import SimpleNamespace
 
-import desloppify.languages.typescript._detectors as ts_detectors_mod
 import desloppify.languages.typescript._fixers as ts_fixers_mod
-import desloppify.languages.typescript.commands_wrappers as ts_cmds_mod
+import desloppify.languages.typescript.detectors.cli as ts_detector_cli_api_mod
 import desloppify.languages.typescript.detectors.security.detector as ts_security_mod
 import desloppify.languages.typescript.detectors.smells_assets as ts_assets_mod
 import desloppify.languages.typescript.detectors.unused_fallback as ts_unused_mod
-from desloppify.languages._framework.base.types import DetectorPhase
+import desloppify.languages.typescript as ts_lang_mod
+from desloppify.languages.typescript.detectors.contracts import DetectorResult
 
 
-def test_ts_detector_helpers_cover_treesitter_and_function_extraction(monkeypatch) -> None:
-    monkeypatch.setattr("desloppify.languages._framework.treesitter.is_available", lambda: False)
-    assert ts_detectors_mod.ts_treesitter_phases() == []
+def test_typescript_config_uses_direct_imports_for_wiring() -> None:
+    src = inspect.getsource(ts_lang_mod)
+    assert "import desloppify.languages.typescript.detectors.cli as ts_detector_cli_mod" in src
+    assert "languages.typescript import commands as ts_commands_mod" not in src
+    assert "languages.typescript.phases import (" not in src
+    assert "languages.typescript._detectors import (" not in src
 
-    monkeypatch.setattr("desloppify.languages._framework.treesitter.is_available", lambda: True)
-    monkeypatch.setattr("desloppify.languages._framework.treesitter.get_spec", lambda _lang: SimpleNamespace())
-    monkeypatch.setattr(ts_detectors_mod, "make_cohesion_phase", lambda _spec: DetectorPhase("Cohesion", lambda *_args: ([], {})))
-    phases = ts_detectors_mod.ts_treesitter_phases()
-    assert len(phases) == 1
-    assert phases[0].label == "Cohesion"
 
-    monkeypatch.setattr(
-        ts_detectors_mod,
-        "find_ts_and_tsx_files",
-        lambda _path: ["src/a.ts", "src/types.d.ts", "node_modules/pkg/index.ts", "src/b.tsx"],
-    )
-    monkeypatch.setattr(ts_detectors_mod, "extract_ts_functions", lambda filepath: [SimpleNamespace(file=filepath)])
-    functions = ts_detectors_mod.ts_extract_functions(Path("."))
-    assert [fn.file for fn in functions] == ["src/a.ts", "src/b.tsx"]
+def test_typescript_top_level_surface_removes_legacy_tools_and_compat_layers() -> None:
+    package_root = Path(__file__).resolve().parents[3]
+    # Legacy compat layers are fully removed.
+    assert not (package_root / "languages/typescript/compat").exists()
+    assert not (package_root / "languages/typescript/tools/__init__.py").exists()
+    assert not (package_root / "languages/typescript/tools/logs.py").exists()
+    assert not (package_root / "languages/typescript/tools/patterns.py").exists()
+    assert not (package_root / "languages/typescript/tools/react.py").exists()
+    # commands.py and phases.py are not required — detect commands are on
+    # LangConfig and phases are wired in __init__.py.
+    assert not (package_root / "languages/typescript/commands.py").exists()
+    assert not (package_root / "languages/typescript/phases.py").exists()
+
+
+def test_typescript_detector_surface_splits_cli_and_analysis_roles() -> None:
+    cli_source = inspect.getsource(ts_detector_cli_api_mod)
+    assert "build_standard_detect_registry(" in cli_source
+    assert "compose_detect_registry(" in cli_source
+
+    assert callable(ts_detector_cli_api_mod.cmd_logs)
+    assert callable(ts_detector_cli_api_mod.build_dep_graph)
+
 
 
 def test_ts_fixer_helpers_and_registry(monkeypatch) -> None:
     monkeypatch.setattr(ts_fixers_mod.unused_detector_mod, "detect_unused", lambda _path, category: ([{"name": category}], 1))
-    monkeypatch.setattr(ts_fixers_mod.logs_detector_mod, "detect_logs", lambda _path: ([{"name": "log"}], 1))
+    monkeypatch.setattr(
+        ts_fixers_mod.logs_detector_mod,
+        "detect_logs",
+        lambda _path: DetectorResult(
+            entries=[{"name": "log"}],
+            population_kind="files",
+            population_size=1,
+        ),
+    )
     monkeypatch.setattr(
         ts_fixers_mod.smells_detector_mod,
         "detect_smells",
@@ -124,10 +144,12 @@ def test_ts_security_detector_reports_line_and_file_level_issues(tmp_path) -> No
     sql.parent.mkdir(parents=True, exist_ok=True)
     sql.write_text("CREATE VIEW public.foo AS SELECT 1;", encoding="utf-8")
 
-    entries, scanned = ts_security_mod.detect_ts_security(
+    security_result = ts_security_mod.detect_ts_security(
         [str(page), str(edge), str(sql)],
         zone_map=None,
     )
+    entries = security_result.entries
+    scanned = security_result.population_size
     kinds = {entry["detail"]["kind"] for entry in entries}
 
     assert scanned == 3
@@ -205,27 +227,42 @@ def test_ts_asset_smells_and_unused_fallback_helpers(monkeypatch, tmp_path) -> N
     assert ts_unused_mod.should_use_deno_fallback(Path("/tmp/supabase/functions/foo"), []) is True
 
 
-def test_ts_command_wrappers_cover_json_rendering_and_dispatch(monkeypatch, tmp_path) -> None:
+def test_ts_command_registry_canonical_surface_and_wrapper_passthrough(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    cli_mod = ts_detector_cli_api_mod
     printed: list[str] = []
     monkeypatch.setattr("builtins.print", lambda *args, **kwargs: printed.append(" ".join(str(a) for a in args)))
-    monkeypatch.setattr(ts_cmds_mod, "colorize", lambda text, _style: text)
-    monkeypatch.setattr(ts_cmds_mod, "print_table", lambda *args, **kwargs: printed.append("TABLE"))
+    monkeypatch.setattr(cli_mod, "colorize", lambda text, _style: text)
+    monkeypatch.setattr(cli_mod, "print_table", lambda *args, **kwargs: printed.append("TABLE"))
 
-    monkeypatch.setattr(ts_cmds_mod.deps_detector_mod, "build_dep_graph", lambda _path: {"src/a.ts": {"imports": set(), "importers": set(), "import_count": 0, "importer_count": 0}})
     monkeypatch.setattr(
-        ts_cmds_mod.orphaned_detector_mod,
+        cli_mod,
+        "build_dep_graph",
+        lambda _path: {
+            "src/a.ts": {
+                "imports": set(),
+                "importers": set(),
+                "import_count": 0,
+                "importer_count": 0,
+            }
+        },
+    )
+    monkeypatch.setattr(
+        cli_mod.orphaned_detector_mod,
         "detect_orphaned_files",
         lambda *_args, **_kwargs: ([{"file": "src/a.ts", "loc": 10}], 1),
     )
 
-    ts_cmds_mod.cmd_orphaned(SimpleNamespace(path=str(tmp_path), json=True, top=5))
+    cli_mod.cmd_orphaned(SimpleNamespace(path=str(tmp_path), json=True, top=5))
     orphan_payload = json.loads(printed[-1])
     assert orphan_payload["count"] == 1
 
-    monkeypatch.setattr(ts_cmds_mod, "find_ts_and_tsx_files", lambda _path: ["src/a.ts", "node_modules/x.ts", "src/types.d.ts"])
-    monkeypatch.setattr(ts_cmds_mod, "extract_ts_functions", lambda filepath: [SimpleNamespace(name="fn", file=filepath, line=1, loc=4)])
+    monkeypatch.setattr(cli_mod, "find_ts_and_tsx_files", lambda _path: ["src/a.ts", "node_modules/x.ts", "src/types.d.ts"])
+    monkeypatch.setattr(cli_mod, "extract_ts_functions", lambda filepath: [SimpleNamespace(name="fn", file=filepath, line=1, loc=4)])
     monkeypatch.setattr(
-        ts_cmds_mod.dupes_detector_mod,
+        cli_mod.dupes_detector_mod,
         "detect_duplicates",
         lambda _functions, threshold: (
             [
@@ -247,58 +284,43 @@ def test_ts_command_wrappers_cover_json_rendering_and_dispatch(monkeypatch, tmp_
     )
 
     printed.clear()
-    ts_cmds_mod.cmd_dupes(SimpleNamespace(path=str(tmp_path), json=False, top=5, threshold=0.8))
+    cli_mod.cmd_dupes(SimpleNamespace(path=str(tmp_path), json=False, top=5, threshold=0.8))
     assert any("Exact duplicates" in line for line in printed)
     assert any("Near-duplicates" in line for line in printed)
     assert "TABLE" in printed
 
     printed.clear()
-    ts_cmds_mod.cmd_dupes(SimpleNamespace(path=str(tmp_path), json=True, top=5, threshold=0.8))
+    cli_mod.cmd_dupes(SimpleNamespace(path=str(tmp_path), json=True, top=5, threshold=0.8))
     dupes_payload = json.loads(printed[-1])
     assert dupes_payload["count"] == 2
 
     display_calls: list[dict] = []
-    monkeypatch.setattr(ts_cmds_mod, "display_entries", lambda args, entries, **kwargs: display_calls.append({"args": args, "entries": entries, **kwargs}))
-    monkeypatch.setattr(ts_cmds_mod, "extract_ts_components", lambda _path: ["Comp"])
-    monkeypatch.setattr(ts_cmds_mod.gods_detector_mod, "detect_gods", lambda _components, _rules: ([{"file": "src/App.tsx", "loc": 200, "detail": {"hook_total": 5}, "reasons": ["long"]}], 1))
+    monkeypatch.setattr(cli_mod, "display_entries", lambda args, entries, **kwargs: display_calls.append({"args": args, "entries": entries, **kwargs}))
+    monkeypatch.setattr(cli_mod, "extract_ts_components", lambda _path: ["Comp"])
+    monkeypatch.setattr(cli_mod.gods_detector_mod, "detect_gods", lambda _components, _rules: ([{"file": "src/App.tsx", "loc": 200, "detail": {"hook_total": 5}, "reasons": ["long"]}], 1))
 
-    ts_cmds_mod.cmd_gods(SimpleNamespace(path=str(tmp_path), json=False, top=5))
+    cli_mod.cmd_gods(SimpleNamespace(path=str(tmp_path), json=False, top=5))
     assert display_calls and display_calls[0]["label"] == "God components"
 
-    monkeypatch.setattr(ts_cmds_mod, "get_src_path", lambda: "src")
-    monkeypatch.setattr(ts_cmds_mod.coupling_detector_mod, "detect_coupling_violations", lambda *_args, **_kwargs: ([{"file": "src/shared/a.ts", "target": "src/tools/x.ts", "tool": "x"}], 1))
-    monkeypatch.setattr(ts_cmds_mod.coupling_detector_mod, "detect_boundary_candidates", lambda *_args, **_kwargs: ([{"file": "src/shared/only.ts", "loc": 20, "sole_tool": "x", "importer_count": 1}], 1))
-    monkeypatch.setattr(ts_cmds_mod.coupling_detector_mod, "detect_cross_tool_imports", lambda *_args, **_kwargs: ([{"file": "src/tools/a.ts", "target": "src/tools/b.ts", "source_tool": "a", "target_tool": "b"}], 1))
+    monkeypatch.setattr(cli_mod, "get_src_path", lambda: "src")
+    monkeypatch.setattr(cli_mod.coupling_detector_mod, "detect_coupling_violations", lambda *_args, **_kwargs: ([{"file": "src/shared/a.ts", "target": "src/tools/x.ts", "tool": "x"}], 1))
+    monkeypatch.setattr(cli_mod.coupling_detector_mod, "detect_boundary_candidates", lambda *_args, **_kwargs: ([{"file": "src/shared/only.ts", "loc": 20, "sole_tool": "x", "importer_count": 1}], 1))
+    monkeypatch.setattr(cli_mod.coupling_detector_mod, "detect_cross_tool_imports", lambda *_args, **_kwargs: ([{"file": "src/tools/a.ts", "target": "src/tools/b.ts", "source_tool": "a", "target_tool": "b"}], 1))
 
     printed.clear()
-    ts_cmds_mod.cmd_coupling(SimpleNamespace(path=str(tmp_path), json=True, top=5))
+    cli_mod.cmd_coupling(SimpleNamespace(path=str(tmp_path), json=True, top=5))
     coupling_payload = json.loads(printed[-1])
     assert coupling_payload["violations"] == 1
     assert coupling_payload["boundary_candidates"] == 1
 
-    calls: list[tuple[str, str]] = []
-    monkeypatch.setattr(ts_cmds_mod, "_run_detector_cmd", lambda _args, module_path, fn_name: calls.append((module_path, fn_name)))
-    args = SimpleNamespace(path=str(tmp_path), json=False, top=5)
-    ts_cmds_mod.cmd_logs(args)
-    ts_cmds_mod.cmd_unused(args)
-    ts_cmds_mod.cmd_exports(args)
-    ts_cmds_mod.cmd_deprecated(args)
-    ts_cmds_mod.cmd_props(args)
-    ts_cmds_mod.cmd_concerns(args)
-    ts_cmds_mod.cmd_deps(args)
-    ts_cmds_mod.cmd_cycles(args)
-    ts_cmds_mod.cmd_patterns(args)
-    ts_cmds_mod.cmd_react(args)
-
-    assert calls == [
-        (".detectors.logs", "cmd_logs"),
-        (".detectors.unused", "cmd_unused"),
-        (".detectors.exports", "cmd_exports"),
-        (".detectors.deprecated", "cmd_deprecated"),
-        (".detectors.props", "cmd_props"),
-        (".detectors.concerns", "cmd_concerns"),
-        (".detectors.deps", "cmd_deps"),
-        (".detectors.deps", "cmd_cycles"),
-        (".detectors.patterns_cli", "cmd_patterns"),
-        (".detectors.react_cli", "cmd_react"),
-    ]
+    registry = cli_mod.get_detect_commands()
+    assert registry["logs"] is cli_mod.cmd_logs
+    assert registry["unused"] is cli_mod.cmd_unused
+    assert registry["exports"] is cli_mod.cmd_exports
+    assert registry["deprecated"] is cli_mod.cmd_deprecated
+    assert registry["props"] is cli_mod.cmd_props
+    assert registry["concerns"] is cli_mod.cmd_concerns
+    assert registry["deps"] is cli_mod.cmd_deps
+    assert registry["cycles"] is cli_mod.cmd_cycles
+    assert registry["patterns"] is cli_mod.cmd_patterns
+    assert registry["react"] is cli_mod.cmd_react

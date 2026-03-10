@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from desloppify import state as state_mod
 from desloppify.app.commands.helpers.query import write_query
 from desloppify.base.output.terminal import colorize, print_table
@@ -67,23 +69,40 @@ def status_next_command(narrative: dict) -> str:
     return actions[0]["command"] if actions else "desloppify next --count 20"
 
 
-def write_status_query(
-    *,
-    state: dict,
-    stats: dict,
-    by_tier: dict,
-    dim_scores: dict,
-    scorecard_dims: list[dict],
-    subjective_measures: list[dict],
-    suppression: dict,
-    narrative: dict,
-    ignores: list[str],
-    overall_score: float | None,
-    objective_score: float | None,
-    strict_score: float | None,
-    verified_strict_score: float | None,
-    plan: dict | None = None,
-) -> None:
+@dataclass(frozen=True)
+class StatusQueryRequest:
+    state: dict
+    stats: dict
+    by_tier: dict
+    dim_scores: dict
+    scorecard_dims: list[dict]
+    subjective_measures: list[dict]
+    suppression: dict
+    narrative: dict
+    ignores: list[str]
+    overall_score: float | None
+    objective_score: float | None
+    strict_score: float | None
+    verified_strict_score: float | None
+    plan: dict | None = None
+
+
+def write_status_query(request: StatusQueryRequest) -> None:
+    state = request.state
+    stats = request.stats
+    by_tier = request.by_tier
+    dim_scores = request.dim_scores
+    scorecard_dims = request.scorecard_dims
+    subjective_measures = request.subjective_measures
+    suppression = request.suppression
+    narrative = request.narrative
+    ignores = request.ignores
+    overall_score = request.overall_score
+    objective_score = request.objective_score
+    strict_score = request.strict_score
+    verified_strict_score = request.verified_strict_score
+    plan = request.plan
+
     issues = state.get("issues", {})
     open_scope = (
         state_mod.open_scope_breakdown(issues, state.get("scan_path"))
@@ -152,6 +171,7 @@ def show_ignore_summary(ignores: list[str], suppression: dict) -> None:
 
 
 __all__ = [
+    "StatusQueryRequest",
     "show_ignore_summary",
     "show_tier_progress_table",
     "status_next_command",

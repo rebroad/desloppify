@@ -6,7 +6,7 @@ import argparse
 
 from desloppify.app.commands.helpers.runtime import command_runtime
 from desloppify.base.output.terminal import colorize
-from desloppify.engine.plan import load_plan
+from desloppify.engine.plan_state import load_plan
 
 from .cluster_steps import print_step
 
@@ -156,7 +156,7 @@ def _cmd_cluster_list(args: argparse.Namespace) -> None:
     sorted_clusters, min_pos_cache = _sorted_clusters_by_queue_pos(clusters, queue_order)
 
     if missing_steps:
-        from desloppify.app.commands.plan.triage.stage_helpers import unenriched_clusters
+        from desloppify.app.commands.plan.triage.stages.helpers import unenriched_clusters
 
         gaps = unenriched_clusters(plan)
         if not gaps:

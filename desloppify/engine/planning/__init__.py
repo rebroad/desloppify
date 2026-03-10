@@ -1,11 +1,16 @@
-"""Plan rendering, output, and query interface.
+"""Plan rendering/query helpers (read-only ownership).
 
-This package produces human-readable plan output (markdown, terminal tables,
-scorecards). It reads from the plan state but does not mutate it.
+This package owns human-readable planning views (markdown/selection helpers)
+and does not own plan persistence or queue mutation.
 
-For plan data operations (queue moves, skips, clusters), use ``engine.plan``.
-``engine._plan`` is private implementation detail and not a stable import
-surface for callers outside the plan internals.
+Ownership contract:
+- ``engine.plan_state``: persisted plan state/schema/policy surface.
+- ``engine.plan_ops``: queue/cluster/skip/annotation mutations.
+- ``engine.plan_queue``: reconcile/sync lifecycle orchestration.
+- ``engine.plan_triage``: triage prompts/commands/contracts.
+- ``engine.planning`` (this package): read-only rendering/query helpers only.
+
+``engine._plan`` remains internal implementation detail.
 """
 
 from __future__ import annotations
@@ -19,8 +24,7 @@ if TYPE_CHECKING:
 
     from desloppify.engine.planning.scan import PlanScanOptions
     from desloppify.engine.planning.types import PlanItem, PlanState
-    from desloppify.languages._framework.base.types import LangConfig
-    from desloppify.languages._framework.runtime import LangRun
+    from desloppify.languages.framework import LangConfig, LangRun
     from desloppify.state import Issue
 
 

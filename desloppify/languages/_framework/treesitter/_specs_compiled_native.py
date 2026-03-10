@@ -1,95 +1,16 @@
-"""Native compiled-language tree-sitter specs."""
+"""Compatibility bridge to grouped tree-sitter namespace module.
+
+Canonical implementation now lives in desloppify.languages._framework.treesitter.specs.compiled_native.
+"""
 
 from __future__ import annotations
 
-from desloppify.languages._framework.treesitter import TreeSitterLangSpec
+from importlib import import_module
 
-from ._import_resolvers_backend import resolve_cxx_include, resolve_scala_import
-
-
-C_SPEC = TreeSitterLangSpec(
-    grammar="c",
-    function_query="""
-        (function_definition
-            declarator: (function_declarator
-                declarator: (identifier) @name)
-            body: (compound_statement) @body) @func
-    """,
-    comment_node_types=frozenset({"comment"}),
-    import_query="""
-        (preproc_include
-            path: (string_literal) @path) @import
-    """,
-    resolve_import=resolve_cxx_include,
-    class_query="""
-        (struct_specifier
-            name: (type_identifier) @name
-            body: (field_declaration_list) @body) @class
-    """,
-    log_patterns=(
-        r"^\s*(?:printf\(|fprintf\(|perror\()",
-    ),
-)
-
-CPP_SPEC = TreeSitterLangSpec(
-    grammar="cpp",
-    function_query="""
-        (function_definition
-            declarator: (function_declarator
-                declarator: (identifier) @name)
-            body: (compound_statement) @body) @func
-        (function_definition
-            declarator: (function_declarator
-                declarator: (qualified_identifier) @name)
-            body: (compound_statement) @body) @func
-    """,
-    comment_node_types=frozenset({"comment"}),
-    import_query="""
-        (preproc_include
-            path: (string_literal) @path) @import
-    """,
-    resolve_import=resolve_cxx_include,
-    class_query="""
-        (class_specifier
-            name: (type_identifier) @name
-            body: (field_declaration_list) @body) @class
-        (struct_specifier
-            name: (type_identifier) @name
-            body: (field_declaration_list) @body) @class
-    """,
-    log_patterns=(
-        r"^\s*(?:std::cout|std::cerr|printf\(|fprintf\()",
-    ),
-)
-
-SCALA_SPEC = TreeSitterLangSpec(
-    grammar="scala",
-    function_query="""
-        (function_definition
-            name: (identifier) @name
-            body: (_) @body) @func
-    """,
-    comment_node_types=frozenset({"comment", "block_comment"}),
-    import_query="""
-        (import_declaration
-            path: (identifier) @path) @import
-    """,
-    resolve_import=resolve_scala_import,
-    class_query="""
-        (class_definition
-            name: (identifier) @name
-            body: (template_body) @body) @class
-        (object_definition
-            name: (identifier) @name
-            body: (template_body) @body) @class
-        (trait_definition
-            name: (identifier) @name
-            body: (template_body) @body) @class
-    """,
-    log_patterns=(
-        r"^\s*(?:println\(|print\(|Logger\.|log\.)",
-    ),
-)
-
-
-__all__ = ["C_SPEC", "CPP_SPEC", "SCALA_SPEC"]
+_IMPL = import_module("desloppify.languages._framework.treesitter.specs.compiled_native")
+_EXPORTS = [name for name in dir(_IMPL) if not name.startswith("__")]
+globals().update({name: getattr(_IMPL, name) for name in _EXPORTS})
+_PUBLIC = getattr(_IMPL, "__all__", None)
+if _PUBLIC is None:
+    _PUBLIC = [name for name in _EXPORTS if not name.startswith("_")]
+__all__ = list(_PUBLIC)

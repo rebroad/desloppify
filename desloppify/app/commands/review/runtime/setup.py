@@ -9,11 +9,10 @@ from typing import TYPE_CHECKING, Any
 from desloppify.base.discovery.file_paths import rel
 from desloppify.base.output.terminal import log
 from desloppify.engine.policy.zones import FileZoneMap
-from desloppify.languages import runtime as lang_runtime_mod
+from desloppify.languages.framework import make_lang_run
 
 if TYPE_CHECKING:
-    from desloppify.languages._framework.base.types import LangConfig
-    from desloppify.languages._framework.runtime import LangRun
+    from desloppify.languages.framework import LangConfig, LangRun
 
 
 def setup_lang(
@@ -58,7 +57,7 @@ def setup_lang_concrete(lang: LangConfig, path: Path, config: dict) -> tuple[Lan
         lang,
         path,
         config,
-        make_lang_run_fn=lang_runtime_mod.make_lang_run,
+        make_lang_run_fn=make_lang_run,
         file_zone_map_cls=FileZoneMap,
         rel_fn=rel,
         log_fn=log,

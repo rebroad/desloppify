@@ -14,7 +14,7 @@ from desloppify.app.commands.helpers.attestation import (
 )
 from desloppify.app.commands.helpers.runtime import command_runtime
 from desloppify.app.commands.helpers.state import require_completed_scan
-from desloppify.app.commands.plan._resolve import resolve_ids_from_patterns
+from desloppify.app.commands.plan.shared.patterns import resolve_ids_from_patterns
 from desloppify.app.commands.plan.override_io import (
     _plan_file_for_state,
     save_plan_state_transactional,
@@ -22,12 +22,13 @@ from desloppify.app.commands.plan.override_io import (
 from desloppify.base.exception_sets import CommandError
 from desloppify.base.output.terminal import colorize
 from desloppify.base.output.user_message import print_user_message
-from desloppify.engine.plan import (
-    SKIP_KIND_LABELS,
-    append_log_entry,
-    clear_postflight_scan_completion,
+from desloppify.engine.plan_state import (
     load_plan,
     save_plan,
+)
+from desloppify.engine.plan_ops import (
+    SKIP_KIND_LABELS,
+    append_log_entry,
     skip_items,
     skip_kind_from_flags,
     skip_kind_requires_attestation,
@@ -35,6 +36,7 @@ from desloppify.engine.plan import (
     skip_kind_state_status,
     unskip_items,
 )
+from desloppify.engine.plan_queue import clear_postflight_scan_completion
 
 logger = logging.getLogger(__name__)
 

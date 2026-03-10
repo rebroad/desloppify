@@ -5,10 +5,17 @@ from __future__ import annotations
 import argparse
 
 from desloppify.app.commands.helpers.runtime import command_runtime
-from desloppify.app.commands.plan._resolve import resolve_ids_from_patterns
+from desloppify.app.commands.plan.shared.patterns import resolve_ids_from_patterns
 from desloppify.app.commands.plan.reorder_handlers import resolve_target
 from desloppify.base.output.terminal import colorize
-from desloppify.engine.plan import append_log_entry, load_plan, move_items, save_plan
+from desloppify.engine.plan_state import (
+    load_plan,
+    save_plan,
+)
+from desloppify.engine.plan_ops import (
+    append_log_entry,
+    move_items,
+)
 
 
 def _resolve_item_position(

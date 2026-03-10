@@ -20,6 +20,9 @@ TRIAGE_STAGE_IDS = (
     "triage::commit",
 )
 TRIAGE_IDS = set(TRIAGE_STAGE_IDS)
+_TRIAGE_STAGE_NAMES = {
+    stage_id.removeprefix("triage::") for stage_id in TRIAGE_STAGE_IDS
+}
 WORKFLOW_CREATE_PLAN_ID = "workflow::create-plan"
 WORKFLOW_SCORE_CHECKPOINT_ID = "workflow::score-checkpoint"
 WORKFLOW_IMPORT_SCORES_ID = "workflow::import-scores"
@@ -64,7 +67,10 @@ def _resolve_triage_stages(meta_or_stages: dict[str, Any] | None) -> dict[str, A
     if "triage_stages" in meta_or_stages:
         raw = meta_or_stages.get("triage_stages")
         return raw if isinstance(raw, dict) else {}
-    return meta_or_stages
+    candidate_names = {str(name) for name in meta_or_stages.keys()}
+    if candidate_names and candidate_names.issubset(_TRIAGE_STAGE_NAMES):
+        return meta_or_stages
+    return {}
 
 
 def confirmed_triage_stage_names(meta_or_stages: dict[str, Any] | None) -> set[str]:

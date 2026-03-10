@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -15,9 +16,12 @@ from desloppify.base.exception_sets import CommandError, PacketValidationError
 from desloppify.base.output.terminal import colorize, log
 from desloppify.base.search.query_paths import query_file_path
 import desloppify.intelligence.narrative.core as narrative_mod
-from desloppify.intelligence import review as review_mod
 from desloppify.intelligence.review.feedback_contract import (
     max_batch_issues_for_dimension_count,
+)
+from desloppify.intelligence.review.prepare import (
+    HolisticReviewPrepareOptions,
+    prepare_holistic_review,
 )
 
 from ..helpers import parse_dimensions
@@ -57,7 +61,6 @@ from ..runtime_paths import (
 from .core_merge_support import assessment_weight  # noqa: F401 — re-exported
 from .core_models import BatchResultPayload
 from .scope import (
-    collect_reviewed_files_from_batches,
     normalize_dimension_list,
     scored_dimensions_for_lang,
 )
@@ -67,8 +70,13 @@ from . import execution_phases as review_batch_phases_mod
 from .merge import merge_batch_results
 from .prompt_template import render_batch_prompt
 from . import execution as review_batches_mod
+from .execution_results import (
+    enforce_import_coverage as _enforce_import_coverage,
+    merge_and_write_results as _merge_and_write_results,
+)
 
 FOLLOWUP_SCAN_TIMEOUT_SECONDS = 45 * 60
+_PREPARED_PACKET_CONTRACT_KEY = "prepared_packet_contract"
 ABSTRACTION_SUB_AXES = (
     "abstraction_leverage",
     "indirection_cost",
@@ -86,30 +94,86 @@ ABSTRACTION_COMPONENT_NAMES = {
     "type_discipline": "Type Discipline",
 }
 
+def _config_hash_for_packet_contract(config: dict | None) -> str:
+    """Return a stable config hash used in prepared-packet reuse checks."""
+    redacted = redacted_review_config(config or {})
+    payload = json.dumps(redacted, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _try_load_prepared_packet() -> dict | None:
-    """Load a prepared holistic packet from query.json if it looks valid.
+def _build_prepared_packet_contract(args, *, config: dict | None) -> dict[str, object]:
+    """Build normalized invocation contract for prepared packet reuse."""
+    requested_dims = sorted(parse_dimensions(args) or set())
+    retrospective = bool(getattr(args, "retrospective", False))
+    retrospective_max_issues = coerce_positive_int(
+        getattr(args, "retrospective_max_issues", None),
+        default=30,
+        minimum=1,
+    )
+    retrospective_max_batch_items = coerce_positive_int(
+        getattr(args, "retrospective_max_batch_items", None),
+        default=20,
+        minimum=1,
+    )
+    return {
+        "path": str(Path(getattr(args, "path", ".")).resolve()),
+        "dimensions": requested_dims,
+        "retrospective": retrospective,
+        "retrospective_max_issues": retrospective_max_issues,
+        "retrospective_max_batch_items": retrospective_max_batch_items,
+        "config_hash": _config_hash_for_packet_contract(config),
+    }
 
-    Returns the packet dict when query.json exists, parses as JSON, and
-    contains the ``investigation_batches`` key written by ``--prepare``.
-    Returns ``None`` otherwise (missing file, parse error, wrong shape).
-    """
+
+def _prepared_packet_contract_mismatch_reason(
+    packet: dict[str, object],
+    expected_contract: dict[str, object],
+) -> str | None:
+    """Return mismatch reason for prepared packet reuse, else ``None``."""
+    raw_contract = packet.get(_PREPARED_PACKET_CONTRACT_KEY)
+    if not isinstance(raw_contract, dict):
+        return "missing prepared packet contract metadata"
+
+    for key in (
+        "path",
+        "dimensions",
+        "retrospective",
+        "retrospective_max_issues",
+        "retrospective_max_batch_items",
+        "config_hash",
+    ):
+        if raw_contract.get(key) != expected_contract.get(key):
+            return f"contract field '{key}' differs"
+    return None
+
+
+def _try_load_prepared_packet(
+    *,
+    expected_contract: dict[str, object],
+) -> tuple[dict | None, str | None]:
+    """Load prepared packet from query.json when shape and contract match."""
     try:
         qf = query_file_path()
         if not qf.exists():
-            return None
+            return None, None
         data = json.loads(qf.read_text())
     except (OSError, json.JSONDecodeError, RuntimeError):
-        return None
+        return None, "query.json is missing or invalid JSON"
     if not isinstance(data, dict):
-        return None
+        return None, "prepared packet payload is not an object"
     if "investigation_batches" not in data:
-        return None
+        return None, "prepared packet is missing investigation batches"
     batches = data["investigation_batches"]
     if not isinstance(batches, list) or not batches:
-        return None
-    return data
+        return None, "prepared packet has no investigation batches"
+
+    mismatch_reason = _prepared_packet_contract_mismatch_reason(
+        data,
+        expected_contract,
+    )
+    if mismatch_reason is not None:
+        return None, mismatch_reason
+    return data, None
 
 
 def _merge_batch_results(batch_results: list[object]) -> dict[str, object]:
@@ -159,8 +223,11 @@ def _load_or_prepare_packet(
     # check whether a prior ``review --prepare`` left a valid query.json
     # packet we can reuse instead of rebuilding from scratch.
     dims = parse_dimensions(args)
+    expected_contract = _build_prepared_packet_contract(args, config=config)
     if not dims:
-        prepared = _try_load_prepared_packet()
+        prepared, mismatch_reason = _try_load_prepared_packet(
+            expected_contract=expected_contract,
+        )
         if prepared is not None:
             print(colorize("  Reusing prepared packet from query.json", "dim"))
             blind_path = _blind_packet_path()
@@ -176,6 +243,13 @@ def _load_or_prepare_packet(
             print(colorize(f"  Immutable packet: {packet_path}", "dim"))
             print(colorize(f"  Blind packet: {blind_saved}", "dim"))
             return prepared, packet_path, blind_saved
+        if mismatch_reason:
+            print(
+                colorize(
+                    f"  Prepared packet reuse rejected: {mismatch_reason}; rebuilding.",
+                    "dim",
+                )
+            )
 
     path = Path(args.path)
     dimensions = list(dims) if dims else None
@@ -198,11 +272,11 @@ def _load_or_prepare_packet(
     )
 
     blind_path = _blind_packet_path()
-    packet = review_mod.prepare_holistic_review(
+    packet = prepare_holistic_review(
         path,
         lang_run,
         state,
-        options=review_mod.HolisticReviewPrepareOptions(
+        options=HolisticReviewPrepareOptions(
             dimensions=dimensions,
             files=found_files or None,
             max_files_per_batch=coerce_review_batch_file_limit(config),
@@ -212,6 +286,7 @@ def _load_or_prepare_packet(
         ),
     )
     packet["config"] = redacted_review_config(config)
+    packet[_PREPARED_PACKET_CONTRACT_KEY] = expected_contract
     packet["narrative"] = narrative
     next_command = "desloppify review --prepare"
     if retrospective:
@@ -255,7 +330,7 @@ def do_run_batches(args, state, lang, state_file, config: dict | None = None) ->
     )
     batch_stall_kill_seconds = policy.stall_kill_seconds
 
-    from desloppify.engine.plan import load_policy, render_policy_block
+    from desloppify.engine.plan_state import load_policy, render_policy_block
     _policy_block = render_policy_block(load_policy())
 
     def _prompt_fn_with_policy(**kwargs):
@@ -483,84 +558,42 @@ def do_import_run(
     if failures:
         print(colorize(f"  Warning: {len(failures)} batches failed to parse: {[f + 1 for f in failures]}", "yellow"))
 
-    # -- merge --
-    merged = _merge_batch_results(batch_results)
-
-    # -- build provenance --
     successful_indexes = [idx for idx in selected_indexes if idx not in set(failures)]
-    merged["provenance"] = build_batch_import_provenance(
-        runner=runner,
-        blind_packet_path=blind_packet_path,
-        run_stamp=stamp,
-        batch_indexes=successful_indexes,
-    )
 
-    # -- enrich with review_scope / reviewed_files / assessment_coverage --
-    # Mirror the metadata that merge_and_write_results adds in the normal flow
-    # so that downstream import does not blindly auto-resolve all dimensions.
+    # Reuse the canonical merge+metadata boundary from normal batch execution.
     raw_batches = packet.get("investigation_batches", [])
     raw_dim_prompts = packet.get("dimension_prompts")
     batches = explode_to_single_dimension(
         raw_batches if isinstance(raw_batches, list) else [],
         dimension_prompts=raw_dim_prompts if isinstance(raw_dim_prompts, dict) else None,
     )
-    reviewed_files = collect_reviewed_files_from_batches(
-        batches=batches,
-        selected_indexes=successful_indexes,
-    )
-    full_sweep_included = any(
-        str(batch.get("name", "")).strip().lower() == "full codebase sweep"
-        for idx in successful_indexes
-        if 0 <= idx < len(batches)
-        for batch in [batches[idx]]
-        if isinstance(batch, dict)
-    )
-    review_scope: dict[str, object] = {
-        "reviewed_files_count": len(reviewed_files),
-        "successful_batch_count": len(successful_indexes),
-        "full_sweep_included": full_sweep_included,
-    }
-    total_files = packet.get("total_files")
-    if isinstance(total_files, int) and not isinstance(total_files, bool) and total_files > 0:
-        review_scope["total_files"] = total_files
-    merged["review_scope"] = review_scope
-    if reviewed_files:
-        merged["reviewed_files"] = reviewed_files
-
     packet_dimensions = normalize_dimension_list(packet.get("dimensions", []))
     lang_name = getattr(lang, "name", None) or str(getattr(lang, "lang", ""))
     scored_dimensions = scored_dimensions_for_lang(lang_name) if lang_name else []
-    _assessments = merged.get("assessments")
-    _assessments_dict = _assessments if isinstance(_assessments, dict) else {}
-    merged_assessment_dims = normalize_dimension_list(
-        list(_assessments_dict.keys())
+    merged_path, missing_after_import = _merge_and_write_results(
+        merge_batch_results_fn=_merge_batch_results,
+        build_import_provenance_fn=build_batch_import_provenance,
+        batch_results=batch_results,
+        batches=batches,
+        successful_indexes=successful_indexes,
+        packet=packet,
+        packet_dimensions=packet_dimensions,
+        scored_dimensions=scored_dimensions,
+        scan_path=scan_path,
+        runner=runner,
+        prompt_packet_path=blind_packet_path,
+        stamp=stamp,
+        run_dir=run_dir,
+        safe_write_text_fn=safe_write_text,
+        colorize_fn=colorize,
     )
-    _issues = merged.get("issues")
-    _issues_list = _issues if isinstance(_issues, list) else []
-    merged_issue_dims = normalize_dimension_list(
-        [
-            issue.get("dimension")
-            for issue in _issues_list
-            if isinstance(issue, dict)
-        ]
+    _enforce_import_coverage(
+        missing_after_import=missing_after_import,
+        packet_dimensions=packet_dimensions,
+        allow_partial=allow_partial,
+        scan_path=scan_path,
+        colorize_fn=colorize,
     )
-    merged_imported_dims = normalize_dimension_list(
-        merged_assessment_dims + merged_issue_dims
-    )
-    review_scope["imported_dimensions"] = merged_imported_dims
-    merged["assessment_coverage"] = {
-        "scored_dimensions": scored_dimensions,
-        "selected_dimensions": packet_dimensions,
-        "imported_dimensions": merged_assessment_dims,
-        "missing_dimensions": [
-            dim for dim in scored_dimensions if dim not in set(merged_assessment_dims)
-        ],
-    }
-
-    # -- write merged output (always — this is inside the run dir, not state) --
-    merged_path = run_dir / "holistic_issues_merged.json"
-    safe_write_text(merged_path, json.dumps(merged, indent=2) + "\n")
-    print(colorize(f"  Merged output: {merged_path}", "bold"))
 
     # -- import with trusted source --
     _do_import(

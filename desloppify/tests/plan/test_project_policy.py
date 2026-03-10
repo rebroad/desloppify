@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from desloppify.engine._plan.project_policy import (
+from desloppify.engine._plan.policy.project import (
     add_rule,
     load_policy,
     remove_rule,

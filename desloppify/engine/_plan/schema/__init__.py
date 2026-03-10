@@ -148,6 +148,8 @@ class EpicTriageMeta(TypedDict, total=False):
     stage_snapshot_hash: str
     stage_refresh_required: bool
     last_triage: LastTriageSnapshot
+    triage_defer_state: dict[str, Any]
+    triage_force_visible: bool
 
 
 class RefreshState(TypedDict, total=False):
@@ -173,6 +175,7 @@ class PlanModel(TypedDict, total=False):
     refresh_state: RefreshState
     execution_log: list[ExecutionLogEntry]
     epic_triage_meta: EpicTriageMeta
+    subjective_defer_meta: dict[str, Any]
     commit_log: list[CommitRecord]
     uncommitted_issues: list[str]
     commit_tracking_branch: str | None

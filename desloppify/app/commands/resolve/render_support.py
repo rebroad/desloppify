@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from desloppify import state as state_mod
+from desloppify.base.exception_sets import CommandError
 from desloppify.base.output.terminal import colorize
 from desloppify.engine._state.schema import StateModel
 
@@ -12,7 +13,8 @@ if TYPE_CHECKING:
     from desloppify.state import ScoreSnapshot
 
 
-def score_snapshot_or_warn(state: StateModel) -> ScoreSnapshot | None:
+def score_snapshot_or_error(state: StateModel) -> ScoreSnapshot:
+    """Return a full score snapshot or raise CommandError when unavailable."""
     snapshot = state_mod.score_snapshot(state)
     if (
         snapshot.overall is None
@@ -20,8 +22,7 @@ def score_snapshot_or_warn(state: StateModel) -> ScoreSnapshot | None:
         or snapshot.strict is None
         or snapshot.verified is None
     ):
-        print(colorize("\n  Scores unavailable — run `desloppify scan`.", "yellow"))
-        return None
+        raise CommandError("Scores unavailable — run `desloppify scan`.")
     return snapshot
 
 
@@ -72,5 +73,5 @@ def print_post_resolve_guidance(
 __all__ = [
     "print_post_resolve_guidance",
     "print_strict_gap_note",
-    "score_snapshot_or_warn",
+    "score_snapshot_or_error",
 ]

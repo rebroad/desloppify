@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import inspect
 from pathlib import Path
 
@@ -137,7 +138,7 @@ def test_app_plan_modules_avoid_private_engine_plan_imports():
     package_root = Path(__file__).resolve().parents[2]
     rel_paths = [
         "app/commands/plan/cmd.py",
-        "app/commands/plan/cluster_handlers.py",
+        "app/commands/plan/cluster/dispatch.py",
         "app/commands/plan/override_io.py",
         "app/commands/plan/override_misc.py",
         "app/commands/plan/override_skip.py",
@@ -154,6 +155,27 @@ def test_app_plan_modules_avoid_private_engine_plan_imports():
         assert "desloppify.engine._plan" not in text
 
 
+def test_app_package_avoids_private_engine_plan_imports() -> None:
+    package_root = Path(__file__).resolve().parents[2]
+    app_root = package_root / "app"
+    for module_path in app_root.rglob("*.py"):
+        text = module_path.read_text(encoding="utf-8")
+        assert "desloppify.engine._plan" not in text, str(module_path.relative_to(package_root))
+
+
+def test_selected_command_modules_use_focused_plan_facades() -> None:
+    package_root = Path(__file__).resolve().parents[2]
+    rel_paths = (
+        "app/commands/helpers/guardrails.py",
+        "app/commands/plan/triage/command.py",
+        "app/commands/review/importing/plan_sync.py",
+    )
+    for rel_path in rel_paths:
+        text = (package_root / rel_path).read_text(encoding="utf-8")
+        assert "from desloppify.engine.plan import" not in text, rel_path
+        assert "from desloppify.engine import plan as" not in text, rel_path
+
+
 def test_next_and_status_init_modules_are_stub_only():
     package_root = Path(__file__).resolve().parents[2]
     for rel_path in (
@@ -162,3 +184,28 @@ def test_next_and_status_init_modules_are_stub_only():
     ):
         text = (package_root / rel_path).read_text(encoding="utf-8")
         assert "__getattr__" not in text
+
+
+def test_language_packages_avoid_import_time_registry_mutation() -> None:
+    package_root = Path(__file__).resolve().parents[2]
+    rel_paths = (
+        "languages/python/__init__.py",
+        "languages/typescript/__init__.py",
+        "languages/csharp/__init__.py",
+        "languages/go/__init__.py",
+        "languages/dart/__init__.py",
+        "languages/gdscript/__init__.py",
+    )
+    for rel_path in rel_paths:
+        tree = ast.parse((package_root / rel_path).read_text(encoding="utf-8"))
+        for node in tree.body:
+            if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
+                fn = node.value.func
+                fn_name = fn.id if isinstance(fn, ast.Name) else (
+                    fn.attr if isinstance(fn, ast.Attribute) else ""
+                )
+                assert fn_name != "register_lang_hooks", rel_path
+            if isinstance(node, ast.ClassDef):
+                for decorator in node.decorator_list:
+                    if isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Name):
+                        assert decorator.func.id != "register_lang", rel_path

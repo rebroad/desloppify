@@ -1,30 +1,40 @@
-"""Language registry: plugin registration and language resolution."""
+"""Language registration API plus compatibility exports for legacy callers.
+
+Runtime code should prefer ``desloppify.languages.framework`` for framework
+access; this module focuses on registration and language lookup.
+
+Compatibility owner: language-framework
+Removal target (legacy module exports): 2026-06-30
+"""
 
 from __future__ import annotations
 
-import inspect
 from collections.abc import Callable
-from pathlib import Path
 from typing import TypeVar
 
-from desloppify.languages._framework import (
-    discovery,
-    registry_state,
-    resolution,
-    runtime,
-)
-from desloppify.languages._framework.base.types import LangConfig
-from desloppify.languages._framework.contract_validation import validate_lang_contract
-from desloppify.languages._framework.policy import REQUIRED_DIRS, REQUIRED_FILES
-from desloppify.languages._framework.resolution import (
+from desloppify.languages.framework import (
+    LangConfig,
     auto_detect_lang,
     available_langs,
     get_lang,
     make_lang_config,
 )
+from desloppify.languages._framework import discovery as _discovery_mod
+from desloppify.languages._framework import registry_state as _registry_state_mod
+from desloppify.languages._framework import resolution as _resolution_mod
+from desloppify.languages._framework import runtime as _runtime_mod
+from desloppify.languages._framework.contract_validation import validate_lang_contract
+from desloppify.languages._framework.policy import REQUIRED_DIRS, REQUIRED_FILES
+from desloppify.languages._framework.registration import register_lang_class_with
 from desloppify.languages._framework.structure_validation import validate_lang_structure
 
 T = TypeVar("T")
+
+# Backward-compatible module aliases for callers still importing them here.
+discovery = _discovery_mod
+registry_state = _registry_state_mod
+resolution = _resolution_mod
+runtime = _runtime_mod
 
 
 def register_lang(name: str) -> Callable[[T], T]:
@@ -35,14 +45,11 @@ def register_lang(name: str) -> Callable[[T], T]:
     """
 
     def decorator(cls: T) -> T:
-        module = inspect.getmodule(cls)
-        if module and hasattr(module, "__file__"):
-            validate_lang_structure(Path(module.__file__).parent, name)
-        if isinstance(cls, type) and issubclass(cls, LangConfig):
-            cfg = make_lang_config(name, cls)  # instantiate + validate
-            registry_state.register(name, cfg)  # store instance
-        else:
-            registry_state.register(name, cls)  # test doubles
+        register_lang_class_with(
+            name,
+            cls,
+            validate_lang_structure_fn=validate_lang_structure,
+        )
         return cls
 
     return decorator
@@ -72,8 +79,4 @@ __all__ = [
     "make_lang_config",
     "validate_lang_structure",
     "validate_lang_contract",
-    "discovery",
-    "registry_state",
-    "resolution",
-    "runtime",
 ]

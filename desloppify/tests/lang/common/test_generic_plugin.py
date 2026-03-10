@@ -544,7 +544,12 @@ class TestLangsCommand:
 
 class TestDynamicRegistration:
     def test_register_detector_adds_to_detectors_dict(self):
-        from desloppify.base.registry import DETECTORS, DetectorMeta, register_detector
+        from desloppify.base.registry import (
+            DETECTORS,
+            DetectorMeta,
+            register_detector,
+            unregister_detector,
+        )
 
         name = "_test_reg_det_1"
         register_detector(DetectorMeta(
@@ -553,14 +558,14 @@ class TestDynamicRegistration:
         ))
         assert name in DETECTORS
         assert DETECTORS[name].display == "test"
-        del DETECTORS[name]
+        unregister_detector(name)
 
     def test_register_detector_appends_to_display_order(self):
         from desloppify.base.registry import (
             _DISPLAY_ORDER,
-            DETECTORS,
             DetectorMeta,
             register_detector,
+            unregister_detector,
         )
 
         name = "_test_reg_det_2"
@@ -569,8 +574,7 @@ class TestDynamicRegistration:
             action_type="manual_fix", guidance="test",
         ))
         assert name in _DISPLAY_ORDER
-        del DETECTORS[name]
-        _DISPLAY_ORDER.remove(name)
+        unregister_detector(name)
 
     def test_register_scoring_policy_rebuilds_dimensions(self):
         from desloppify.engine._scoring.policy.core import (
@@ -591,7 +595,11 @@ class TestDynamicRegistration:
 
     def test_register_detector_auto_refreshes_narrative(self):
         """register_detector should auto-refresh DETECTOR_TOOLS via callback."""
-        from desloppify.base.registry import DETECTORS, DetectorMeta, register_detector
+        from desloppify.base.registry import (
+            DetectorMeta,
+            register_detector,
+            unregister_detector,
+        )
         from desloppify.intelligence.narrative._constants import DETECTOR_TOOLS
 
         name = "_test_auto_refresh_1"
@@ -602,4 +610,4 @@ class TestDynamicRegistration:
         # Should be in DETECTOR_TOOLS without any manual refresh call
         assert name in DETECTOR_TOOLS
         assert DETECTOR_TOOLS[name]["guidance"] == "auto refresh test"
-        del DETECTORS[name]
+        unregister_detector(name)

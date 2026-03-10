@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 
 from desloppify.base.output.terminal import colorize
-from desloppify.engine.plan import (
+from desloppify.engine.plan_state import (
     add_rule,
     load_policy,
     remove_rule,

@@ -174,10 +174,10 @@ def test_make_ast_smells_phase_run_with_no_issues():
     mock_lang.file_finder.return_value = ["/tmp/test.cs"]
 
     with patch(
-        "desloppify.languages._framework.treesitter._smells.detect_empty_catches",
+        "desloppify.languages._framework.treesitter.analysis.smells.detect_empty_catches",
         return_value=[],
     ), patch(
-        "desloppify.languages._framework.treesitter._smells.detect_unreachable_code",
+        "desloppify.languages._framework.treesitter.analysis.smells.detect_unreachable_code",
         return_value=[],
     ):
         issues, potentials = phase.run("/tmp", mock_lang)
@@ -199,10 +199,10 @@ def test_make_ast_smells_phase_run_with_catches_and_unreachable():
     unreachable = [{"file": "/tmp/test.cs", "line": 20, "after": "return"}]
 
     with patch(
-        "desloppify.languages._framework.treesitter._smells.detect_empty_catches",
+        "desloppify.languages._framework.treesitter.analysis.smells.detect_empty_catches",
         return_value=catches,
     ), patch(
-        "desloppify.languages._framework.treesitter._smells.detect_unreachable_code",
+        "desloppify.languages._framework.treesitter.analysis.smells.detect_unreachable_code",
         return_value=unreachable,
     ):
         issues, potentials = phase.run("/tmp", mock_lang)
@@ -235,7 +235,7 @@ def test_make_cohesion_phase_run_with_entries():
     }]
 
     with patch(
-        "desloppify.languages._framework.treesitter._cohesion.detect_responsibility_cohesion",
+        "desloppify.languages._framework.treesitter.analysis.cohesion.detect_responsibility_cohesion",
         return_value=(entries, 1),
     ):
         issues, potentials = phase.run("/tmp", mock_lang)
@@ -266,7 +266,7 @@ def test_make_unused_imports_phase_run_with_entries():
     ]
 
     with patch(
-        "desloppify.languages._framework.treesitter._unused_imports.detect_unused_imports",
+        "desloppify.languages._framework.treesitter.analysis.unused_imports.detect_unused_imports",
         return_value=entries,
     ):
         issues, potentials = phase.run("/tmp", mock_lang)

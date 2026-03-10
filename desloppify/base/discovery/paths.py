@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Callable
 
 from desloppify.base import text_utils as _text_utils
-from desloppify.base.runtime_state import current_runtime_context
+from desloppify.base.runtime_state import RuntimeContext, resolve_runtime_context
 
 
 def _default_project_root() -> Path:
@@ -15,22 +15,45 @@ def _default_project_root() -> Path:
     return Path(os.environ.get("DESLOPPIFY_ROOT", Path.cwd())).resolve()
 
 
-def get_project_root() -> Path:
-    """Return the active project root, checking RuntimeContext first."""
-    override = current_runtime_context().project_root
+def get_project_root(
+    *,
+    project_root: Path | str | None = None,
+    runtime: RuntimeContext | None = None,
+) -> Path:
+    """Return the active project root.
+
+    Priority order:
+    1. Explicit ``project_root`` argument
+    2. Explicit/ambient ``RuntimeContext.project_root``
+    3. Environment/CWD default
+    """
+    if project_root is not None:
+        return Path(project_root).resolve()
+
+    override = resolve_runtime_context(runtime).project_root
     if override is not None:
         return Path(override).resolve()
     return _default_project_root()
 
 
-def get_default_path() -> Path:
+def get_default_path(
+    *,
+    project_root: Path | str | None = None,
+    runtime: RuntimeContext | None = None,
+) -> Path:
     """Return default scan path."""
-    return get_project_root() / "src"
+    return get_project_root(project_root=project_root, runtime=runtime) / "src"
 
 
-def get_src_path() -> Path:
+def get_src_path(
+    *,
+    project_root: Path | str | None = None,
+    runtime: RuntimeContext | None = None,
+) -> Path:
     """Return the configured source root directory."""
-    return get_project_root() / os.environ.get("DESLOPPIFY_SRC", "src")
+    return get_project_root(project_root=project_root, runtime=runtime) / os.environ.get(
+        "DESLOPPIFY_SRC", "src"
+    )
 
 
 class _PathProxy(os.PathLike[str]):

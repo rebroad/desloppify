@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from desloppify.engine._plan.constants import TRIAGE_STAGE_IDS
-from desloppify.engine._plan.epic_triage import (
+from desloppify.engine._plan.triage.core import (
     DismissedIssue,
     TriageResult,
     apply_triage_to_plan,
@@ -19,8 +19,8 @@ from desloppify.engine._plan.schema import (
     ensure_plan_defaults,
     triage_clusters,
 )
-from desloppify.engine._plan.stale_policy import review_issue_snapshot_hash
-from desloppify.engine._plan.sync_triage import (
+from desloppify.engine._plan.policy.stale import review_issue_snapshot_hash
+from desloppify.engine._plan.sync.triage import (
     is_triage_stale,
     sync_triage_needed,
 )
@@ -341,6 +341,61 @@ class TestSyncTriageNeeded:
         result = sync_triage_needed(plan, state)
         assert not result.pruned
         assert all(sid in plan["queue_order"] for sid in TRIAGE_STAGE_IDS)
+
+    def test_deferred_triage_escalates_after_repeated_defers(self):
+        """Repeated deferred triage should escalate instead of starving indefinitely."""
+        plan = empty_plan()
+        plan["plan_start_scores"] = {"strict": 75.0}
+        plan["queue_order"] = ["unused::obj"]
+        state = {
+            "issues": {
+                "review::r1": {
+                    "status": "open",
+                    "detector": "review",
+                    "file": "review.py",
+                    "summary": "review issue",
+                    "confidence": "medium",
+                    "tier": 2,
+                    "detail": {"dimension": "abstraction_fitness"},
+                },
+                "unused::obj": {
+                    "status": "open",
+                    "detector": "unused",
+                    "file": "obj.py",
+                    "summary": "objective issue",
+                    "confidence": "high",
+                    "tier": 2,
+                    "detail": {},
+                },
+            },
+            "scan_count": 10,
+            "last_scan": "2026-03-01T00:00:00+00:00",
+            "dimension_scores": {},
+        }
+
+        first = sync_triage_needed(plan, state)
+        assert first.deferred is True
+        assert first.injected == []
+        defer_meta = plan["epic_triage_meta"]["triage_defer_state"]
+        assert defer_meta["defer_count"] == 1
+        assert defer_meta["first_deferred_scan"] == 10
+        assert defer_meta["deferred_review_ids"] == ["review::r1"]
+
+        state["scan_count"] = 11
+        state["last_scan"] = "2026-03-02T00:00:00+00:00"
+        second = sync_triage_needed(plan, state)
+        assert second.deferred is True
+        assert second.injected == []
+        assert plan["epic_triage_meta"]["triage_defer_state"]["defer_count"] == 2
+
+        state["scan_count"] = 12
+        state["last_scan"] = "2026-03-03T00:00:00+00:00"
+        third = sync_triage_needed(plan, state)
+        assert third.deferred is False
+        assert "triage::observe" in third.injected
+        assert bool(plan["epic_triage_meta"].get("triage_force_visible")) is True
+        assert plan["queue_order"][0] == "triage::observe"
+        assert "unused::obj" in plan["queue_order"]
 
 
 # ---------------------------------------------------------------------------

@@ -15,7 +15,7 @@ from desloppify.app.commands.helpers.runtime_options import (
 )
 from desloppify.base.exception_sets import CommandError
 from desloppify.base.output.terminal import colorize
-from desloppify.languages import runtime as lang_runtime
+from desloppify.languages.framework import LangRunOverrides, make_lang_run
 
 
 def _resolve_detector_key(
@@ -73,9 +73,9 @@ def cmd_detect(args: argparse.Namespace) -> None:
     except LangRuntimeOptionsError as exc:
         print_lang_runtime_options_error(exc, lang_name=lang_cfg.name)
         raise CommandError(str(exc), exit_code=2) from exc
-    lang = lang_runtime.make_lang_run(
+    lang = make_lang_run(
         lang_cfg,
-        overrides=lang_runtime.LangRunOverrides(
+        overrides=LangRunOverrides(
             runtime_settings=lang_settings,
             runtime_options=lang_options,
         ),

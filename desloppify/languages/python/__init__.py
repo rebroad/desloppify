@@ -7,14 +7,13 @@ from typing import TYPE_CHECKING, Any
 from desloppify.base.discovery.source import find_py_files
 from desloppify.engine.hook_registry import register_lang_hooks
 from desloppify.engine.policy.zones import COMMON_ZONE_RULES, Zone, ZoneRule
-from desloppify.languages import register_lang
-from desloppify.languages._framework import registry_state
 from desloppify.languages._framework.base.phase_builders import (
     detector_phase_security,
     detector_phase_signature,
     detector_phase_test_coverage,
     shared_subjective_duplicates_tail,
 )
+from desloppify.languages._framework.registration import register_full_plugin
 from desloppify.languages._framework.base.shared_phases import phase_private_imports
 from desloppify.languages._framework.base.types import (
     DetectorCoverageStatus,
@@ -138,14 +137,23 @@ class PythonConfig(LangConfig):
 
 def register() -> None:
     """Register Python language config + hooks through an explicit entrypoint."""
+    register_full_plugin(
+        "python",
+        PythonConfig,
+        test_coverage=py_test_coverage_hooks,
+    )
+
+
+def register_hooks() -> None:
+    """Register Python hook modules without language-config bootstrap."""
     register_lang_hooks("python", test_coverage=py_test_coverage_hooks)
-    if registry_state.is_registered("python"):
-        return
-    register_lang("python")(PythonConfig)
+
+
+Config = PythonConfig
 
 
 __all__ = [
-    "COMMON_ZONE_RULES",
+    "Config",
     "PY_COMPLEXITY_SIGNALS",
     "PY_ENTRY_PATTERNS",
     "PY_GOD_RULES",
@@ -158,6 +166,5 @@ __all__ = [
     "PY_ZONE_RULES",
     "PythonConfig",
     "register",
-    "Zone",
-    "ZoneRule",
+    "register_hooks",
 ]

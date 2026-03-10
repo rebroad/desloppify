@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from desloppify.engine._plan.annotations import get_issue_description, get_issue_note
-from desloppify.engine._plan.skip_policy import (
+from desloppify.engine.plan_ops import (
     SKIP_KIND_SECTION_LABELS,
     USER_SKIP_KINDS,
+    get_issue_description,
+    get_issue_note,
 )
 
 

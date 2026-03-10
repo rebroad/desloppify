@@ -6,7 +6,7 @@ from collections import Counter
 
 from desloppify.app.commands.helpers.queue_progress import format_plan_delta
 from desloppify.base.output.terminal import colorize
-from desloppify.engine._work_queue.core import group_queue_items
+from desloppify.engine.work_queue import group_queue_items
 from desloppify.engine.planning.scorecard_projection import (
     scorecard_subjective_entries,
 )
@@ -102,26 +102,37 @@ def _render_cluster_sample(members: list[dict]) -> None:
         print(colorize(f"    ... and {len(members) - 3} more", "dim"))
 
 
+def cluster_action_commands(cluster_name: str) -> dict[str, str]:
+    """Return semantic cluster action commands independent of terminal labels."""
+    return {
+        "resolve_all": f'desloppify plan resolve "{cluster_name}" --note "<what>" --confirm',
+        "drill_in": f"desloppify next --cluster {cluster_name} --count 10",
+        "skip": f"desloppify plan skip {cluster_name}",
+    }
+
+
 def _render_optional_cluster_commands(cluster_name: str) -> None:
-    print(colorize(f"\n  Skip:          desloppify plan skip {cluster_name}", "dim"))
-    print(colorize(f"  Drill in:      desloppify next --cluster {cluster_name} --count 10", "dim"))
+    commands = cluster_action_commands(cluster_name)
+    print(colorize(f"\n  Skip:          {commands['skip']}", "dim"))
+    print(colorize(f"  Drill in:      {commands['drill_in']}", "dim"))
     print(
         colorize(
-            f'  Resolve all:   desloppify plan resolve "{cluster_name}" --note "<what>" --confirm',
+            f"  Resolve all:   {commands['resolve_all']}",
             "dim",
         )
     )
 
 
 def _render_required_cluster_commands(cluster_name: str) -> None:
+    commands = cluster_action_commands(cluster_name)
     print(
         colorize(
-            f'\n  Resolve all:   desloppify plan resolve "{cluster_name}" --note "<what>" --confirm',
+            f"\n  Resolve all:   {commands['resolve_all']}",
             "dim",
         )
     )
-    print(colorize(f"  Drill in:      desloppify next --cluster {cluster_name} --count 10", "dim"))
-    print(colorize(f"  Skip cluster:  desloppify plan skip {cluster_name}", "dim"))
+    print(colorize(f"  Drill in:      {commands['drill_in']}", "dim"))
+    print(colorize(f"  Skip cluster:  {commands['skip']}", "dim"))
 
 
 def _step_display_text(step: str | dict) -> str:
@@ -244,6 +255,7 @@ def render_compact_item(item: dict, idx: int, total: int) -> None:
 
 
 __all__ = [
+    "cluster_action_commands",
     "effort_tag",
     "is_auto_fix_command",
     "render_cluster_item",

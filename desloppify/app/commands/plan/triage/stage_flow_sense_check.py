@@ -4,140 +4,114 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from desloppify.base.output.terminal import colorize
 
-from .helpers import print_cascade_clear_feedback
+from .stages.records import record_sense_check_stage, resolve_reusable_report
+from .validation.enrich_checks import (
+    _steps_missing_issue_refs,
+    _steps_with_bad_paths,
+    _steps_with_vague_detail,
+    _steps_without_effort,
+    _underspecified_steps,
+)
+from .helpers import has_triage_in_queue, print_cascade_clear_feedback
 from .services import TriageServices, default_triage_services
 from .stage_flow_enrich import ColorizeFn
 
 
-def record_sense_check_stage(
-    stages: dict,
-    *,
-    report: str,
-    existing_stage: dict | None,
-    is_reuse: bool,
-    utc_now_fn: Callable[[], str],
-    cascade_clear_later_confirmations_fn: Callable[[dict, str], list[str]],
-) -> list[str]:
-    """Persist the sense-check stage and clear later confirmations as needed."""
-    stages["sense-check"] = {
-        "stage": "sense-check",
-        "report": report,
-        "timestamp": utc_now_fn(),
-    }
-    if is_reuse and existing_stage and existing_stage.get("confirmed_at"):
-        stages["sense-check"]["confirmed_at"] = existing_stage["confirmed_at"]
-        stages["sense-check"]["confirmed_text"] = existing_stage.get("confirmed_text", "")
-    return cascade_clear_later_confirmations_fn(stages, "sense-check")
+@dataclass(frozen=True)
+class SenseCheckStageDeps:
+    has_triage_in_queue: Callable[[dict], bool] = has_triage_in_queue
+    resolve_reusable_report: Callable[[str | None, dict | None], tuple[str | None, bool]] = (
+        resolve_reusable_report
+    )
+    record_sense_check_stage: Callable[..., list[str]] = record_sense_check_stage
+    colorize: ColorizeFn = colorize
+    default_triage_services: Callable[[], TriageServices] = default_triage_services
+    print_cascade_clear_feedback: Callable[[list[str], dict], None] = print_cascade_clear_feedback
+    get_project_root: Callable[[], Path] | None = None
+    underspecified_steps: Callable[[dict], list[tuple[str, int, int]]] = _underspecified_steps
+    steps_missing_issue_refs: Callable[[dict], list[tuple[str, int, int]]] = _steps_missing_issue_refs
+    steps_with_bad_paths: Callable[[dict, Path], list[tuple[str, int, list[str]]]] = _steps_with_bad_paths
+    steps_with_vague_detail: Callable[[dict, Path], list[tuple[str, int, str]]] = _steps_with_vague_detail
+    steps_without_effort: Callable[[dict], list[tuple[str, int, int]]] = _steps_without_effort
 
 
 def run_stage_sense_check(
     args: argparse.Namespace,
     *,
     services: TriageServices | None,
-    has_triage_in_queue_fn: Callable[[dict], bool],
-    resolve_reusable_report_fn: Callable[[str | None, dict | None], tuple[str | None, bool]],
-    record_sense_check_stage_fn: Callable[..., list[str]],
-    colorize_fn: ColorizeFn = colorize,
-    default_triage_services_fn: Callable[[], TriageServices] = default_triage_services,
-    print_cascade_clear_feedback_fn: Callable[[list[str], dict], None] = print_cascade_clear_feedback,
-    get_project_root_fn: Callable[[], Path] | None = None,
-    underspecified_steps_fn: Callable[[dict], list[tuple[str, int, int]]] | None = None,
-    steps_missing_issue_refs_fn: Callable[[dict], list[tuple[str, int, int]]] | None = None,
-    steps_with_bad_paths_fn: Callable[[dict, Path], list[tuple[str, int, list[str]]]] | None = None,
-    steps_with_vague_detail_fn: Callable[[dict, Path], list[tuple[str, int, str]]] | None = None,
-    steps_without_effort_fn: Callable[[dict], list[tuple[str, int, int]]] | None = None,
+    deps: SenseCheckStageDeps | None = None,
 ) -> None:
     """Record the SENSE-CHECK stage after rerunning enrich-level validations."""
+    resolved_deps = deps or SenseCheckStageDeps()
     report: str | None = getattr(args, "report", None)
 
-    resolved_services = services or default_triage_services_fn()
+    resolved_services = services or resolved_deps.default_triage_services()
     plan = resolved_services.load_plan()
 
-    if not has_triage_in_queue_fn(plan):
-        print(colorize_fn("  No planning stages in the queue — nothing to sense-check.", "yellow"))
+    if not resolved_deps.has_triage_in_queue(plan):
+        print(resolved_deps.colorize("  No planning stages in the queue — nothing to sense-check.", "yellow"))
         return
 
     meta = plan.get("epic_triage_meta", {})
     stages = meta.get("triage_stages", {})
 
     existing_stage = stages.get("sense-check")
-    report, is_reuse = resolve_reusable_report_fn(report, existing_stage)
+    report, is_reuse = resolved_deps.resolve_reusable_report(report, existing_stage)
 
     if not stages.get("enrich", {}).get("confirmed_at"):
-        print(colorize_fn("  Cannot sense-check: enrich stage not confirmed.", "red"))
-        print(colorize_fn("  Run: desloppify plan triage --confirm enrich", "dim"))
+        print(resolved_deps.colorize("  Cannot sense-check: enrich stage not confirmed.", "red"))
+        print(resolved_deps.colorize("  Run: desloppify plan triage --confirm enrich", "dim"))
         return
 
-    if get_project_root_fn is None:
+    get_project_root = resolved_deps.get_project_root
+    if get_project_root is None:
         from desloppify.base.discovery.paths import get_project_root
 
-        get_project_root_fn = get_project_root
-
-    if (
-        underspecified_steps_fn is None
-        or steps_missing_issue_refs_fn is None
-        or steps_with_bad_paths_fn is None
-        or steps_with_vague_detail_fn is None
-        or steps_without_effort_fn is None
-    ):
-        from ._stage_validation import (
-            _steps_missing_issue_refs,
-            _steps_with_bad_paths,
-            _steps_with_vague_detail,
-            _steps_without_effort,
-            _underspecified_steps,
-        )
-
-        underspecified_steps_fn = _underspecified_steps
-        steps_missing_issue_refs_fn = _steps_missing_issue_refs
-        steps_with_bad_paths_fn = _steps_with_bad_paths
-        steps_with_vague_detail_fn = _steps_with_vague_detail
-        steps_without_effort_fn = _steps_without_effort
-
-    repo_root = get_project_root_fn()
+    repo_root = get_project_root()
     problems: list[str] = []
 
-    underspec = underspecified_steps_fn(plan)
+    underspec = resolved_deps.underspecified_steps(plan)
     if underspec:
         total_bare = sum(n for _, n, _ in underspec)
         problems.append(f"{total_bare} step(s) lack detail or issue_refs")
 
-    bad_paths = steps_with_bad_paths_fn(plan, repo_root)
+    bad_paths = resolved_deps.steps_with_bad_paths(plan, repo_root)
     if bad_paths:
         total_bad = sum(len(bp) for _, _, bp in bad_paths)
         problems.append(f"{total_bad} file path(s) don't exist on disk")
 
-    untagged = steps_without_effort_fn(plan)
+    untagged = resolved_deps.steps_without_effort(plan)
     if untagged:
         total_missing = sum(n for _, n, _ in untagged)
         problems.append(f"{total_missing} step(s) have no effort tag")
 
-    no_refs = steps_missing_issue_refs_fn(plan)
+    no_refs = resolved_deps.steps_missing_issue_refs(plan)
     if no_refs:
         total_missing = sum(n for _, n, _ in no_refs)
         problems.append(f"{total_missing} step(s) have no issue_refs")
 
-    vague = steps_with_vague_detail_fn(plan, repo_root)
+    vague = resolved_deps.steps_with_vague_detail(plan, repo_root)
     if vague:
         problems.append(f"{len(vague)} step(s) have vague detail")
 
     if problems:
-        print(colorize_fn("  Cannot record sense-check — plan still has issues:", "red"))
+        print(resolved_deps.colorize("  Cannot record sense-check — plan still has issues:", "red"))
         for problem in problems:
-            print(colorize_fn(f"    • {problem}", "yellow"))
-        print(colorize_fn("  Fix these before recording the sense-check stage.", "dim"))
+            print(resolved_deps.colorize(f"    • {problem}", "yellow"))
+        print(resolved_deps.colorize("  Fix these before recording the sense-check stage.", "dim"))
         return
 
-    print(colorize_fn("  All enrich-level checks pass after sense-check.", "green"))
+    print(resolved_deps.colorize("  All enrich-level checks pass after sense-check.", "green"))
 
     if not report:
-        print(colorize_fn("  --report is required for --stage sense-check.", "red"))
+        print(resolved_deps.colorize("  --report is required for --stage sense-check.", "red"))
         print(
-            colorize_fn(
+            resolved_deps.colorize(
                 "  Describe what the content and structure subagents found and fixed.",
                 "dim",
             )
@@ -145,11 +119,10 @@ def run_stage_sense_check(
         return
 
     if len(report) < 100:
-        print(colorize_fn(f"  Report too short: {len(report)} chars (minimum 100).", "red"))
+        print(resolved_deps.colorize(f"  Report too short: {len(report)} chars (minimum 100).", "red"))
         return
 
-    # --- Sense-check evidence: file paths + cluster names ---
-    from ._stage_evidence_parsing import (
+    from .stages.evidence_parsing import (
         EvidenceFailure,
         format_evidence_failures,
         validate_report_has_file_paths,
@@ -171,14 +144,14 @@ def run_stage_sense_check(
     advisory_ev = [f for f in sc_evidence_failures if not f.blocking]
     if blocking_ev:
         msg = format_evidence_failures(blocking_ev, stage_label="sense-check")
-        print(colorize_fn(msg, "red"))
+        print(resolved_deps.colorize(msg, "red"))
         return
     if advisory_ev:
         msg = format_evidence_failures(advisory_ev, stage_label="sense-check")
-        print(colorize_fn(msg, "yellow"))
+        print(resolved_deps.colorize(msg, "yellow"))
 
     stages = meta.setdefault("triage_stages", {})
-    cleared = record_sense_check_stage_fn(
+    cleared = resolved_deps.record_sense_check_stage(
         stages,
         report=report,
         existing_stage=existing_stage,
@@ -195,14 +168,14 @@ def run_stage_sense_check(
     )
     resolved_services.save_plan(plan)
 
-    print(colorize_fn("  Sense-check stage recorded.", "green"))
+    print(resolved_deps.colorize("  Sense-check stage recorded.", "green"))
     if is_reuse:
-        print(colorize_fn("  Sense-check data preserved (no changes).", "dim"))
+        print(resolved_deps.colorize("  Sense-check data preserved (no changes).", "dim"))
         if cleared:
-            print_cascade_clear_feedback_fn(cleared, stages)
+            resolved_deps.print_cascade_clear_feedback(cleared, stages)
     else:
-        print(colorize_fn("  Now confirm the sense-check.", "yellow"))
-        print(colorize_fn("    desloppify plan triage --confirm sense-check", "dim"))
+        print(resolved_deps.colorize("  Now confirm the sense-check.", "yellow"))
+        print(resolved_deps.colorize("    desloppify plan triage --confirm sense-check", "dim"))
 
 
-__all__ = ["record_sense_check_stage", "run_stage_sense_check"]
+__all__ = ["record_sense_check_stage", "run_stage_sense_check", "SenseCheckStageDeps"]

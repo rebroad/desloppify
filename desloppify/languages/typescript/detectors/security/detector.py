@@ -48,16 +48,8 @@ logger = logging.getLogger(__name__)
 def detect_ts_security(
     files: list[str],
     zone_map: FileZoneMap | None,
-) -> tuple[list[dict], int]:
-    """Detect TypeScript-specific security issues."""
-    return _detect_ts_security_result(files, zone_map).as_tuple()
-
-
-def _detect_ts_security_result(
-    files: list[str],
-    zone_map: FileZoneMap | None,
 ) -> DetectorResult[dict]:
-    """Internal structured-result adapter for detailed security callers."""
+    """Detect TypeScript-specific security issues with explicit population semantics."""
     entries: list[dict] = []
     scanned = 0
 

@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 
 from desloppify.base.discovery.file_paths import safe_write_text
 from desloppify.base.output.terminal import colorize
-from desloppify.engine.plan import load_policy, render_policy_block
+from desloppify.engine.plan_state import (
+    load_policy,
+    render_policy_block,
+)
 
 from ..helpers import manual_clusters_with_issues
-from .codex_runner import _output_file_has_text, run_triage_stage
+from .codex_runner import (
+    TriageStageRunResult,
+    _output_file_has_text,
+    run_triage_stage,
+)
 from .orchestrator_codex_parallel import run_parallel_batches
 from .stage_prompts import (
     build_sense_check_content_prompt,
@@ -32,7 +40,7 @@ def run_sense_check(
     timeout_seconds: int,
     dry_run: bool = False,
     append_run_log=None,
-) -> tuple[bool, str]:
+) -> TriageStageRunResult:
     """Run sense-check via parallel codex subprocess batches."""
     _log = append_run_log or _noop_log
 
@@ -45,7 +53,7 @@ def run_sense_check(
     policy = load_policy()
     policy_text = render_policy_block(policy)
 
-    tasks: dict[int, object] = {}
+    tasks: dict[int, Callable[[], TriageStageRunResult]] = {}
     batch_meta: list[tuple[str, Path]] = []
 
     for i, cluster_name in enumerate(clusters):
@@ -97,7 +105,7 @@ def run_sense_check(
 
     if dry_run:
         print(colorize("  [dry-run] Would execute parallel sense-check batches.", "dim"))
-        return True, ""
+        return TriageStageRunResult(exit_code=0, reason="dry_run", dry_run=True)
 
     def _batch_label(idx: int) -> str:
         if idx < len(batch_meta):
@@ -115,7 +123,10 @@ def run_sense_check(
     if failures:
         print(colorize(f"  Sense-check: {len(failures)} batch(es) failed: {failures}", "red"))
         _log(f"sense-check-parallel-failed failures={failures}")
-        return False, ""
+        return TriageStageRunResult(
+            exit_code=1,
+            reason="parallel_execution_failed",
+        )
 
     parts: list[str] = []
     for label, output_file in batch_meta:
@@ -132,7 +143,10 @@ def run_sense_check(
     merged = "\n\n---\n\n".join(parts)
     print(colorize(f"  Sense-check: merged {total} batch outputs ({len(merged)} chars).", "green"))
     _log(f"sense-check-parallel-done merged_chars={len(merged)}")
-    return True, merged
+    return TriageStageRunResult(
+        exit_code=0,
+        merged_output=merged,
+    )
 
 
 __all__ = ["run_sense_check"]

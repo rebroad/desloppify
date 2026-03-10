@@ -25,21 +25,26 @@ def _resolve_review_files(
     lang: object,
     options: object,
 ) -> tuple[list[str], set[str]]:
-    """Resolve the full file list and the allowed-review-file set."""
-    all_files = (
+    """Resolve scoped review files and the allowed-review-file set."""
+    discovered_files = (
         options.files
         if options.files is not None
         else (lang.file_finder(path) if lang.file_finder else [])
     )
-    allowed = collect_allowed_review_files(all_files, lang, base_path=path)
-    return all_files, allowed
+    allowed = collect_allowed_review_files(discovered_files, lang, base_path=path)
+    scoped_files = [
+        filepath
+        for filepath in discovered_files
+        if file_in_allowed_scope(filepath, allowed)
+    ]
+    return scoped_files, allowed
 
 
 def _build_review_contexts(
     path: Path,
     lang: object,
     state: dict,
-    all_files: list[str],
+    review_files: list[str],
     *,
     is_file_cache_enabled_fn,
     enable_file_cache_fn,
@@ -53,9 +58,9 @@ def _build_review_contexts(
         enable_file_cache_fn()
     try:
         context = HolisticContext.from_raw(
-            build_holistic_context_fn(path, lang, state, files=all_files)
+            build_holistic_context_fn(path, lang, state, files=review_files)
         )
-        review_ctx = build_review_context_fn(path, lang, state, files=all_files)
+        review_ctx = build_review_context_fn(path, lang, state, files=review_files)
     finally:
         if not already_cached:
             disable_file_cache_fn()
@@ -183,13 +188,13 @@ def prepare_holistic_review_payload(
     deps: HolisticPrepareDependencies,
 ) -> dict[str, object]:
     """Prepare holistic review payload with injected dependencies for patchability."""
-    all_files, allowed_review_files = _resolve_review_files(path, lang, options)
+    scoped_files, allowed_review_files = _resolve_review_files(path, lang, options)
 
     context, review_ctx = _build_review_contexts(
         path,
         lang,
         state,
-        all_files,
+        scoped_files,
         is_file_cache_enabled_fn=deps.is_file_cache_enabled_fn,
         enable_file_cache_fn=deps.enable_file_cache_fn,
         disable_file_cache_fn=deps.disable_file_cache_fn,
@@ -235,7 +240,7 @@ def prepare_holistic_review_payload(
         deps.append_full_sweep_batch_fn(
             batches=batches,
             dims=dim_ctx.dims,
-            all_files=all_files,
+            all_files=scoped_files,
             lang=lang,
             max_files=options.max_files_per_batch,
         )

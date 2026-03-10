@@ -9,10 +9,19 @@ from typing import Any
 from desloppify.base.coercions import coerce_positive_int
 from desloppify.engine._state.schema import StateModel
 import desloppify.intelligence.narrative.core as narrative_mod
-from desloppify.intelligence import review as review_mod
+from desloppify.intelligence.review.prepare import (
+    HolisticReviewPrepareOptions,
+    prepare_holistic_review,
+)
 
+from .. import runner_packets as runner_packets_mod
 from ..helpers import parse_dimensions
-from .policy import coerce_review_batch_file_limit
+from ..runtime_paths import (
+    blind_packet_path,
+    review_packet_dir,
+    runtime_project_root,
+)
+from .policy import coerce_review_batch_file_limit, redacted_review_config
 
 
 @dataclass(frozen=True)
@@ -66,12 +75,12 @@ def build_holistic_packet(
         state,
         context=narrative_mod.NarrativeContext(lang=lang_name, command="review"),
     )
-    prepare_fn = prepare_holistic_review_fn or review_mod.prepare_holistic_review
+    prepare_fn = prepare_holistic_review_fn or prepare_holistic_review
     packet = prepare_fn(
         context.path,
         lang_run,
         state,
-        options=review_mod.HolisticReviewPrepareOptions(
+        options=HolisticReviewPrepareOptions(
             dimensions=context.dimensions,
             files=found_files or None,
             max_files_per_batch=coerce_review_batch_file_limit(config),
@@ -146,11 +155,66 @@ def require_non_empty_packet(packet: dict[str, Any], *, path: Path) -> int:
     return total
 
 
+def build_review_packet_payload(
+    *,
+    state: StateModel,
+    lang: Any,
+    config: dict[str, Any],
+    context: ReviewPacketContext,
+    next_command: str,
+    setup_lang_fn,
+    prepare_holistic_review_fn=None,
+) -> dict[str, Any]:
+    """Build and validate a holistic review packet without persisting artifacts."""
+    packet, _lang_name = build_holistic_packet(
+        state=state,
+        lang=lang,
+        config=config,
+        context=context,
+        setup_lang_fn=setup_lang_fn,
+        prepare_holistic_review_fn=prepare_holistic_review_fn,
+    )
+    packet["config"] = redacted_review_config(config)
+    packet["next_command"] = next_command
+    require_non_empty_packet(packet, path=context.path)
+    return packet
+
+
+def write_review_packet_snapshot(
+    packet: dict[str, Any],
+    *,
+    stamp: str,
+    project_root_override: Path | None = None,
+    review_packet_dir_override: Path | None = None,
+    blind_path_override: Path | None = None,
+    safe_write_text_fn,
+) -> tuple[Path, Path]:
+    """Persist immutable + blind packet snapshots and return their paths."""
+    runtime_root = runtime_project_root(project_root_override=project_root_override)
+    blind_path = blind_path_override or blind_packet_path(
+        project_root_override=runtime_root,
+        stamp=stamp,
+    )
+    packet_dir = review_packet_dir(
+        project_root_override=runtime_root,
+        review_packet_dir_override=review_packet_dir_override,
+    )
+    return runner_packets_mod.write_packet_snapshot(
+        packet,
+        stamp=stamp,
+        review_packet_dir=packet_dir,
+        blind_path=blind_path,
+        safe_write_text_fn=safe_write_text_fn,
+    )
+
+
 __all__ = [
     "ReviewPacketContext",
     "build_external_submit_next_command",
     "build_holistic_packet",
+    "build_review_packet_payload",
     "build_run_batches_next_command",
     "require_non_empty_packet",
     "resolve_review_packet_context",
+    "write_review_packet_snapshot",
 ]

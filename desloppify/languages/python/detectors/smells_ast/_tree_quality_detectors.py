@@ -31,7 +31,6 @@ __all__ = [
 def _detect_unreachable_code(
     filepath: str,
     tree: ast.Module,
-    *,
     all_nodes: tuple[ast.AST, ...] | None = None,
 ) -> list[dict]:
     """Flag statements after unconditional return/raise/break/continue.
@@ -77,7 +76,6 @@ def _detect_unreachable_code(
 def _detect_constant_return(
     filepath: str,
     tree: ast.Module,
-    *,
     all_nodes: tuple[ast.AST, ...] | None = None,
 ) -> list[dict]:
     """Flag functions that always return the same constant value.
@@ -154,7 +152,6 @@ def _detect_constant_return(
 def _detect_noop_function(
     filepath: str,
     tree: ast.Module,
-    *,
     all_nodes: tuple[ast.AST, ...] | None = None,
 ) -> list[dict]:
     """Flag non-trivial functions whose body does nothing useful.
@@ -230,7 +227,6 @@ def _detect_noop_function(
 def _detect_del_param(
     filepath: str,
     tree: ast.Module,
-    *,
     all_nodes: tuple[ast.AST, ...] | None = None,
 ) -> list[dict]:
     """Flag functions that ``del`` a parameter in the first 3 body statements.

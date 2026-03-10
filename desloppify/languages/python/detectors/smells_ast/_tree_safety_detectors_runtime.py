@@ -77,9 +77,9 @@ def _is_sys_path_mutation(node: ast.Call) -> bool:
 def _detect_import_time_boundary_mutations(
     filepath: str,
     tree: ast.Module,
+    all_nodes: tuple[ast.AST, ...] | None = None,
     *,
     smell_id: str,
-    all_nodes: tuple[ast.AST, ...] | None = None,
 ) -> list[dict]:
     """Flag import-time runtime mutations in non-entrypoint modules."""
     del all_nodes  # Traversal is top-level execution order, not full-node walk.
@@ -124,7 +124,6 @@ def _detect_import_time_boundary_mutations(
 def _detect_sys_exit_in_library(
     filepath: str,
     tree: ast.Module,
-    *,
     all_nodes: tuple[ast.AST, ...] | None = None,
 ) -> list[dict]:
     """Flag sys.exit()/exit()/quit() outside CLI entry points."""
@@ -164,7 +163,6 @@ def _detect_sys_exit_in_library(
 def _detect_silent_except(
     filepath: str,
     tree: ast.Module,
-    *,
     all_nodes: tuple[ast.AST, ...] | None = None,
 ) -> list[dict]:
     """Flag except handlers that only pass/continue and swallow errors silently."""

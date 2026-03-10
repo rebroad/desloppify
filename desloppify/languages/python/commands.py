@@ -37,6 +37,10 @@ from desloppify.languages._framework.commands_base import (
     make_cmd_single_use,
     make_cmd_smells,
 )
+from desloppify.languages._framework.commands_base_registry import (
+    build_standard_detect_registry,
+    compose_detect_registry,
+)
 from desloppify.languages.python.phases import (
     PY_COMPLEXITY_SIGNALS,
     PY_ENTRY_PATTERNS,
@@ -201,18 +205,22 @@ def cmd_dupes(args: argparse.Namespace) -> None:
 
 def get_detect_commands() -> dict[str, Callable[..., None]]:
     """Build the Python detector command registry."""
-    return {
-        "unused": cmd_unused,
-        "large": cmd_large,
-        "complexity": cmd_complexity,
-        "gods": cmd_gods,
-        "props": cmd_passthrough,
-        "smells": cmd_smells,
-        "dupes": cmd_dupes,
-        "deps": cmd_deps,
-        "cycles": cmd_cycles,
-        "orphaned": cmd_orphaned,
-        "single_use": cmd_single_use,
-        "naming": cmd_naming,
-        "facade": cmd_facade,
-    }
+    return compose_detect_registry(
+        base_registry=build_standard_detect_registry(
+            cmd_deps=cmd_deps,
+            cmd_cycles=cmd_cycles,
+            cmd_orphaned=cmd_orphaned,
+            cmd_dupes=cmd_dupes,
+            cmd_large=cmd_large,
+            cmd_complexity=cmd_complexity,
+        ),
+        extra_registry={
+            "unused": cmd_unused,
+            "gods": cmd_gods,
+            "props": cmd_passthrough,
+            "smells": cmd_smells,
+            "single_use": cmd_single_use,
+            "naming": cmd_naming,
+            "facade": cmd_facade,
+        },
+    )

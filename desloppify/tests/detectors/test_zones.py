@@ -6,6 +6,8 @@ from desloppify.engine.policy.zones import (
     COMMON_ZONE_RULES,
     EXCLUDED_ZONE_VALUES,
     EXCLUDED_ZONES,
+    REVIEW_COVERAGE_EXCLUDED_ZONES,
+    REVIEW_SELECTION_EXCLUDED_ZONES,
     ZONE_POLICIES,
     FileZoneMap,
     Zone,
@@ -15,7 +17,9 @@ from desloppify.engine.policy.zones import (
     adjust_potential,
     classify_file,
     filter_entries,
+    normalize_zone,
     should_skip_issue,
+    zone_in,
 )
 
 # ── _match_pattern() ─────────────────────────────────────────
@@ -417,6 +421,38 @@ class TestZoneEnumAndConstants:
         """EXCLUDED_ZONE_VALUES contains string values of excluded zones."""
         assert EXCLUDED_ZONE_VALUES == {"test", "config", "generated", "vendor"}
 
+    def test_review_exclusion_sets_are_enum_backed(self):
+        assert REVIEW_SELECTION_EXCLUDED_ZONES == {
+            Zone.TEST,
+            Zone.GENERATED,
+            Zone.VENDOR,
+        }
+        assert REVIEW_COVERAGE_EXCLUDED_ZONES == {
+            Zone.TEST,
+            Zone.GENERATED,
+            Zone.VENDOR,
+            Zone.CONFIG,
+            Zone.SCRIPT,
+        }
+
+    def test_normalize_zone_supports_enum_and_value_objects(self):
+        class _ZoneLike:
+            def __init__(self, value):
+                self.value = value
+
+        assert normalize_zone(Zone.TEST) == Zone.TEST
+        assert normalize_zone("vendor") == Zone.VENDOR
+        assert normalize_zone(_ZoneLike("generated")) == Zone.GENERATED
+        assert normalize_zone("unknown-zone") is None
+
+    def test_zone_in_works_for_duck_typed_zone_values(self):
+        class _ZoneLike:
+            def __init__(self, value):
+                self.value = value
+
+        assert zone_in(_ZoneLike("test"), REVIEW_SELECTION_EXCLUDED_ZONES)
+        assert not zone_in(_ZoneLike("config"), REVIEW_SELECTION_EXCLUDED_ZONES)
+
 
 # ── ZONE_POLICIES ────────────────────────────────────────────
 
@@ -537,5 +573,4 @@ class TestZonePolicies:
 
 
 # ── adjust_potential() ───────────────────────────────────────
-
 

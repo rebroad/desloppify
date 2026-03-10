@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from desloppify.app.commands.plan.triage._stage_validation import (
+from desloppify.app.commands.plan.triage.validation.core import (
     _validate_reflect_issue_accounting,
 )
 from desloppify.app.commands.plan.triage.runner import codex_runner
@@ -16,7 +16,7 @@ from desloppify.app.commands.plan.triage.runner.stage_validation import (
     validate_completion,
     validate_stage,
 )
-from desloppify.engine._plan.epic_triage_prompt import TriageInput
+from desloppify.engine._plan.triage.prompt import TriageInput
 
 
 def _make_triage_input(n_issues: int = 5) -> TriageInput:
@@ -120,6 +120,52 @@ def test_validate_reflect_issue_accounting_prefers_coverage_ledger() -> None:
 
 ## Cluster Blueprint
 Cluster "alpha" handles aaaabbbb after the shared seam is stable.
+"""
+    ok, cited, missing, duplicates = _validate_reflect_issue_accounting(
+        report=report,
+        valid_ids=valid_ids,
+    )
+    assert ok
+    assert cited == valid_ids
+    assert missing == []
+    assert duplicates == []
+
+
+def test_validate_reflect_issue_accounting_accepts_named_short_ids() -> None:
+    valid_ids = {
+        "review::src/a.py::error_consistency::plugin_failures_look_like_absent_capabilities",
+        "review::src/b.py::error_consistency::policy_load_masks_corruption",
+    }
+    report = """
+## Coverage Ledger
+- plugin_failures_look_like_absent_capabilities -> cluster "plugin-load-error-semantics"
+- policy_load_masks_corruption -> skip "defer-to-followup"
+
+## Cluster Blueprint
+Cluster "plugin-load-error-semantics" owns loader error semantics.
+"""
+    ok, cited, missing, duplicates = _validate_reflect_issue_accounting(
+        report=report,
+        valid_ids=valid_ids,
+    )
+    assert ok
+    assert cited == valid_ids
+    assert missing == []
+    assert duplicates == []
+
+
+def test_validate_reflect_issue_accounting_handles_short_id_collisions() -> None:
+    valid_ids = {
+        "review::src/a.py::cross_module_architecture::review_packet_ownership_split",
+        "review::src/b.py::high_level_elegance::review_packet_ownership_split",
+    }
+    report = """
+## Coverage Ledger
+- review_packet_ownership_split -> cluster "review-packet-lifecycle-ownership"
+- review_packet_ownership_split -> cluster "review-packet-lifecycle-ownership"
+
+## Cluster Blueprint
+Cluster "review-packet-lifecycle-ownership" owns packet lifecycle policy.
 """
     ok, cited, missing, duplicates = _validate_reflect_issue_accounting(
         report=report,
@@ -322,7 +368,7 @@ def test_validate_enrich_vague_detail(tmp_path: Path) -> None:
 
 def test_underspecified_catches_refs_but_no_detail(tmp_path: Path) -> None:
     """A step with issue_refs but no detail should be caught."""
-    from desloppify.app.commands.plan.triage._stage_validation import (
+    from desloppify.app.commands.plan.triage.validation.core import (
         _underspecified_steps,
     )
 
@@ -344,7 +390,7 @@ def test_underspecified_catches_refs_but_no_detail(tmp_path: Path) -> None:
 
 def test_underspecified_catches_detail_but_no_refs(tmp_path: Path) -> None:
     """A step with detail but no issue_refs should be caught."""
-    from desloppify.app.commands.plan.triage._stage_validation import (
+    from desloppify.app.commands.plan.triage.validation.core import (
         _underspecified_steps,
     )
 
@@ -364,7 +410,7 @@ def test_underspecified_catches_detail_but_no_refs(tmp_path: Path) -> None:
 
 def test_underspecified_passes_complete_step() -> None:
     """A step with both detail and issue_refs should pass."""
-    from desloppify.app.commands.plan.triage._stage_validation import (
+    from desloppify.app.commands.plan.triage.validation.core import (
         _underspecified_steps,
     )
 
@@ -392,7 +438,7 @@ def test_underspecified_passes_complete_step() -> None:
 
 def test_vague_detail_flags_missing_detail(tmp_path: Path) -> None:
     """A step with no detail at all should be flagged as vague."""
-    from desloppify.app.commands.plan.triage._stage_validation import (
+    from desloppify.app.commands.plan.triage.validation.core import (
         _steps_with_vague_detail,
     )
 
@@ -414,7 +460,7 @@ def test_vague_detail_flags_missing_detail(tmp_path: Path) -> None:
 
 def test_vague_detail_flags_empty_string_detail(tmp_path: Path) -> None:
     """A step with empty string detail should be flagged as vague."""
-    from desloppify.app.commands.plan.triage._stage_validation import (
+    from desloppify.app.commands.plan.triage.validation.core import (
         _steps_with_vague_detail,
     )
 
@@ -703,7 +749,9 @@ def test_run_triage_stage_defaults_to_text_validation(tmp_path: Path, monkeypatc
         output_file=output_file,
         log_file=log_file,
     )
-    assert ret == 0
+    assert ret.ok
+    assert ret.exit_code == 0
+    assert ret.reason is None
     assert captured["validator"] is codex_runner._output_file_has_text
 
 
@@ -727,5 +775,7 @@ def test_run_triage_stage_allows_validator_override(tmp_path: Path, monkeypatch:
         log_file=tmp_path / "triage.log",
         validate_output_fn=_custom_validator,
     )
-    assert ret == 0
+    assert ret.ok
+    assert ret.exit_code == 0
+    assert ret.reason is None
     assert captured["validator"] is _custom_validator

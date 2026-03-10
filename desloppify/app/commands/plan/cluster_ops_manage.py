@@ -7,16 +7,18 @@ from pathlib import Path
 from typing import Any
 
 from desloppify.base.output.terminal import colorize
-from desloppify.engine.plan import (
+from desloppify.engine.plan_state import (
+    load_plan,
+    save_plan,
+)
+from desloppify.engine.plan_ops import (
     append_log_entry,
     create_cluster,
     delete_cluster,
     format_steps,
-    load_plan,
     merge_clusters,
     normalize_step,
     parse_steps_file,
-    save_plan,
 )
 from desloppify.state import utc_now
 

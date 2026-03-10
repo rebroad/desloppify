@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import desloppify.app.commands.helpers.queue_progress_render as queue_render_mod
 import desloppify.app.commands.next.flow_helpers as flow_helpers_mod
 import desloppify.app.commands.next.options as options_mod
+import desloppify.app.commands.next.render_support as support_mod
 import desloppify.app.commands.next.render_workflow as workflow_render_mod
 
 
@@ -65,9 +66,23 @@ def test_queue_progress_render_helpers() -> None:
     assert queue_render_mod.format_plan_delta(80.0, 79.0) == "+1.0"
     assert queue_render_mod.format_plan_delta(80.0, 80.02) == ""
     headline = queue_render_mod.format_queue_headline(breakdown)
-    assert "Queue: 3 items" in headline
+    assert headline.startswith("Queue: 3")
+    assert "1 planning step" in headline
+    assert "2 planned" in headline
+    assert "1 skipped" in headline
     block = queue_render_mod.format_queue_block(breakdown, frozen_score=79.0, live_score=80.0)
-    assert any("Score: strict 80.0/100" in line for line, _tone in block)
+    assert any("strict 80.0/100" in line and "+1.0" in line for line, _tone in block)
+
+
+def test_cluster_action_commands_are_parseable_semantic_fields() -> None:
+    commands = support_mod.cluster_action_commands("manual/refactor-a")
+    assert sorted(commands) == ["drill_in", "resolve_all", "skip"]
+    assert commands["drill_in"] == "desloppify next --cluster manual/refactor-a --count 10"
+    assert commands["skip"] == "desloppify plan skip manual/refactor-a"
+    assert (
+        commands["resolve_all"]
+        == 'desloppify plan resolve "manual/refactor-a" --note "<what>" --confirm'
+    )
 
 
 def test_workflow_render_helpers(capsys) -> None:

@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import desloppify.app.commands.next.render as render_mod
 import desloppify.app.commands.next.render_support as support_mod
+from desloppify.engine.plan_triage import (
+    triage_manual_stage_command,
+    triage_run_stages_command,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers — realistic work-queue items
@@ -124,6 +128,19 @@ def _strip_ansi(text: str) -> str:
     """Remove ANSI escape sequences for easier assertions."""
     import re
     return re.sub(r"\x1b\[[0-9;]*m", "", text)
+
+
+def _normalized_lines(text: str) -> list[str]:
+    return [line.strip() for line in _strip_ansi(text).splitlines() if line.strip()]
+
+
+def _commands_in_output(text: str) -> list[str]:
+    commands: list[str] = []
+    for line in _normalized_lines(text):
+        idx = line.find("desloppify ")
+        if idx >= 0:
+            commands.append(line[idx:])
+    return commands
 
 
 # ---------------------------------------------------------------------------
@@ -316,11 +333,14 @@ def test_render_cluster_item_output(monkeypatch, capsys) -> None:
         [item], {}, {}, group="item", explain=False,
     )
     out = capsys.readouterr().out
+    commands = _commands_in_output(out)
+    expected = support_mod.cluster_action_commands(item["id"])
     assert "Auto-fixable batch" in out
     assert "2 issues" in out
     assert "Remove dead code" in out
     assert "src/a.py" in out
-    assert "Resolve all:" in out
+    for command in expected.values():
+        assert command in commands
 
 
 def test_render_optional_cluster_shows_skip(monkeypatch, capsys) -> None:
@@ -332,8 +352,10 @@ def test_render_optional_cluster_shows_skip(monkeypatch, capsys) -> None:
         [item], {}, {}, group="item", explain=False,
     )
     out = capsys.readouterr().out
+    commands = _commands_in_output(out)
+    expected = support_mod.cluster_action_commands(item["id"])
     assert "optional" in out
-    assert "Skip:" in out
+    assert expected["skip"] in commands
 
 
 # ---------------------------------------------------------------------------
@@ -363,13 +385,14 @@ def test_render_workflow_stage_unblocked(monkeypatch, capsys) -> None:
         [item], {}, {}, group="item", explain=False,
     )
     out = capsys.readouterr().out
+    commands = _commands_in_output(out)
+    runner_commands = [entry["command"] for entry in item["detail"]["runner_commands"]]
+    manual_fallback = item["detail"]["manual_fallback"]
     assert "Planning stage: observe" in out
-    assert (
-        "Action: desloppify plan triage --run-stages --runner codex --only-stages observe"
-        in out
-    )
-    assert "Claude: desloppify plan triage --run-stages --runner claude --only-stages observe" in out
-    assert 'Manual fallback: desloppify plan triage --stage observe --report "analysis of themes and root causes..."' in out
+    assert item["primary_command"] in commands
+    for command in runner_commands:
+        assert command in commands
+    assert manual_fallback in commands
     assert "[blocked]" not in out
 
 
@@ -387,16 +410,16 @@ def test_render_workflow_stage_blocked(monkeypatch, capsys) -> None:
         [item], {}, {}, group="item", explain=False,
     )
     out = capsys.readouterr().out
+    commands = _commands_in_output(out)
+    dep_name = "observe"
+    expected_next = triage_run_stages_command(only_stages=dep_name)
+    expected_alt = triage_run_stages_command(runner="claude", only_stages=dep_name)
+    expected_manual = triage_manual_stage_command(dep_name)
     assert "[blocked]" in out
     assert "Blocked by: observe" in out
-    assert (
-        "Next step: desloppify plan triage --run-stages --runner codex --only-stages observe"
-        in out
-    )
-    assert (
-        "Alt runner: desloppify plan triage --run-stages --runner claude --only-stages observe"
-        in out
-    )
+    assert expected_next in commands
+    assert expected_alt in commands
+    assert expected_manual in commands
 
 
 def test_render_workflow_stage_with_review_issues(monkeypatch, capsys) -> None:
@@ -420,9 +443,10 @@ def test_render_workflow_action(monkeypatch, capsys) -> None:
         [item], {}, {}, group="item", explain=False,
     )
     out = capsys.readouterr().out
+    commands = _commands_in_output(out)
     assert "Workflow step" in out
     assert "Create a living plan" in out
-    assert "Action: desloppify plan create" in out
+    assert item["primary_command"] in commands
 
 
 # ---------------------------------------------------------------------------

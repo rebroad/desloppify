@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import desloppify.languages._framework.treesitter._complexity_callbacks as callbacks_mod
-import desloppify.languages._framework.treesitter._complexity_shared as shared_mod
+import desloppify.languages._framework.treesitter.analysis.complexity_callbacks as callbacks_mod
+import desloppify.languages._framework.treesitter.analysis.complexity_shared as shared_mod
 
 
 class _FakeNode:
@@ -62,10 +62,7 @@ def test_ensure_parser_initializes_cache_with_optional_query(monkeypatch) -> Non
     cache: dict[str, object] = {}
     spec = SimpleNamespace(grammar="go", function_query="(function_declaration)")
     monkeypatch.setattr(shared_mod, "_get_parser", lambda _grammar: ("parser", "lang"))
-    monkeypatch.setattr(
-        "desloppify.languages._framework.treesitter._extractors._make_query",
-        lambda _lang, query: f"query:{query}",
-    )
+    monkeypatch.setattr(shared_mod, "_make_query", lambda _lang, query: f"query:{query}")
     assert shared_mod._ensure_parser(cache, spec, with_query=True) is True
     assert cache["parser"] == "parser"
     assert cache["language"] == "lang"

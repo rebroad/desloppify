@@ -18,7 +18,8 @@ def cmd_patterns(args: argparse.Namespace) -> None:
     """Show full pattern census matrix plus competing-pattern anomalies."""
     path = Path(args.path)
     census, _evidence = _build_census(path)
-    anomalies, _ = detect_pattern_anomalies(path)
+    result = detect_pattern_anomalies(path)
+    anomalies = result.entries
 
     if args.json:
         serializable = {

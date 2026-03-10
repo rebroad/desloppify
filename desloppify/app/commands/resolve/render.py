@@ -9,13 +9,13 @@ from desloppify.app.commands.helpers.score_update import print_strict_target_nud
 from desloppify.app.commands.resolve.render_support import (
     print_post_resolve_guidance,
     print_strict_gap_note,
-    score_snapshot_or_warn,
+    score_snapshot_or_error,
 )
 from desloppify.base.config import load_config
-from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS
+from desloppify.base.exception_sets import CommandError, PLAN_LOAD_EXCEPTIONS
 from desloppify.base.git_context import detect_git_context
 from desloppify.base.output.terminal import colorize
-from desloppify.engine.plan import get_uncommitted_issues, suggest_commit_message
+from desloppify.engine.plan_state import get_uncommitted_issues, suggest_commit_message
 
 
 def _print_resolve_summary(*, status: str, all_resolved: list[str]) -> None:
@@ -76,8 +76,10 @@ def _print_score_movement(
     has_review_issues: bool = False,
     target_strict: float | None = None,
 ) -> None:
-    new = score_snapshot_or_warn(state)
-    if new is None:
+    try:
+        new = score_snapshot_or_error(state)
+    except CommandError as exc:
+        print(colorize(f"\n  {exc.message}", "yellow"))
         return
 
     overall_delta = new.overall - (prev_overall or 0)

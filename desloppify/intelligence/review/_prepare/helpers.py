@@ -5,6 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from desloppify.base.discovery.file_paths import rel
+from desloppify.engine.policy.zones import (
+    REVIEW_SELECTION_EXCLUDED_ZONES,
+    zone_in,
+)
 
 HOLISTIC_WORKFLOW = [
     "Read .desloppify/query.json for context, excerpts, and investigation batches",
@@ -35,7 +39,7 @@ def append_full_sweep_batch(
     for filepath in all_files:
         if lang.zone_map is not None:
             zone = lang.zone_map.get(filepath)
-            if zone.value in ("test", "generated", "vendor"):
+            if zone_in(zone, REVIEW_SELECTION_EXCLUDED_ZONES):
                 continue
         all_rel_files.append(rel(filepath))
         if isinstance(max_files, int) and max_files > 0 and len(all_rel_files) >= max_files:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -121,10 +122,9 @@ def build_review_context(
 def serialize_context(ctx: ReviewContext) -> dict[str, Any]:
     """Convert ReviewContext to a JSON-serializable dict."""
     def _section_dict(value: Any) -> dict[str, Any]:
-        if hasattr(value, "to_dict") and callable(value.to_dict):
-            data = value.to_dict()
-            return data if isinstance(data, dict) else {}
-        return dict(value) if isinstance(value, dict) else {}
+        if isinstance(value, Mapping):
+            return dict(value)
+        return {}
 
     metrics = ("total_files", "total_loc", "avg_file_loc")
     codebase_stats = _section_dict(ctx.codebase_stats)

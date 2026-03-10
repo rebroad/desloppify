@@ -1,63 +1,17 @@
-"""Callback/closure nesting metric for tree-sitter complexity."""
+"""Compatibility bridge to grouped tree-sitter namespace module.
+
+Canonical implementation now lives in
+desloppify.languages._framework.treesitter.analysis.complexity_callbacks.
+"""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from importlib import import_module
 
-from ._cache import _PARSE_CACHE
-from ._complexity_shared import ComputeFn, _ensure_parser
-
-if TYPE_CHECKING:
-    from desloppify.languages._framework.treesitter import TreeSitterLangSpec
-
-
-_CLOSURE_NODE_TYPES = frozenset(
-    {
-        "arrow_function",
-        "function_expression",
-        "function",
-        "lambda_expression",
-        "closure_expression",
-        "lambda",
-        "anonymous_function",
-        "block_argument",
-        "func_literal",
-        # PHP anonymous functions (``function() { ... }``)
-        "anonymous_function_creation_expression",
-    }
-)
-
-
-def make_callback_depth_compute(spec: TreeSitterLangSpec) -> ComputeFn:
-    """Build a complexity compute callback for callback/closure nesting depth."""
-    _cached_parser: dict[str, Any] = {}
-
-    def compute(content: str, lines: list[str], *, _filepath: str = "") -> tuple[int, str] | None:
-        del content, lines
-        if not _filepath:
-            return None
-        if not _ensure_parser(_cached_parser, spec):
-            return None
-
-        parser = _cached_parser["parser"]
-        cached = _PARSE_CACHE.get_or_parse(_filepath, parser, spec.grammar)
-        if cached is None:
-            return None
-        _source, tree = cached
-
-        max_depth = 0
-        stack: list[tuple[object, int]] = [(tree.root_node, 0)]
-        while stack:
-            node, depth = stack.pop()
-            if node.type in _CLOSURE_NODE_TYPES:
-                depth += 1
-                if depth > max_depth:
-                    max_depth = depth
-            for index in range(node.child_count - 1, -1, -1):
-                stack.append((node.children[index], depth))
-
-        if max_depth <= 1:
-            return None
-        return max_depth, f"callback depth {max_depth}"
-
-    return compute
+_IMPL = import_module("desloppify.languages._framework.treesitter.analysis.complexity_callbacks")
+_EXPORTS = [name for name in dir(_IMPL) if not name.startswith("__")]
+globals().update({name: getattr(_IMPL, name) for name in _EXPORTS})
+_PUBLIC = getattr(_IMPL, "__all__", None)
+if _PUBLIC is None:
+    _PUBLIC = [name for name in _EXPORTS if not name.startswith("_")]
+__all__ = list(_PUBLIC)

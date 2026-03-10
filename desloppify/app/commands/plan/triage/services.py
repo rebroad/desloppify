@@ -3,25 +3,28 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Protocol
 
 from desloppify.app.commands.helpers.runtime import CommandRuntime, command_runtime
-from desloppify.engine._state.schema import StateModel
-from desloppify.engine.plan import (
+from desloppify.engine.plan_state import (
     PlanModel,
+    load_plan,
+    save_plan,
+)
+from desloppify.engine.plan_ops import append_log_entry
+from desloppify.engine.plan_triage import (
     TriageInput,
-    append_log_entry,
     build_triage_prompt,
     collect_triage_input,
     detect_recurring_patterns,
     extract_issue_citations,
-    load_plan,
-    save_plan,
 )
+from desloppify.state import Issue, StateModel
 
-IssueMap = dict[str, dict[str, Any]]
+IssueMap = dict[str, Issue]
+RecurringPatternMap = dict[str, dict[str, list[str]]]
 
 
 class AppendLogEntryFn(Protocol):
@@ -36,7 +39,7 @@ class AppendLogEntryFn(Protocol):
         cluster_name: str | None = None,
         actor: str = "user",
         note: str | None = None,
-        detail: dict[str, Any] | None = None,
+        detail: Mapping[str, object] | None = None,
     ) -> None: ...
 
 
@@ -48,7 +51,7 @@ class TriageServices:
     load_plan: Callable[[], PlanModel]
     save_plan: Callable[[PlanModel], None]
     collect_triage_input: Callable[[PlanModel, StateModel], TriageInput]
-    detect_recurring_patterns: Callable[[IssueMap, IssueMap], dict[str, dict[str, list[str]]]]
+    detect_recurring_patterns: Callable[[IssueMap, IssueMap], RecurringPatternMap]
     append_log_entry: AppendLogEntryFn
     extract_issue_citations: Callable[[str, set[str]], set[str]]
     build_triage_prompt: Callable[[TriageInput], str]

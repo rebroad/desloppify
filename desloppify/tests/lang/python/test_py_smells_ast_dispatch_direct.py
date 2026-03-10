@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import inspect
+
+import desloppify.languages.python.detectors.smells_ast._dispatch as dispatch_mod
 from desloppify.languages.python.detectors.smells_ast._dispatch import (
     NODE_DETECTORS,
     TREE_DETECTORS,
@@ -32,3 +35,9 @@ def alpha():
 
     lines = [match["line"] for match in smell_counts["dead_function"]]
     assert lines == sorted(lines)
+
+
+def test_dispatch_registry_avoids_inline_lambda_wrappers():
+    source = inspect.getsource(dispatch_mod)
+    assert "lambda filepath, node, tree" not in source
+    assert "lambda filepath, tree, all_nodes" not in source

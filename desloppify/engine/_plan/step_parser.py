@@ -45,6 +45,8 @@ def _consume_indented_line(
 
 def _format_step_lines(index: int, step: str | ActionStep) -> list[str]:
     """Render a single step block into numbered text lines."""
+    # Legacy fallback: v8 migration stores ActionStep objects, but old tests/plans
+    # may still provide plain strings.
     if isinstance(step, str):
         return [f"{index}. {step}", ""]
     if not isinstance(step, dict):
@@ -135,10 +137,9 @@ def parse_steps_file(text: str) -> list[ActionStep]:
 
 
 def format_steps(steps: list[str | ActionStep]) -> str:
-    """Format a list of ActionStep dicts (or legacy strings) into numbered-steps text.
+    """Format ActionStep dicts into numbered-steps text.
 
-    Round-trips with ``parse_steps_file``: ``parse_steps_file(format_steps(steps))``
-    reproduces the same data (modulo whitespace normalization).
+    Legacy string steps are accepted as a compatibility fallback for old payloads.
     """
     lines: list[str] = []
     for i, step in enumerate(steps, 1):
@@ -147,14 +148,14 @@ def format_steps(steps: list[str | ActionStep]) -> str:
 
 
 def normalize_step(step: str | ActionStep) -> ActionStep:
-    """Ensure a step is an ActionStep dict. Wraps plain strings."""
+    """Compatibility shim that wraps legacy string steps into ActionStep dicts."""
     if isinstance(step, dict):
         return step
     return {"title": step}
 
 
 def step_summary(step: str | ActionStep) -> str:
-    """Return a one-line summary of a step for display."""
+    """Return a one-line summary for a structured step (legacy strings supported)."""
     if isinstance(step, str):
         return step
     return step.get("title", "")

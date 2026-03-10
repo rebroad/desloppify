@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from desloppify.languages._framework.runtime import LangRun
+    from desloppify.languages.framework import LangRun
 
 from desloppify import state as state_mod
 from desloppify.app.commands.helpers.lang import resolve_lang, resolve_lang_settings
@@ -52,11 +52,12 @@ from desloppify.engine.planning.scan import PlanScanOptions
 from desloppify.intelligence.review.dimensions.metadata import (
     resettable_default_dimensions,
 )
-from desloppify.languages._framework.base.types import DetectorCoverageRecord
-from desloppify.languages._framework.runtime import LangRunOverrides, make_lang_run
-from desloppify.languages._framework.treesitter import (
+from desloppify.languages.framework import (
+    DetectorCoverageRecord,
+    LangRunOverrides,
     disable_parse_cache,
     enable_parse_cache,
+    make_lang_run,
 )
 
 _WONTFIX_DECAY_SCANS_DEFAULT = 20

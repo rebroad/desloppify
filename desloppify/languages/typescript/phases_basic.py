@@ -9,17 +9,15 @@ from desloppify.base.output.terminal import log
 from desloppify.engine.policy.zones import adjust_potential
 from desloppify.languages._framework.base.types import LangRuntimeContract
 from desloppify.languages._framework.issue_factories import make_unused_issues
-from desloppify.languages.typescript.detectors import (
-    deprecated as deprecated_detector_mod,
-)
-from desloppify.languages.typescript.detectors import exports as exports_detector_mod
-from desloppify.languages.typescript.detectors import logs as logs_detector_mod
-from desloppify.languages.typescript.detectors import unused as unused_detector_mod
+import desloppify.languages.typescript.detectors.deprecated as deprecated_detector_mod
+import desloppify.languages.typescript.detectors.exports as exports_detector_mod
+import desloppify.languages.typescript.detectors.logs as logs_detector_mod
+import desloppify.languages.typescript.detectors.unused as unused_detector_mod
 from desloppify.state import Issue, make_issue
 
 
 def phase_logs(path: Path, lang: LangRuntimeContract) -> tuple[list[Issue], dict[str, int]]:
-    log_result = logs_detector_mod.detect_logs_result(path)
+    log_result = logs_detector_mod.detect_logs(path)
     log_entries = log_result.entries
     total_files = log_result.population_size
     log_groups: dict[tuple, list] = defaultdict(list)

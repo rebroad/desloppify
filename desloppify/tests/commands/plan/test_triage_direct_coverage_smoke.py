@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import inspect
 
+import desloppify.app.commands.plan.triage.command as triage_command_mod
 import desloppify.app.commands.plan.triage.helpers as triage_helpers_mod
 import desloppify.app.commands.plan.triage.services as triage_services_mod
 import desloppify.app.commands.plan.triage.stage_completion_commands as triage_completion_mod
+import desloppify.app.commands.plan.triage.workflow as triage_workflow_mod
 import desloppify.app.commands.plan.triage.runner.codex_runner as triage_codex_runner_mod
 import desloppify.app.commands.plan.triage.runner.orchestrator_common as triage_orchestrator_mod
 import desloppify.app.commands.plan.triage.runner.orchestrator_codex_observe as triage_observe_mod
 import desloppify.app.commands.plan.triage.runner.orchestrator_codex_parallel as triage_parallel_mod
-import desloppify.app.commands.plan.triage.display as triage_display_mod
-import desloppify.app.commands.plan.triage.display_layout as triage_display_layout_mod
+import desloppify.app.commands.plan.triage.display.dashboard as triage_display_mod
+import desloppify.app.commands.plan.triage.display.layout as triage_display_layout_mod
 
 
 def test_triage_helper_modules_direct_coverage_smoke() -> None:
@@ -27,6 +29,7 @@ def test_triage_helper_modules_direct_coverage_smoke() -> None:
 
     assert callable(triage_completion_mod.cmd_triage_complete)
     assert callable(triage_completion_mod.cmd_confirm_existing)
+    assert callable(triage_workflow_mod.run_triage_workflow)
 
     assert callable(triage_codex_runner_mod.run_triage_stage)
     assert callable(triage_codex_runner_mod._output_file_has_text)
@@ -47,7 +50,13 @@ def test_triage_helper_modules_direct_coverage_smoke() -> None:
     display_src = inspect.getsource(triage_display_mod)
     display_layout_src = inspect.getsource(triage_display_layout_mod)
     assert "from . import display as display_mod" not in display_layout_src
-    assert "from .display_primitives import print_stage_progress" in display_src
+    assert "from .primitives import print_stage_progress" in display_src
+
+    command_src = inspect.getsource(triage_command_mod)
+    assert "run_triage_workflow(" in command_src
+    assert "runner.orchestrator_codex_pipeline" not in command_src
+    assert "runner.orchestrator_claude" not in command_src
+    assert "stages import commands" not in command_src
 
 
 def test_count_log_activity_since_ignores_malformed_entries() -> None:

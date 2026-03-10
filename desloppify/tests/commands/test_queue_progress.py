@@ -481,7 +481,7 @@ def test_show_score_loads_plan_and_delegates():
     mock_plan = {"plan_start_scores": {"strict": 75.0}}
     with (
         patch(
-            "desloppify.engine.plan.load_plan",
+            "desloppify.app.commands.helpers.queue_progress.load_plan",
             return_value=mock_plan,
         ),
         patch(
@@ -496,7 +496,7 @@ def test_show_score_loads_plan_and_delegates():
 def test_show_score_handles_plan_load_failure():
     with (
         patch(
-            "desloppify.engine.plan.load_plan",
+            "desloppify.app.commands.helpers.queue_progress.load_plan",
             side_effect=OSError("no plan"),
         ),
         patch(

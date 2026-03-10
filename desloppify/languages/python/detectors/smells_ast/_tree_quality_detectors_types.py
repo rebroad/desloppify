@@ -38,7 +38,6 @@ def _dataclass_init_node_ids(
 def _detect_optional_param_sprawl(
     filepath: str,
     tree: ast.Module,
-    *,
     all_nodes: tuple[ast.AST, ...] | None = None,
 ) -> list[dict]:
     """Flag functions with too many optional parameters."""
@@ -82,7 +81,6 @@ _BARE_TYPES = {"dict", "list", "set", "tuple", "Dict", "List", "Set", "Tuple"}
 def _detect_annotation_quality(
     filepath: str,
     tree: ast.Module,
-    *,
     all_nodes: tuple[ast.AST, ...] | None = None,
 ) -> list[dict]:
     """Flag loose type annotations: bare containers, bare Callable, missing returns."""

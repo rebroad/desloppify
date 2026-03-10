@@ -87,8 +87,8 @@ def _resolve_generic_extractors(
     if not is_available():
         return file_finder, extract_fn, dep_graph_fn, has_treesitter, ts_spec
 
-    from desloppify.languages._framework.treesitter._extractors import make_ts_extractor
-    from desloppify.languages._framework.treesitter._import_graph import make_ts_dep_builder
+    from desloppify.languages._framework.treesitter.analysis.extractors import make_ts_extractor
+    from desloppify.languages._framework.treesitter.imports.graph import make_ts_dep_builder
 
     has_treesitter = True
     extract_fn = make_ts_extractor(ts_spec, file_finder)

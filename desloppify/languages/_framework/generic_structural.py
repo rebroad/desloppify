@@ -39,12 +39,12 @@ def _make_structural_phase(
         from desloppify.languages._framework.treesitter import is_available
 
         if is_available():
-            from desloppify.languages._framework.treesitter._complexity_function_metrics import (
+            from desloppify.languages._framework.treesitter.analysis.complexity_function_metrics import (
                 make_cyclomatic_complexity_compute,
                 make_long_functions_compute,
                 make_max_params_compute,
             )
-            from desloppify.languages._framework.treesitter._complexity_nesting import (
+            from desloppify.languages._framework.treesitter.analysis.complexity_nesting import (
                 make_callback_depth_compute,
                 make_nesting_depth_compute,
             )
@@ -148,7 +148,7 @@ def _extract_ts_classes(path, treesitter_spec, file_finder):
     try:
         from collections import defaultdict
 
-        from desloppify.languages._framework.treesitter._extractors import (
+        from desloppify.languages._framework.treesitter.analysis.extractors import (
             ts_extract_classes,
             ts_extract_functions,
         )

@@ -278,9 +278,9 @@ def _write_lang_layout(
 def test_validate_lang_structure_missing_file(tmp_path):
     lang_dir = tmp_path / "dummy_lang"
     lang_dir.mkdir()
-    _write_lang_layout(lang_dir, missing_files={"commands.py"})
+    _write_lang_layout(lang_dir, missing_files={"extractors.py"})
 
-    with pytest.raises(ValueError, match="missing required file: commands.py"):
+    with pytest.raises(ValueError, match="missing required file: extractors.py"):
         lang_mod.validate_lang_structure(lang_dir, "dummy")
 
 

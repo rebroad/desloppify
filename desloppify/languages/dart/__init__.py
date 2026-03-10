@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 from desloppify.base.discovery.paths import get_area
-from desloppify.engine.policy.zones import COMMON_ZONE_RULES, Zone, ZoneRule
 from desloppify.engine.hook_registry import register_lang_hooks
-from desloppify.languages import register_lang
-from desloppify.languages._framework import registry_state
+from desloppify.engine.policy.zones import COMMON_ZONE_RULES, Zone, ZoneRule
 from desloppify.languages._framework.base.phase_builders import (
     detector_phase_security,
     detector_phase_signature,
@@ -14,6 +12,7 @@ from desloppify.languages._framework.base.phase_builders import (
     shared_subjective_duplicates_tail,
 )
 from desloppify.languages._framework.base.types import DetectorPhase, LangConfig
+from desloppify.languages._framework.registration import register_full_plugin
 from desloppify.languages._framework.treesitter.phases import all_treesitter_phases
 from desloppify.languages.dart import test_coverage as dart_test_coverage_hooks
 from desloppify.languages.dart.commands import get_detect_commands
@@ -104,43 +103,31 @@ class DartConfig(LangConfig):
 
 def register() -> None:
     """Register Dart language config + hooks through an explicit entrypoint."""
+    register_full_plugin(
+        "dart",
+        DartConfig,
+        test_coverage=dart_test_coverage_hooks,
+    )
+
+
+def register_hooks() -> None:
+    """Register Dart hook modules without language-config bootstrap."""
     register_lang_hooks("dart", test_coverage=dart_test_coverage_hooks)
-    if registry_state.is_registered("dart"):
-        return
-    register_lang("dart")(DartConfig)
+
+
+Config = DartConfig
 
 
 __all__ = [
-    "get_area",
-    "COMMON_ZONE_RULES",
-    "Zone",
-    "ZoneRule",
-    "register_lang_hooks",
-    "register_lang",
-    "detector_phase_security",
-    "detector_phase_signature",
-    "detector_phase_test_coverage",
-    "shared_subjective_duplicates_tail",
-    "DetectorPhase",
-    "LangConfig",
-    "all_treesitter_phases",
-    "dart_test_coverage_hooks",
-    "get_detect_commands",
-    "build_dart_dep_graph",
-    "DART_FILE_EXCLUSIONS",
-    "extract_functions",
-    "find_dart_files",
-    "phase_coupling",
-    "phase_structural",
+    "Config",
+    "DartConfig",
+    "register",
+    "register_hooks",
+    "DART_ENTRY_PATTERNS",
+    "DART_ZONE_RULES",
     "HOLISTIC_REVIEW_DIMENSIONS",
     "LOW_VALUE_PATTERN",
     "MIGRATION_MIXED_EXTENSIONS",
     "MIGRATION_PATTERN_PAIRS",
     "REVIEW_GUIDANCE",
-    "api_surface",
-    "module_patterns",
-    "DART_ENTRY_PATTERNS",
-    "DART_ZONE_RULES",
-    "DartConfig",
-    "register",
 ]

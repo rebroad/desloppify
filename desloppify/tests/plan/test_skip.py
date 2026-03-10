@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from desloppify.engine._plan.operations_cluster import (
+from desloppify.engine._plan.operations.cluster import (
     add_to_cluster,
     create_cluster,
 )
-from desloppify.engine._plan.operations_lifecycle import purge_ids
-from desloppify.engine._plan.operations_meta import append_log_entry
-from desloppify.engine._plan.operations_queue import move_items
-from desloppify.engine._plan.operations_skip import (
+from desloppify.engine._plan.operations.lifecycle import purge_ids
+from desloppify.engine._plan.operations.meta import append_log_entry
+from desloppify.engine._plan.operations.queue import move_items
+from desloppify.engine._plan.operations.skip import (
     resurface_stale_skips,
     skip_items,
     unskip_items,
@@ -402,7 +402,7 @@ def test_append_log_entry_basic():
 
 
 def test_append_log_entry_caps_at_default(monkeypatch):
-    import desloppify.engine._plan.operations_meta as ops_meta_mod
+    import desloppify.engine._plan.operations.meta as ops_meta_mod
 
     cap = 500
     monkeypatch.setattr(ops_meta_mod, "_get_log_cap", lambda: cap)
@@ -419,7 +419,7 @@ def test_append_log_entry_caps_at_default(monkeypatch):
 
 
 def test_append_log_entry_uncapped(monkeypatch):
-    import desloppify.engine._plan.operations_meta as ops_meta_mod
+    import desloppify.engine._plan.operations.meta as ops_meta_mod
 
     monkeypatch.setattr(ops_meta_mod, "_get_log_cap", lambda: 0)
 
@@ -432,7 +432,7 @@ def test_append_log_entry_uncapped(monkeypatch):
 
 
 def test_append_log_entry_custom_cap(monkeypatch):
-    import desloppify.engine._plan.operations_meta as ops_meta_mod
+    import desloppify.engine._plan.operations.meta as ops_meta_mod
 
     monkeypatch.setattr(ops_meta_mod, "_get_log_cap", lambda: 50)
 

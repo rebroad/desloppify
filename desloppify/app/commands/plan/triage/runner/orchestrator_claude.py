@@ -19,8 +19,21 @@ def run_claude_orchestrator(
     """Print orchestrator instructions for Claude Code agent."""
     resolved_services = services or default_triage_services()
     _repo_root = get_project_root()
+    state = None
+    if hasattr(resolved_services, "command_runtime"):
+        runtime = resolved_services.command_runtime(args)
+        state = runtime.state
     plan = resolved_services.load_plan()
-    ensure_triage_started(plan, resolved_services, runner="claude")
+    ensure_triage_started(
+        plan,
+        resolved_services,
+        runner="claude",
+        state=state,
+        attestation=getattr(args, "attestation", None),
+    )
+    plan = resolved_services.load_plan()
+    if plan.get("epic_triage_meta", {}).get("triage_start_blocked"):
+        return
 
     print(colorize("\n  Claude triage orchestrator mode.", "bold"))
     print(colorize("  " + "─" * 60, "dim"))

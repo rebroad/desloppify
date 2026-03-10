@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import desloppify.app.commands.plan.triage.stage_helpers as stage_helpers_mod
+import desloppify.app.commands.plan.triage.stages.helpers as stage_helpers_mod
 from desloppify.app.commands.plan.triage.helpers import inject_triage_stages
 from desloppify.engine._plan.constants import TRIAGE_STAGE_IDS
 
@@ -52,21 +52,6 @@ def test_validate_stage_report_accepts_and_strips_valid_report() -> None:
         min_chars=20,
     )
     assert result == "this report is definitely long enough"
-
-
-def test_triage_coverage_delegates_to_primary_helper(monkeypatch) -> None:
-    plan = {"queue_order": []}
-
-    def fake_coverage(_plan):
-        assert _plan is plan
-        return (2, 5, {"cluster-a": {"issue_ids": ["review::x"]}})
-
-    monkeypatch.setattr(stage_helpers_mod, "_triage_coverage_helper", fake_coverage)
-    assert stage_helpers_mod.triage_coverage(plan) == (
-        2,
-        5,
-        {"cluster-a": {"issue_ids": ["review::x"]}},
-    )
 
 
 def test_unenriched_clusters_flags_missing_requirements() -> None:

@@ -9,14 +9,16 @@ from typing import NamedTuple
 
 from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS
 from desloppify.base.output.terminal import colorize
-from desloppify.engine.plan import (
-    add_uncommitted_issues,
+from desloppify.engine.plan_ops import (
     append_log_entry,
     auto_complete_steps,
-    clear_postflight_scan_completion,
+    purge_ids,
+)
+from desloppify.engine.plan_queue import clear_postflight_scan_completion
+from desloppify.engine.plan_state import (
+    add_uncommitted_issues,
     has_living_plan,
     load_plan,
-    purge_ids,
     purge_uncommitted_ids,
     save_plan,
 )

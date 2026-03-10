@@ -78,7 +78,6 @@ def _match_startswith_slash(filepath: str, node: ast.Call) -> dict | None:
 def _detect_hardcoded_path_sep(
     filepath: str,
     tree: ast.Module,
-    *,
     all_nodes: tuple[ast.AST, ...] | None = None,
 ) -> list[dict]:
     """Flag path-string checks that hardcode '/' separators."""

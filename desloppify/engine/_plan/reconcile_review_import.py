@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from desloppify.engine._plan.schema import PlanModel, ensure_plan_defaults
-from desloppify.engine._plan.sync_triage import (
+from desloppify.engine._plan.sync.triage import (
+    compute_open_issue_ids,
     compute_new_issue_ids,
     sync_triage_needed,
 )
@@ -23,6 +24,25 @@ class ReviewImportSyncResult:
     triage_deferred: bool = False
 
 
+def _has_triage_baseline(plan: PlanModel) -> bool:
+    """Return True when triage has recorded at least one baseline issue ID."""
+    meta = plan.get("epic_triage_meta", {})
+    triaged_ids = meta.get("triaged_ids", [])
+    return bool(triaged_ids)
+
+
+def _review_issue_ids_for_import_sync(plan: PlanModel, state: StateModel) -> set[str]:
+    """Return review IDs that should be synced into queue_order after import.
+
+    No triage baseline yet: include all currently-open review IDs so the
+    first import cannot drop follow-up work.
+    Existing triage baseline: include only IDs that are new since triage.
+    """
+    if _has_triage_baseline(plan):
+        return compute_new_issue_ids(plan, state)
+    return compute_open_issue_ids(state)
+
+
 def sync_plan_after_review_import(
     plan: PlanModel,
     state: StateModel,
@@ -36,7 +56,7 @@ def sync_plan_after_review_import(
     remains).  Returns None when there are no new issues to sync.
     """
     ensure_plan_defaults(plan)
-    new_ids = compute_new_issue_ids(plan, state)
+    new_ids = _review_issue_ids_for_import_sync(plan, state)
     if not new_ids:
         return None
 

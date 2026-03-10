@@ -8,10 +8,10 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from desloppify import state as state_mod
 from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS
 from desloppify.base.output.terminal import colorize
-from desloppify.engine import plan as plan_mod
+from desloppify.engine.plan_state import load_plan
+from desloppify.state_scoring import score_snapshot
 from desloppify.engine._work_queue import core as work_queue_core_mod
 from desloppify.engine._work_queue.helpers import is_subjective_queue_item
 from desloppify.engine._work_queue.plan_order import collapse_clusters
@@ -249,7 +249,7 @@ def print_execution_or_reveal(
         print_frozen_score_with_queue_context(
             breakdown,
             frozen_strict=frozen_strict,
-            live_score=state_mod.score_snapshot(state).strict,
+            live_score=score_snapshot(state).strict,
         )
         return
 
@@ -270,7 +270,7 @@ def show_score_with_plan_context(state: dict, prev) -> None:
     choreography so command modules don't each repeat it.
     """
     try:
-        plan = plan_mod.load_plan()
+        plan = load_plan()
     except PLAN_LOAD_EXCEPTIONS as exc:
         _logger.debug("score display skipped plan-aware context", exc_info=exc)
         plan = None

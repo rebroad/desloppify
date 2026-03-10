@@ -16,7 +16,7 @@ from desloppify.base.config import target_strict_score_from_config
 from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS, CommandError
 from desloppify.base.output.terminal import colorize
 from desloppify.base.tooling import check_config_staleness
-from desloppify.engine.plan import load_plan
+from desloppify.engine.plan_state import load_plan
 from desloppify.intelligence.narrative.core import NarrativeContext, compute_narrative
 
 from .concerns_view import _show_concerns

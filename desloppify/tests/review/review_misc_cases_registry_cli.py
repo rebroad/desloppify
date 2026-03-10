@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from desloppify.cli import create_parser
 from desloppify.base.registry import DETECTORS, display_order
 from desloppify.intelligence.review import (
@@ -25,6 +27,10 @@ class TestRegistry:
 
     def test_review_in_display_order(self):
         assert "review" in display_order()
+
+    def test_detector_registry_mapping_is_read_only(self):
+        with pytest.raises(TypeError):
+            DETECTORS["_tmp"] = DETECTORS["review"]  # type: ignore[index]
 
 
 # ── Dimension prompts tests ───────────────────────────────────────
@@ -166,5 +172,4 @@ class TestCLI:
 
 
 # ── New dimension tests ──────────────────────────────────────────
-
 

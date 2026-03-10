@@ -21,6 +21,11 @@ def _write(tmp_path: Path, name: str, content: str) -> Path:
     return p
 
 
+def _detect(path: Path) -> tuple[list[dict], int]:
+    result = deprecated_detector_mod.detect_deprecated_result(path)
+    return result.entries, result.population_size
+
+
 # ── _extract_deprecated_symbol ───────────────────────────────
 
 
@@ -142,8 +147,7 @@ class TestDetectDeprecated:
                 "export function oldHelper() { return null; }\n"
             ),
         )
-        result = deprecated_detector_mod.detect_deprecated_result(tmp_path)
-        entries, count = result.as_tuple()
+        entries, count = _detect(tmp_path)
         assert len(entries) >= 1
         assert entries[0]["symbol"] == "oldHelper"
         assert entries[0]["kind"] == "top-level"
@@ -162,14 +166,14 @@ class TestDetectDeprecated:
                 "export function oldThing() {}\n"
             ),
         )
-        entries, _ = deprecated_detector_mod.detect_deprecated_result(tmp_path).as_tuple()
+        entries, _ = _detect(tmp_path)
         symbols = [e["symbol"] for e in entries if e["symbol"] == "oldThing"]
         assert len(symbols) <= 1
 
     def test_empty_directory(self, tmp_path):
         """Empty directory returns no entries."""
 
-        entries, count = deprecated_detector_mod.detect_deprecated_result(tmp_path).as_tuple()
+        entries, count = _detect(tmp_path)
         assert entries == []
         assert count == 0
 
@@ -177,7 +181,7 @@ class TestDetectDeprecated:
         """Files without @deprecated produce no entries."""
 
         _write(tmp_path, "clean.ts", "export function activeHelper() { return 1; }\n")
-        entries, _ = deprecated_detector_mod.detect_deprecated_result(tmp_path).as_tuple()
+        entries, _ = _detect(tmp_path)
         assert entries == []
 
     def test_distinguishes_top_level_and_property(self, tmp_path):
@@ -197,7 +201,7 @@ class TestDetectDeprecated:
                 "}\n"
             ),
         )
-        entries, _ = deprecated_detector_mod.detect_deprecated_result(tmp_path).as_tuple()
+        entries, _ = _detect(tmp_path)
         kinds = {e["kind"] for e in entries}
         assert "top-level" in kinds
         assert "property" in kinds
@@ -214,6 +218,6 @@ class TestDetectDeprecated:
                 "export function oldFunc() {}\n"
             ),
         )
-        entries, _ = deprecated_detector_mod.detect_deprecated_result(tmp_path).as_tuple()
+        entries, _ = _detect(tmp_path)
         symbols = {e["symbol"] for e in entries}
         assert "oldFunc" in symbols

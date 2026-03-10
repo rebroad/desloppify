@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from types import SimpleNamespace
 
-import desloppify.app.commands.plan.commit_log_handlers as commit_log_mod
+import desloppify.app.commands.plan.commit_log.dispatch as commit_log_mod
 
 
 # ---------------------------------------------------------------------------

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from desloppify.engine._plan.subjective_policy import NON_OBJECTIVE_DETECTORS
+from desloppify.engine.plan_queue import NON_OBJECTIVE_DETECTORS
 from desloppify.engine._work_queue.types import WorkQueueItem
 
 
@@ -36,6 +36,11 @@ def _is_endgame_only(item: WorkQueueItem) -> bool:
     )
 
 
+def _has_endgame_subjective(items: list[WorkQueueItem]) -> bool:
+    """True if any non-initial subjective review items are pending."""
+    return any(_is_endgame_only(item) for item in items)
+
+
 def _has_triage_stages(items: list[WorkQueueItem]) -> bool:
     """True if any pending triage stage items are in the queue."""
     return any(
@@ -53,6 +58,11 @@ def _is_triage_stage(item: WorkQueueItem) -> bool:
     )
 
 
+def _is_force_visible(item: WorkQueueItem) -> bool:
+    """True when the item is explicitly escalated past objective gating."""
+    return bool(item.get("force_visible"))
+
+
 def apply_lifecycle_filter(items: list[WorkQueueItem]) -> list[WorkQueueItem]:
     """Enforce lifecycle visibility rules."""
     if _has_initial_reviews(items):
@@ -60,12 +70,24 @@ def apply_lifecycle_filter(items: list[WorkQueueItem]) -> list[WorkQueueItem]:
             item for item in items
             if item.get("kind") == "subjective_dimension" and item.get("initial_review")
         ]
+    # Enforce fixed endgame phase order:
+    #   subjective review -> score workflow -> triage
+    # When non-initial subjective reruns are pending and objective work is
+    # already drained, keep focus on subjective reruns and defer workflow/triage.
+    if _has_endgame_subjective(items) and not _has_objective_items(items):
+        return [
+            item for item in items
+            if _is_endgame_only(item) or _is_force_visible(item)
+        ]
     if _has_triage_stages(items):
         # Triage should not block while objective queue work still exists.
         if _has_objective_items(items):
             return [
                 item for item in items
-                if not _is_triage_stage(item) and not _is_endgame_only(item)
+                if (
+                    (not _is_triage_stage(item) or _is_force_visible(item))
+                    and (not _is_endgame_only(item) or _is_force_visible(item))
+                )
             ]
         return [
             item for item in items
@@ -73,7 +95,7 @@ def apply_lifecycle_filter(items: list[WorkQueueItem]) -> list[WorkQueueItem]:
         ]
     if not _has_objective_items(items):
         return items
-    return [item for item in items if not _is_endgame_only(item)]
+    return [item for item in items if not _is_endgame_only(item) or _is_force_visible(item)]
 
 
 __all__ = ["apply_lifecycle_filter"]

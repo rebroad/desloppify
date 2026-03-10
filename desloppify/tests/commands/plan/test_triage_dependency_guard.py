@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 import desloppify.app.commands.plan.override_resolve_cmd as override_mod
+import desloppify.app.commands.plan.override_resolve_workflow as override_workflow_mod
 from desloppify.app.commands.plan.override_resolve_helpers import blocked_triage_stages as _blocked_triage_stages
 from desloppify.engine._plan.schema import empty_plan
 from desloppify.engine._plan.constants import TRIAGE_STAGE_IDS
@@ -89,10 +90,10 @@ def test_plan_resolve_rejects_blocked_triage_stage(monkeypatch, capsys):
     """cmd_plan_resolve refuses to resolve triage::reflect when observe is incomplete."""
     plan = _plan_with_triage_stages()  # nothing confirmed
 
-    monkeypatch.setattr(override_mod, "load_plan", lambda *a, **kw: plan)
+    monkeypatch.setattr(override_workflow_mod, "load_plan", lambda *a, **kw: plan)
 
     saved_plans = []
-    monkeypatch.setattr(override_mod, "save_plan", lambda p, *a, **kw: saved_plans.append(p))
+    monkeypatch.setattr(override_workflow_mod, "save_plan", lambda p, *a, **kw: saved_plans.append(p))
 
     args = _args(patterns=["triage::reflect"])
     override_mod.cmd_plan_resolve(args)
@@ -108,10 +109,10 @@ def test_plan_resolve_allows_unblocked_triage_stage(monkeypatch, capsys):
     """cmd_plan_resolve resolves triage::reflect when observe is already confirmed."""
     plan = _plan_with_triage_stages("observe")  # observe confirmed
 
-    monkeypatch.setattr(override_mod, "load_plan", lambda *a, **kw: plan)
+    monkeypatch.setattr(override_workflow_mod, "load_plan", lambda *a, **kw: plan)
 
     saved_plans = []
-    monkeypatch.setattr(override_mod, "save_plan", lambda p, *a, **kw: saved_plans.append(p))
+    monkeypatch.setattr(override_workflow_mod, "save_plan", lambda p, *a, **kw: saved_plans.append(p))
 
     args = _args(patterns=["triage::reflect"])
     override_mod.cmd_plan_resolve(args)
@@ -125,10 +126,10 @@ def test_plan_resolve_force_resolve_overrides_block(monkeypatch, capsys):
     """--force-resolve allows resolving a blocked triage stage."""
     plan = _plan_with_triage_stages()  # nothing confirmed
 
-    monkeypatch.setattr(override_mod, "load_plan", lambda *a, **kw: plan)
+    monkeypatch.setattr(override_workflow_mod, "load_plan", lambda *a, **kw: plan)
 
     saved_plans = []
-    monkeypatch.setattr(override_mod, "save_plan", lambda p, *a, **kw: saved_plans.append(p))
+    monkeypatch.setattr(override_workflow_mod, "save_plan", lambda p, *a, **kw: saved_plans.append(p))
 
     args = _args(patterns=["triage::reflect"], force_resolve=True)
     override_mod.cmd_plan_resolve(args)
@@ -143,10 +144,10 @@ def test_plan_resolve_observe_is_never_blocked(monkeypatch, capsys):
     """triage::observe has no dependencies — always resolvable."""
     plan = _plan_with_triage_stages()  # nothing confirmed
 
-    monkeypatch.setattr(override_mod, "load_plan", lambda *a, **kw: plan)
+    monkeypatch.setattr(override_workflow_mod, "load_plan", lambda *a, **kw: plan)
 
     saved_plans = []
-    monkeypatch.setattr(override_mod, "save_plan", lambda p, *a, **kw: saved_plans.append(p))
+    monkeypatch.setattr(override_workflow_mod, "save_plan", lambda p, *a, **kw: saved_plans.append(p))
 
     args = _args(patterns=["triage::observe"])
     override_mod.cmd_plan_resolve(args)

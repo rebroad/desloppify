@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import json
 import logging
 import os
 from pathlib import Path
@@ -18,6 +19,12 @@ logger = logging.getLogger(__name__)
 # Broader than PARSE_INIT_ERRORS: plugin imports may also raise SyntaxError/TypeError.
 _PLUGIN_IMPORT_ERRORS: tuple[type[Exception], ...] = (
     ImportError, SyntaxError, ValueError, TypeError, RuntimeError, OSError,
+)
+_PLUGIN_CONFIG_LOAD_ERRORS: tuple[type[Exception], ...] = (
+    OSError,
+    ValueError,
+    UnicodeDecodeError,
+    json.JSONDecodeError,
 )
 
 
@@ -58,7 +65,7 @@ def _report_load_errors_for_load_all() -> None:
         return
 
 
-def _user_plugins_trusted() -> bool:
+def _user_plugins_trusted(*, load_config_fn=None) -> bool:
     """Check whether the user has opted in to loading project-local plugins.
 
     Returns *True* when either:
@@ -67,11 +74,13 @@ def _user_plugins_trusted() -> bool:
     """
     if os.environ.get("DESLOPPIFY_TRUST_PLUGINS") == "1":
         return True
+    resolved_load_config = load_config_fn
+    if resolved_load_config is None:
+        from desloppify.base.config import load_config as resolved_load_config
     try:
-        from desloppify.base.config import load_config
-        config = load_config()
+        config = resolved_load_config()
         return bool(config.get("trust_plugins", False))
-    except Exception:  # noqa: BLE001 — config failures must not block discovery
+    except _PLUGIN_CONFIG_LOAD_ERRORS:
         return False
 
 
@@ -79,7 +88,7 @@ def load_all(*, force_reload: bool = False) -> None:
     """Import all language modules to trigger registration."""
     if force_reload:
         registry_state.clear()
-    elif registry_state.was_load_attempted():
+    elif registry_state.was_load_attempted() and registry_state.all_keys():
         _report_load_errors_for_load_all()
         return
 
@@ -150,7 +159,7 @@ def load_all(*, force_reload: bool = False) -> None:
                                 "User plugin import failed for %s: %s", f.name, ex
                             )
                             failures[f"user:{f.name}"] = ex
-    except (OSError, ImportError) as exc:
+    except OSError as exc:
         log_best_effort_failure(logger, "discover user plugins", exc)
 
     registry_state.set_load_errors(failures)

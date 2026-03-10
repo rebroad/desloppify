@@ -26,9 +26,9 @@ def test_validate_lang_structure_reports_missing_required_file(tmp_path):
     lang_dir = tmp_path / "dummy"
     lang_dir.mkdir()
     _write_layout(lang_dir)
-    (lang_dir / "commands.py").unlink()
+    (lang_dir / "extractors.py").unlink()
 
-    with pytest.raises(ValueError, match="missing required file: commands.py"):
+    with pytest.raises(ValueError, match="missing required file: extractors.py"):
         validate_lang_structure(lang_dir, "dummy")
 
 
@@ -38,5 +38,5 @@ def test_validate_lang_structure_accepts_valid_layout(tmp_path):
     _write_layout(lang_dir)
 
     validate_lang_structure(lang_dir, "dummy")
-    assert (lang_dir / "commands.py").exists()
+    assert (lang_dir / "extractors.py").exists()
     assert (lang_dir / "tests" / "test_smoke.py").exists()

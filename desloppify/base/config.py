@@ -5,6 +5,8 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import shutil
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -41,13 +43,78 @@ def _default_config_file() -> Path:
 logger = logging.getLogger(__name__)
 
 
+def _load_config_json(path: Path) -> dict[str, Any]:
+    payload = json.loads(path.read_text())
+    if not isinstance(payload, dict):
+        raise ValueError("config file root must be a JSON object")
+    return payload
+
+
 def _load_config_payload(path: Path) -> dict[str, Any]:
     if path.exists():
         try:
-            payload = json.loads(path.read_text())
-        except (json.JSONDecodeError, UnicodeDecodeError, OSError):
+            return _load_config_json(path)
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError, ValueError) as ex:
+            backup = path.with_suffix(".json.bak")
+            if backup.exists():
+                logger.warning(
+                    "Primary config load failed for %s; attempting backup %s: %s",
+                    path,
+                    backup,
+                    ex,
+                )
+                try:
+                    backup_payload = _load_config_json(backup)
+                    logger.warning(
+                        "Recovered config from backup %s after primary load failure at %s",
+                        backup,
+                        path,
+                    )
+                    print(
+                        f"  ⚠ Config file corrupted ({ex}), loaded from backup.",
+                        file=sys.stderr,
+                    )
+                    return backup_payload
+                except (
+                    json.JSONDecodeError,
+                    UnicodeDecodeError,
+                    OSError,
+                    ValueError,
+                ) as backup_ex:
+                    logger.warning(
+                        "Backup config load failed from %s after corruption in %s: %s",
+                        backup,
+                        path,
+                        backup_ex,
+                    )
+                    logger.debug(
+                        "Backup config load failed from %s: %s",
+                        backup,
+                        backup_ex,
+                    )
+            logger.warning(
+                "Config file load failed for %s and backup recovery was unavailable. "
+                "Falling back to defaults: %s",
+                path,
+                ex,
+            )
+            print(f"  ⚠ Config file corrupted ({ex}). Using defaults.", file=sys.stderr)
+            rename_failed = False
+            try:
+                path.rename(path.with_suffix(".json.corrupted"))
+            except OSError as rename_ex:
+                rename_failed = True
+                logger.debug(
+                    "Failed to rename corrupted config file %s: %s",
+                    path,
+                    rename_ex,
+                )
+            if rename_failed:
+                logger.debug(
+                    "Corrupted config file retained at original path: %s",
+                    path,
+                )
             return {}
-        return payload if isinstance(payload, dict) else {}
     # First run — try migrating from state files
     return _migrate_from_state_files(path)
 
@@ -105,6 +172,16 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
 def save_config(config: dict, path: Path | None = None) -> None:
     """Save config to disk atomically."""
     p = path or _default_config_file()
+    if p.exists():
+        backup = p.with_suffix(".json.bak")
+        try:
+            shutil.copy2(str(p), str(backup))
+        except OSError as backup_ex:
+            logger.debug(
+                "Failed to create config backup %s: %s",
+                backup,
+                backup_ex,
+            )
     safe_write_text(p, json.dumps(config, indent=2) + "\n")
 
 

@@ -16,7 +16,7 @@ from types import SimpleNamespace
 
 import desloppify.app.commands.scan.plan_reconcile as reconcile_mod
 from desloppify.base.subjective_dimensions import DISPLAY_NAMES
-from desloppify.engine._plan.operations_lifecycle import purge_ids
+from desloppify.engine._plan.operations.lifecycle import purge_ids
 from desloppify.engine._plan.schema import empty_plan
 from desloppify.engine._plan.constants import (
     TRIAGE_STAGE_IDS,
@@ -124,6 +124,18 @@ def _spoof_reviews_complete(state: dict) -> None:
     state["objective_score"] = 80.0
 
 
+def _complete_endgame_subjective_reruns(state: dict) -> None:
+    """Mark scored subjective dimensions as fully current/high to clear rerun queue."""
+    for key in DIM_KEYS:
+        assessment = state["subjective_assessments"].setdefault(key, {})
+        assessment["placeholder"] = False
+        assessment["needs_review_refresh"] = False
+        assessment["score"] = 100.0
+        dim = state["dimension_scores"][DIM_DISPLAY[key]]
+        dim["score"] = 100.0
+        dim["strict"] = 100.0
+
+
 def _add_review_issues(state: dict) -> None:
     """Mutate state in place: add review detector issues that trigger triage."""
     for key in ("naming_quality", "logic_clarity"):
@@ -206,6 +218,44 @@ class TestScanAfterReviewsInjectsWorkflow:
 
 
 # ---------------------------------------------------------------------------
+# Phase-order contract: subjective -> score -> triage (after objective drains)
+# ---------------------------------------------------------------------------
+
+class TestPhaseOrderInvariant:
+
+    def test_subjective_then_score_then_triage(self):
+        """Endgame queue order is fixed once objective backlog is drained."""
+        state = _build_state(
+            [],
+            [_scored_dim_entries("naming_quality", 80.0)],
+            strict_score=76.2,
+            overall_score=80.1,
+            objective_score=99.9,
+        )
+        state["subjective_assessments"]["naming_quality"]["needs_review_refresh"] = True
+        plan = empty_plan()
+        plan["queue_order"] = [
+            WORKFLOW_COMMUNICATE_SCORE_ID,
+            "triage::observe",
+            "subjective::naming_quality",
+        ]
+
+        # Subjective reruns must block score + triage until completed.
+        ids = _queue_ids(state, plan)
+        assert ids == ["subjective::naming_quality"]
+
+        # After subjective rerun completion, score workflow appears before triage.
+        state["subjective_assessments"]["naming_quality"]["needs_review_refresh"] = False
+        state["subjective_assessments"]["naming_quality"]["score"] = 100.0
+        state["dimension_scores"][DIM_DISPLAY["naming_quality"]]["score"] = 100.0
+        state["dimension_scores"][DIM_DISPLAY["naming_quality"]]["strict"] = 100.0
+        ids = _queue_ids(state, plan)
+        assert WORKFLOW_COMMUNICATE_SCORE_ID in ids
+        assert "triage::observe" in ids
+        assert ids.index(WORKFLOW_COMMUNICATE_SCORE_ID) < ids.index("triage::observe")
+
+
+# ---------------------------------------------------------------------------
 # Test 4: Triage injected when review issues appear
 # ---------------------------------------------------------------------------
 
@@ -232,9 +282,14 @@ class TestTriageInjectedOnScan:
         # Triage stages are still injected in plan order.
         assert all(sid in plan["queue_order"] for sid in TRIAGE_STAGE_IDS)
 
-        # Once objective queue drains, triage becomes visible.
+        # Once objective queue drains, subjective reruns are shown first.
         state["issues"]["obj-1"]["status"] = "fixed"
         state["issues"]["obj-2"]["status"] = "fixed"
+        ids = _queue_ids(state, plan)
+        assert all(fid.startswith("subjective::") for fid in ids), ids
+
+        # After subjective reruns complete, triage becomes visible.
+        _complete_endgame_subjective_reruns(state)
         ids = _queue_ids(state, plan)
         triage_ids = [fid for fid in ids if fid.startswith("triage::")]
         assert len(triage_ids) == len(TRIAGE_STAGE_IDS), ids
@@ -291,10 +346,16 @@ class TestFullLifecycleGoldenPath:
         assert plan["epic_triage_meta"].get("triage_recommended"), "triage_recommended flag expected"
         assert "obj-1" in ids and "obj-2" in ids, f"Scan 3: {ids}"
 
-        # ── Complete objective queue → rescan injects triage ──
+        # ── Complete objective queue → rescan injects triage in plan, but
+        #    lifecycle shows subjective reruns first ──
         state["issues"]["obj-1"]["status"] = "fixed"
         state["issues"]["obj-2"]["status"] = "fixed"
         plan = _reconcile(state, plan, monkeypatch)
+        ids = _queue_ids(state, plan)
+        assert all(fid.startswith("subjective::") for fid in ids), f"Subjective phase: {ids}"
+
+        # ── Complete subjective reruns → triage unlocks ──
+        _complete_endgame_subjective_reruns(state)
         ids = _queue_ids(state, plan)
         triage_ids = [fid for fid in ids if fid.startswith("triage::")]
         assert len(triage_ids) == len(TRIAGE_STAGE_IDS), f"Triage unlock: {ids}"

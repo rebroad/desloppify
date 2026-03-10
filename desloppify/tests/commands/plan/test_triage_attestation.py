@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import argparse
 
-import desloppify.app.commands.plan.triage_handlers as triage_mod
-from desloppify.app.commands.plan.triage.confirmations_basic import (
+import desloppify.app.commands.plan.triage.command as triage_mod
+from desloppify.app.commands.plan.triage.confirmations.basic import (
     MIN_ATTESTATION_LEN,
     validate_attestation,
 )

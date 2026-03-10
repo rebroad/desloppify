@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import desloppify.engine._plan.auto_cluster_sync as sync_mod
-from desloppify.engine._plan.subjective_policy import SubjectiveVisibility
+from desloppify.engine._plan.policy.subjective import SubjectiveVisibility
 
 
 NOW = "2026-03-08T00:00:00Z"
@@ -187,6 +187,93 @@ def test_sync_subjective_clusters_evicts_under_target_ids_when_objective_exists(
     assert changes == 2
     assert plan["queue_order"] == ["unused::x"]
     assert "auto/under-target-review" not in plan["clusters"]
+
+
+def test_sync_subjective_clusters_escalates_after_repeated_defers() -> None:
+    plan = {
+        "queue_order": ["unused::x"],
+        "clusters": {},
+        "overrides": {},
+    }
+    existing_by_key: dict[str, str] = {}
+    active_auto_keys: set[str] = set()
+    issues = {"unused::x": _unused_issue("unused::x")}
+
+    policy = SubjectiveVisibility(
+        has_objective_backlog=True,
+        objective_count=1,
+        unscored_ids=frozenset(),
+        stale_ids=frozenset({"subjective::architecture"}),
+        under_target_ids=frozenset({"subjective::api_surface"}),
+    )
+
+    state = {
+        "issues": issues,
+        "scan_count": 1,
+        "last_scan": "2026-03-01T00:00:00+00:00",
+    }
+    sync_mod.sync_subjective_clusters(
+        plan,
+        state=state,
+        issues=issues,
+        clusters=plan["clusters"],
+        existing_by_key=existing_by_key,
+        active_auto_keys=active_auto_keys,
+        now=NOW,
+        target_strict=95.0,
+        policy=policy,
+        cycle_just_completed=False,
+    )
+    assert plan["subjective_defer_meta"]["defer_count"] == 1
+    assert plan["subjective_defer_meta"]["deferred_review_ids"] == [
+        "subjective::api_surface",
+        "subjective::architecture",
+    ]
+    assert "force_visible_ids" not in plan["subjective_defer_meta"]
+
+    state["scan_count"] = 2
+    state["last_scan"] = "2026-03-02T00:00:00+00:00"
+    sync_mod.sync_subjective_clusters(
+        plan,
+        state=state,
+        issues=issues,
+        clusters=plan["clusters"],
+        existing_by_key=existing_by_key,
+        active_auto_keys=active_auto_keys,
+        now=NOW,
+        target_strict=95.0,
+        policy=policy,
+        cycle_just_completed=False,
+    )
+    assert plan["subjective_defer_meta"]["defer_count"] == 2
+    assert plan["queue_order"] == ["unused::x"]
+
+    state["scan_count"] = 3
+    state["last_scan"] = "2026-03-03T00:00:00+00:00"
+    sync_mod.sync_subjective_clusters(
+        plan,
+        state=state,
+        issues=issues,
+        clusters=plan["clusters"],
+        existing_by_key=existing_by_key,
+        active_auto_keys=active_auto_keys,
+        now=NOW,
+        target_strict=95.0,
+        policy=policy,
+        cycle_just_completed=False,
+    )
+
+    defer_meta = plan["subjective_defer_meta"]
+    assert defer_meta["defer_count"] == 3
+    assert defer_meta["force_visible_ids"] == [
+        "subjective::api_surface",
+        "subjective::architecture",
+    ]
+    assert plan["queue_order"][:2] == [
+        "subjective::api_surface",
+        "subjective::architecture",
+    ]
+    assert "unused::x" in plan["queue_order"]
 
 
 def test_subjective_state_sets_fallback_uses_module_helpers(monkeypatch) -> None:

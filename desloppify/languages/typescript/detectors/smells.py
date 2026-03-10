@@ -6,8 +6,6 @@ import logging
 import re
 from pathlib import Path
 
-from desloppify.base.discovery.paths import get_project_root
-from desloppify.base.discovery.source import find_ts_and_tsx_files
 from desloppify.base.output.fallbacks import log_best_effort_failure
 from desloppify.languages.typescript.detectors._smell_detectors_flow import (
     _detect_async_no_await,
@@ -37,6 +35,10 @@ from desloppify.languages.typescript.detectors.smells_catalog import (
     SEVERITY_ORDER,
     TS_SMELL_CHECKS,
 )
+from desloppify.languages.typescript.detectors.io import (
+    iter_typescript_sources,
+    resolve_typescript_source,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,13 +62,11 @@ def detect_smells(path: Path) -> tuple[list[dict], int]:
     """Detect TypeScript/React smell patterns across project sources."""
     checks = TS_SMELL_CHECKS
     smell_counts: dict[str, list[dict]] = {s["id"]: [] for s in checks}
-    files = find_ts_and_tsx_files(path)
+    files = iter_typescript_sources(path)
 
     for filepath in files:
-        if "node_modules" in filepath or ".d.ts" in filepath:
-            continue
         try:
-            p = Path(filepath) if Path(filepath).is_absolute() else get_project_root() / filepath
+            p = resolve_typescript_source(filepath)
             content = p.read_text()
             lines = content.splitlines()
         except (OSError, UnicodeDecodeError) as exc:

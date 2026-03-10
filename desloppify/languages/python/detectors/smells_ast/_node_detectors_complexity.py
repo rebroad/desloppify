@@ -22,8 +22,13 @@ def _compute_cyclomatic_complexity(node: ast.AST) -> int:
     return complexity
 
 
-def _detect_high_cyclomatic_complexity(filepath: str, node: ast.AST) -> list[dict]:
+def _detect_high_cyclomatic_complexity(
+    filepath: str,
+    node: ast.AST,
+    tree: ast.Module | None = None,
+) -> list[dict]:
     """Flag functions with cyclomatic complexity > 12."""
+    del tree
     complexity = _compute_cyclomatic_complexity(node)
     if complexity > 12:
         return [

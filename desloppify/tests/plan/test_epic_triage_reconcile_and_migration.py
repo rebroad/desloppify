@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from desloppify.engine._plan.epic_triage import TriageResult, apply_triage_to_plan
+from desloppify.engine._plan.triage.core import TriageResult, apply_triage_to_plan
 from desloppify.engine._plan.reconcile import reconcile_plan_after_scan
 from desloppify.engine._plan.schema import empty_plan, ensure_plan_defaults, triage_clusters
 
@@ -89,7 +89,7 @@ class TestReconcileWithEpics:
 
 class TestOperationsCompat:
     def test_create_cluster_rejects_epic_prefix(self):
-        from desloppify.engine._plan.operations_cluster import create_cluster
+        from desloppify.engine._plan.operations.cluster import create_cluster
         plan = empty_plan()
         try:
             create_cluster(plan, "epic/test")
@@ -98,7 +98,7 @@ class TestOperationsCompat:
             assert "epic/" in str(e)
 
     def test_set_focus_with_epic(self):
-        from desloppify.engine._plan.operations_lifecycle import set_focus
+        from desloppify.engine._plan.operations.lifecycle import set_focus
         plan = empty_plan()
         plan["clusters"]["epic/test"] = {
             "name": "epic/test",

@@ -76,15 +76,15 @@ class AssessmentImportPolicy(TypedDict, total=False):
 
 
 class ReviewImportPayload(TypedDict, total=False):
-    """Top-level review import payload shared by per-file and holistic importers."""
+    """Raw top-level review import payload before parser-level validation."""
 
-    issues: Required[list[ReviewIssuePayload]]
-    assessments: Required[dict[str, Any]]
-    reviewed_files: Required[list[str]]
-    review_scope: Required[ReviewScopePayload]
-    provenance: Required[ReviewProvenancePayload]
-    dimension_notes: Required[dict[str, Any]]
-    _assessment_policy: Required[AssessmentImportPolicy]
+    issues: NotRequired[list[ReviewIssuePayload]]
+    assessments: NotRequired[dict[str, Any]]
+    reviewed_files: NotRequired[list[str]]
+    review_scope: NotRequired[ReviewScopePayload]
+    provenance: NotRequired[ReviewProvenancePayload]
+    dimension_notes: NotRequired[dict[str, Any]]
+    _assessment_policy: NotRequired[AssessmentImportPolicy]
 
 
 __all__ = [

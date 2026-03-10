@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from desloppify import state as state_mod
-from desloppify.languages._framework.base.types import DetectorCoverageRecord
-from desloppify.languages._framework.runtime import LangRun
+from desloppify.languages.framework import DetectorCoverageRecord, LangRun
 
 
 def coerce_int(value: object, *, default: int) -> int:

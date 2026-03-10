@@ -29,7 +29,7 @@ from desloppify.intelligence.review.importing.resolution import (
     auto_resolve_review_issues,
 )
 from desloppify.intelligence.review.importing.state_helpers import (
-    _lang_potentials,
+    ensure_lang_potentials,
 )
 from desloppify.intelligence.review.selection import hash_file
 
@@ -154,7 +154,7 @@ def import_review_issues(
         *reviewed_files_abs,
     }
 
-    potentials = _lang_potentials(state, lang_name)
+    potentials = ensure_lang_potentials(state, lang_name)
     potentials["review"] = len(review_potential_files)
 
     diff = merge_scan(

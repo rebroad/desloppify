@@ -11,9 +11,16 @@ from desloppify.base.output.terminal import colorize
 from desloppify.base.discovery.paths import get_project_root
 from desloppify.engine.planning.helpers import is_subjective_phase
 from desloppify.engine.policy.zones import ZONE_POLICIES, FileZoneMap
-from desloppify.languages import auto_detect_lang, available_langs, get_lang
-from desloppify.languages._framework.base.types import DetectorPhase, LangConfig
-from desloppify.languages._framework.runtime import LangRun, make_lang_run
+from desloppify.languages.framework import (
+    DetectorPhase,
+    LangConfig,
+    LangRun,
+    auto_detect_lang,
+    available_langs,
+    capability_report,
+    get_lang,
+    make_lang_run,
+)
 from desloppify.state import Issue
 
 
@@ -58,8 +65,6 @@ def _build_zone_map(path: Path, lang: LangRun, zone_overrides: dict[str, str] | 
         f"{zone}: {count}" for zone, count in sorted(counts.items()) if count > 0
     )
     _stderr(f"  Zones: {zone_str}")
-
-    from desloppify.languages._framework.generic import capability_report
 
     report = capability_report(lang)
     if report is not None:

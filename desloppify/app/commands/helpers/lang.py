@@ -13,7 +13,7 @@ from desloppify.base.discovery.paths import get_project_root
 from desloppify.base.exception_sets import CommandError
 
 if TYPE_CHECKING:
-    from desloppify.languages._framework.base.types import LangConfig
+    from desloppify.languages.framework import LangConfig
 
 
 logger = logging.getLogger(__name__)

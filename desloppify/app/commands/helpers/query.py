@@ -36,19 +36,56 @@ class QueryWriter:
         return result
 
 
+@dataclass(frozen=True)
+class QueryLoadResult:
+    """Result contract for query payload reads."""
+
+    ok: bool
+    payload: dict | None
+    message: str = ""
+    error_kind: str | None = None
+
+
 def query_writer() -> QueryWriter:
     """Construct a writer bound to the active runtime query path."""
     return QueryWriter(query_file=query_file_path())
 
 
-def load_query() -> dict | None:
-    """Load the active query payload, returning ``None`` on read/parse failure."""
+def load_query_result() -> QueryLoadResult:
+    """Load the active query payload with explicit error contract."""
     path = query_file_path()
     try:
-        payload = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError):
-        return None
-    return payload if isinstance(payload, dict) else None
+        raw = path.read_text()
+    except OSError as exc:
+        return QueryLoadResult(
+            ok=False,
+            payload=None,
+            message=str(exc),
+            error_kind="query_read_error",
+        )
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        return QueryLoadResult(
+            ok=False,
+            payload=None,
+            message=str(exc),
+            error_kind="query_parse_error",
+        )
+    if not isinstance(payload, dict):
+        return QueryLoadResult(
+            ok=False,
+            payload=None,
+            message="query payload is not a JSON object",
+            error_kind="query_invalid_shape",
+        )
+    return QueryLoadResult(ok=True, payload=payload)
+
+
+def load_query() -> dict | None:
+    """Compatibility wrapper for callers expecting ``dict | None``."""
+    result = load_query_result()
+    return result.payload if result.ok else None
 
 
 def write_query(data: dict) -> OutputResult:
@@ -62,8 +99,10 @@ def write_query_best_effort(data: dict, *, context: str) -> OutputResult:
 
 
 __all__ = [
+    "QueryLoadResult",
     "QueryWriter",
     "load_query",
+    "load_query_result",
     "query_file_path",
     "query_writer",
     "write_query",

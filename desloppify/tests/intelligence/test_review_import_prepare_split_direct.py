@@ -176,9 +176,9 @@ def test_resolution_and_state_helper_utilities() -> None:
     )
     assert diff["auto_resolved"] == 1
 
-    cache = state_helpers_mod.review_file_cache({})
+    cache = state_helpers_mod.ensure_review_file_cache({})
     assert cache == {}
-    potentials = state_helpers_mod._lang_potentials({}, "python")
+    potentials = state_helpers_mod.ensure_lang_potentials({}, "python")
     assert potentials == {}
 
 

@@ -13,6 +13,10 @@ from typing import Any
 from desloppify.base.discovery.file_paths import rel
 
 from desloppify.base.discovery.source import read_file_text
+from desloppify.engine.policy.zones import (
+    REVIEW_SELECTION_EXCLUDED_ZONES,
+    zone_in,
+)
 from desloppify.intelligence.review.context import (
     abs_path,
     dep_graph_lookup,
@@ -80,7 +84,7 @@ def select_files_for_review(
         # Skip non-production files
         if lang.zone_map is not None:
             zone = lang.zone_map.get(filepath)
-            if zone.value in ("test", "generated", "vendor"):
+            if zone_in(zone, REVIEW_SELECTION_EXCLUDED_ZONES):
                 continue
 
         # Skip if cached, content unchanged, and not stale

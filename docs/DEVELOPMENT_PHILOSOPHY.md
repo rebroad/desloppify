@@ -13,9 +13,9 @@ Agents don't care about API stability the way human integrations do. We change t
 Compatibility policy in this repo:
 
 - Data compatibility shims are allowed at input boundaries (for example: accepting old payload keys while normalizing to one internal shape).
-- Functionality compatibility shims are not allowed (no legacy wrapper functions, alias exports, facade modules, or test monkeypatch seams that preserve old call paths).
-- If behavior changes, update call sites directly in-repo instead of adding transitional function shims.
-- Any temporary migration shim must have a concrete removal date/issue and be removed quickly.
+- Functionality compatibility shims are disallowed by default, with one narrow exception: temporary passthrough-only compatibility facades that forward to canonical modules without adding behavior.
+- If behavior changes, update call sites directly in-repo instead of adding behavioral shims.
+- Any temporary compatibility shim must include an owner + removal issue/date, and should be removed quickly after callers migrate.
 
 ## The score is the point
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from desloppify.engine._plan.subjective_policy import (
+from desloppify.engine._plan.policy.subjective import (
     SubjectiveVisibility,
     compute_subjective_visibility,
 )
@@ -250,7 +250,7 @@ def test_backlog_blocks_rerun():
 # ---------------------------------------------------------------------------
 
 def test_non_objective_detectors_not_reexported_from_sync_dimensions():
-    import desloppify.engine._plan.sync_dimensions as sync_mod
+    import desloppify.engine._plan.sync.dimensions as sync_mod
 
     assert not hasattr(sync_mod, "NON_OBJECTIVE_DETECTORS")
 

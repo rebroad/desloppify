@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from desloppify.engine._plan.reconcile import reconcile_plan_after_scan
 from desloppify.engine._plan.schema import empty_plan
-from desloppify.engine._plan.sync_dimensions import (
+from desloppify.engine._plan.sync.dimensions import (
     sync_stale_dimensions,
     sync_unscored_dimensions,
 )

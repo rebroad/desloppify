@@ -16,8 +16,13 @@ def _is_test_file(filepath: str) -> bool:
     return normalized.startswith("tests/") or "/tests/" in normalized
 
 
-def _detect_monster_functions(filepath: str, node: ast.AST) -> list[dict]:
+def _detect_monster_functions(
+    filepath: str,
+    node: ast.AST,
+    tree: ast.Module | None = None,
+) -> list[dict]:
     """Flag functions longer than 150 LOC."""
+    del tree
     if not (hasattr(node, "end_lineno") and node.end_lineno):
         return []
     loc = node.end_lineno - node.lineno + 1
@@ -32,8 +37,13 @@ def _detect_monster_functions(filepath: str, node: ast.AST) -> list[dict]:
     return []
 
 
-def _detect_dead_functions(filepath: str, node: ast.AST) -> list[dict]:
+def _detect_dead_functions(
+    filepath: str,
+    node: ast.AST,
+    tree: ast.Module | None = None,
+) -> list[dict]:
     """Flag functions whose body is only pass, return, or return None."""
+    del tree
     if node.decorator_list:
         return []
     body = node.body
@@ -67,8 +77,13 @@ def _detect_dead_functions(filepath: str, node: ast.AST) -> list[dict]:
     return []
 
 
-def _detect_deferred_imports(filepath: str, node: ast.AST) -> list[dict]:
+def _detect_deferred_imports(
+    filepath: str,
+    node: ast.AST,
+    tree: ast.Module | None = None,
+) -> list[dict]:
     """Flag function-level imports (possible circular import workarounds)."""
+    del tree
     if _is_test_file(filepath):
         return []
     skip_modules = ("typing", "typing_extensions", "__future__")
@@ -94,8 +109,13 @@ def _detect_deferred_imports(filepath: str, node: ast.AST) -> list[dict]:
     return []
 
 
-def _detect_inline_classes(filepath: str, node: ast.AST) -> list[dict]:
+def _detect_inline_classes(
+    filepath: str,
+    node: ast.AST,
+    tree: ast.Module | None = None,
+) -> list[dict]:
     """Flag classes defined inside functions."""
+    del tree
     results: list[dict] = []
     for child in node.body:
         if isinstance(child, ast.ClassDef):

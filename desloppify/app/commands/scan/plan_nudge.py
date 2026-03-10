@@ -16,7 +16,7 @@ from desloppify.app.commands.helpers.queue_progress import (
 )
 from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS
 from desloppify.base.output.terminal import colorize
-from desloppify.engine.plan import load_plan
+from desloppify.engine.plan_state import load_plan
 
 _logger = logging.getLogger(__name__)
 

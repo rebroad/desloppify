@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 
 import desloppify.app.commands.plan.override_resolve_cmd as resolve_mod
+import desloppify.app.commands.plan.override_resolve_workflow as resolve_workflow_mod
 import desloppify.app.commands.plan.override_misc as misc_mod
 from desloppify.engine._plan.schema import empty_plan
 from desloppify.engine._plan.constants import (
@@ -97,9 +98,11 @@ def _scan_gate_args(**overrides) -> argparse.Namespace:
 def _mock_plan_io(monkeypatch, plan):
     """Patch load_plan/save_plan, return list of saved plans."""
     monkeypatch.setattr(resolve_mod, "load_plan", lambda *a, **kw: plan)
+    monkeypatch.setattr(resolve_workflow_mod, "load_plan", lambda *a, **kw: plan)
     monkeypatch.setattr(misc_mod, "load_plan", lambda *a, **kw: plan)
     saved = []
     monkeypatch.setattr(resolve_mod, "save_plan", lambda p, *a, **kw: saved.append(p))
+    monkeypatch.setattr(resolve_workflow_mod, "save_plan", lambda p, *a, **kw: saved.append(p))
     monkeypatch.setattr(misc_mod, "save_plan", lambda p, *a, **kw: saved.append(p))
     return saved
 
@@ -107,11 +110,11 @@ def _mock_plan_io(monkeypatch, plan):
 def _mock_state(monkeypatch, state):
     """Patch state_path and load_state to return our spoofed state."""
     import desloppify.state as state_mod_real
-    monkeypatch.setattr(resolve_mod, "state_path", lambda args: None)
+    monkeypatch.setattr(resolve_workflow_mod, "state_path", lambda args: None)
     monkeypatch.setattr(misc_mod, "state_path", lambda args: None)
     monkeypatch.setattr(state_mod_real, "load_state", lambda path=None: state)
     # Also patch the module-level import used in the split modules
-    monkeypatch.setattr(resolve_mod.state_mod, "load_state", lambda path=None: state)
+    monkeypatch.setattr(resolve_workflow_mod.state_mod, "load_state", lambda path=None: state)
     monkeypatch.setattr(misc_mod.state_mod, "load_state", lambda path=None: state)
 
 

@@ -51,7 +51,7 @@ from desloppify.intelligence.narrative.strategy_engine import compute_strategy
 from desloppify.intelligence.narrative.types import (
     NarrativeResult,
 )
-from desloppify.state import StateModel
+from desloppify.state_io import StateModel
 
 
 @dataclass(frozen=True)

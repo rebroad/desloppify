@@ -27,10 +27,11 @@ from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS
 from desloppify.base.output.terminal import colorize
 from desloppify.base.tooling import check_config_staleness
 from desloppify.engine._work_queue.context import queue_context
-from desloppify.engine.plan import load_plan
+from desloppify.engine.plan_state import load_plan
 from desloppify.intelligence.narrative.core import NarrativeContext, compute_narrative
 
 from .render import (
+    StatusQueryRequest,
     print_open_scope_breakdown,
     print_scan_completeness,
     print_scan_metrics,
@@ -179,20 +180,22 @@ def render_terminal_status(
     print()
 
     write_status_query(
-        state=state,
-        stats=stats,
-        by_tier=by_tier,
-        dim_scores=dim_scores,
-        scorecard_dims=scorecard_dims,
-        subjective_measures=subjective_measures,
-        suppression=suppression,
-        narrative=narrative,
-        ignores=ignores,
-        overall_score=scores.overall,
-        objective_score=scores.objective,
-        strict_score=scores.strict,
-        verified_strict_score=scores.verified,
-        plan=active_plan,
+        StatusQueryRequest(
+            state=state,
+            stats=stats,
+            by_tier=by_tier,
+            dim_scores=dim_scores,
+            scorecard_dims=scorecard_dims,
+            subjective_measures=subjective_measures,
+            suppression=suppression,
+            narrative=narrative,
+            ignores=ignores,
+            overall_score=scores.overall,
+            objective_score=scores.objective,
+            strict_score=scores.strict,
+            verified_strict_score=scores.verified,
+            plan=active_plan,
+        )
     )
 
 

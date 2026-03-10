@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import desloppify.app.commands.plan.triage._stage_records as stage_records_mod
+import desloppify.app.commands.plan.triage.stages.records as stage_records_mod
 
 
 def test_resolve_reusable_report_prefers_explicit_report() -> None:

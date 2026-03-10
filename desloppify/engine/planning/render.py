@@ -207,7 +207,7 @@ def generate_plan_md(state: PlanState, plan: dict | None = None) -> str:
     # Auto-load plan if not provided
     if plan is None:
         try:
-            from desloppify.engine.plan import load_plan
+            from desloppify.engine.plan_state import load_plan
             plan = load_plan()
         except PLAN_LOAD_EXCEPTIONS:
             plan = {}

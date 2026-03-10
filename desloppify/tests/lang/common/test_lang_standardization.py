@@ -13,9 +13,7 @@ def _full_langs() -> list[str]:
     return [lang for lang in available_langs() if get_lang(lang).integration_depth == "full"]
 
 TOP_LEVEL_MODULES = (
-    "commands",
     "extractors",
-    "phases",
     "review",
     "test_coverage",
 )
@@ -108,9 +106,12 @@ def test_detect_command_keys_use_canonical_snake_case():
 def test_detect_command_registry_owned_by_language_commands_module():
     for lang in _full_langs():
         cfg = get_lang(lang)
-        expected_prefix = f"desloppify.languages.{lang}.commands"
+        allowed_prefixes = (
+            f"desloppify.languages.{lang}.commands",
+            f"desloppify.languages.{lang}.detectors",
+        )
         for key, fn in cfg.detect_commands.items():
-            assert fn.__module__.startswith(expected_prefix), (
-                f"{lang} detect command '{key}' must be defined in {expected_prefix}* "
-                f"(got {fn.__module__})"
+            assert fn.__module__.startswith(allowed_prefixes), (
+                f"{lang} detect command '{key}' must be defined in "
+                f"{' or '.join(allowed_prefixes)}* (got {fn.__module__})"
             )

@@ -14,6 +14,11 @@ import desloppify.app.commands.plan.triage.stage_flow_enrich as stage_flow_enric
 import desloppify.app.commands.plan.triage.stage_flow_sense_check as stage_flow_sense_mod
 
 
+def _assert_sections(text: str, sections: tuple[str, ...]) -> None:
+    for section in sections:
+        assert f"## {section}" in text
+
+
 class _Services:
     def __init__(self, plan: dict):
         self.plan = plan
@@ -31,11 +36,16 @@ class _Services:
 
 
 def test_stage_prompt_instruction_blocks_and_validation_requirements() -> None:
-    assert "OBSERVE" in prompts_instructions_mod._observe_instructions()
-    assert "REFLECT" in prompts_instructions_mod._reflect_instructions()
-    assert "ORGANIZE" in prompts_instructions_mod._organize_instructions()
-    assert "ENRICH" in prompts_instructions_mod._enrich_instructions()
-    assert "SENSE-CHECK" in prompts_instructions_mod._sense_check_instructions()
+    stage_prompts = {
+        "OBSERVE": prompts_instructions_mod._observe_instructions(),
+        "REFLECT": prompts_instructions_mod._reflect_instructions(),
+        "ORGANIZE": prompts_instructions_mod._organize_instructions(),
+        "ENRICH": prompts_instructions_mod._enrich_instructions(),
+        "SENSE-CHECK": prompts_instructions_mod._sense_check_instructions(),
+    }
+
+    for stage_name, prompt in stage_prompts.items():
+        assert f"## {stage_name} Stage Instructions" in prompt
 
     for stage in ("observe", "reflect", "organize", "enrich", "sense-check"):
         text = prompts_validation_mod._validation_requirements(stage)
@@ -56,11 +66,15 @@ def test_observe_and_sense_prompt_builders_include_expected_context(tmp_path) ->
         },
         repo_root=tmp_path,
     )
+
+    _assert_sections(observe, ("Issues to Verify", "OBSERVE Batch Instructions", "IMPORTANT: Output Rules"))
     assert "observe batch 1/2" in observe
     assert "naming_quality" in observe
+    assert f"Repo root: {tmp_path}" in observe
     assert "[review::s" not in observe  # hash prefix truncation is used
-    assert "files_read" in observe
-    assert "Do NOT use the old one-line" in observe
+    for required_field in ("- hash:", "verdict:", "verdict_reasoning:", "files_read:", "recommendation:"):
+        assert required_field in observe
+    assert "Do NOT run any `desloppify` commands" in observe
 
     plan = {
         "clusters": {
@@ -82,16 +96,28 @@ def test_observe_and_sense_prompt_builders_include_expected_context(tmp_path) ->
         plan=plan,
         repo_root=tmp_path,
     )
+    _assert_sections(
+        content_prompt,
+        ("Your job", "What to check and fix", "How to report fixes", "What NOT to do", "Current Steps", "Output"),
+    )
     structure_prompt = prompts_sense_mod.build_sense_check_structure_prompt(
         plan=plan,
         repo_root=tmp_path,
     )
+
+    _assert_sections(
+        structure_prompt,
+        ("Your job", "What to check and fix", "What NOT to do", "Clusters", "Output"),
+    )
+
     assert "cluster `cluster-a`" in content_prompt
-    assert "Current Steps" in content_prompt
     assert "Do NOT run any `desloppify` commands" in content_prompt
-    assert "The orchestrator will apply the updates." in content_prompt
+    assert "Update handler" in content_prompt
     assert "cross-cluster dependencies" in structure_prompt
     assert "Do NOT run any `desloppify` commands" in structure_prompt
+    assert "SHARED FILES" in structure_prompt
+    assert "MISSING CASCADE" in structure_prompt
+    assert "CIRCULAR DEPS" in structure_prompt
     assert "desloppify plan cluster update" not in structure_prompt
 
 
@@ -102,14 +128,16 @@ def test_run_stage_enrich_handles_no_queue_and_records_stage(tmp_path, capsys) -
     stage_flow_enrich_mod.run_stage_enrich(
         args,
         services=empty_services,
-        has_triage_in_queue_fn=lambda _plan: False,
-        require_organize_stage_for_enrich_fn=lambda _stages: True,
-        underspecified_steps_fn=lambda _plan: [],
-        steps_with_bad_paths_fn=lambda _plan, _root: [],
-        steps_without_effort_fn=lambda _plan: [],
-        enrich_report_or_error_fn=lambda report: report,
-        resolve_reusable_report_fn=lambda report, _existing: (report, False),
-        record_enrich_stage_fn=lambda *_a, **_k: [],
+        deps=stage_flow_enrich_mod.EnrichStageDeps(
+            has_triage_in_queue=lambda _plan: False,
+            require_organize_stage_for_enrich=lambda _stages: True,
+            underspecified_steps=lambda _plan: [],
+            steps_with_bad_paths=lambda _plan, _root: [],
+            steps_without_effort=lambda _plan: [],
+            enrich_report_or_error=lambda report: report,
+            resolve_reusable_report=lambda report, _existing: (report, False),
+            record_enrich_stage=lambda *_a, **_k: [],
+        ),
     )
     assert "nothing to enrich" in capsys.readouterr().out.lower()
 
@@ -133,16 +161,18 @@ def test_run_stage_enrich_handles_no_queue_and_records_stage(tmp_path, capsys) -
     stage_flow_enrich_mod.run_stage_enrich(
         args,
         services=services,
-        has_triage_in_queue_fn=lambda _plan: True,
-        require_organize_stage_for_enrich_fn=lambda _stages: True,
-        underspecified_steps_fn=lambda _plan: [],
-        steps_with_bad_paths_fn=lambda _plan, _root: [],
-        steps_without_effort_fn=lambda _plan: [],
-        enrich_report_or_error_fn=lambda report: report,
-        resolve_reusable_report_fn=lambda report, _existing: (report, False),
-        record_enrich_stage_fn=_record_enrich,
-        get_project_root_fn=lambda: tmp_path,
-        print_user_message_fn=lambda _msg: None,
+        deps=stage_flow_enrich_mod.EnrichStageDeps(
+            has_triage_in_queue=lambda _plan: True,
+            require_organize_stage_for_enrich=lambda _stages: True,
+            underspecified_steps=lambda _plan: [],
+            steps_with_bad_paths=lambda _plan, _root: [],
+            steps_without_effort=lambda _plan: [],
+            enrich_report_or_error=lambda report: report,
+            resolve_reusable_report=lambda report, _existing: (report, False),
+            record_enrich_stage=_record_enrich,
+            get_project_root=lambda: tmp_path,
+            print_user_message=lambda _msg: None,
+        ),
     )
     out = capsys.readouterr().out
     assert "Enrich stage recorded" in out
@@ -150,15 +180,21 @@ def test_run_stage_enrich_handles_no_queue_and_records_stage(tmp_path, capsys) -
     assert services.save_calls >= 2
 
 
-def test_record_sense_stage_and_run_stage_sense_check(tmp_path, capsys) -> None:
+def test_record_sense_stage_and_run_stage_sense_check(tmp_path, capsys, monkeypatch) -> None:
     stages: dict = {}
+    monkeypatch.setattr(
+        "desloppify.app.commands.plan.triage.stages.records.utc_now",
+        lambda: "2026-03-09T00:00:00+00:00",
+    )
+    monkeypatch.setattr(
+        "desloppify.app.commands.plan.triage.stages.records.cascade_clear_later_confirmations",
+        lambda _stages, _name: ["sense-check"],
+    )
     cleared = stage_flow_sense_mod.record_sense_check_stage(
         stages,
         report="x" * 120,
         existing_stage=None,
         is_reuse=False,
-        utc_now_fn=lambda: "2026-03-09T00:00:00+00:00",
-        cascade_clear_later_confirmations_fn=lambda _stages, _name: ["sense-check"],
     )
     assert stages["sense-check"]["stage"] == "sense-check"
     assert cleared == ["sense-check"]
@@ -184,15 +220,17 @@ def test_record_sense_stage_and_run_stage_sense_check(tmp_path, capsys) -> None:
     stage_flow_sense_mod.run_stage_sense_check(
         args,
         services=services,
-        has_triage_in_queue_fn=lambda _plan: True,
-        resolve_reusable_report_fn=lambda report, _existing: (report, False),
-        record_sense_check_stage_fn=_record_sense,
-        get_project_root_fn=lambda: tmp_path,
-        underspecified_steps_fn=lambda _plan: [],
-        steps_missing_issue_refs_fn=lambda _plan: [],
-        steps_with_bad_paths_fn=lambda _plan, _root: [],
-        steps_with_vague_detail_fn=lambda _plan, _root: [],
-        steps_without_effort_fn=lambda _plan: [],
+        deps=stage_flow_sense_mod.SenseCheckStageDeps(
+            has_triage_in_queue=lambda _plan: True,
+            resolve_reusable_report=lambda report, _existing: (report, False),
+            record_sense_check_stage=_record_sense,
+            get_project_root=lambda: tmp_path,
+            underspecified_steps=lambda _plan: [],
+            steps_missing_issue_refs=lambda _plan: [],
+            steps_with_bad_paths=lambda _plan, _root: [],
+            steps_with_vague_detail=lambda _plan, _root: [],
+            steps_without_effort=lambda _plan: [],
+        ),
     )
     out = capsys.readouterr().out
     assert "Sense-check stage recorded" in out

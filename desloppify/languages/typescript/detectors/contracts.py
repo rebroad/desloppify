@@ -16,9 +16,5 @@ class DetectorResult(Generic[TEntry]):
     population_kind: str
     population_size: int
 
-    def as_tuple(self) -> tuple[list[TEntry], int]:
-        """Tuple view used by detector wrappers."""
-        return self.entries, self.population_size
-
 
 __all__ = ["DetectorResult"]

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import desloppify.app.commands.plan.triage.display as display_mod
-import desloppify.app.commands.plan.triage.display_primitives as primitives_mod
+import desloppify.app.commands.plan.triage.display.dashboard as display_mod
+import desloppify.app.commands.plan.triage.display.primitives as primitives_mod
 
 
 def test_print_stage_progress_shows_enrichment_gap(monkeypatch, capsys) -> None:

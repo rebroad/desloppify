@@ -37,7 +37,6 @@ def _count_callback_invocations(node: ast.AST, *, callback_name: str) -> int:
 def _detect_callback_logging(
     filepath: str,
     tree: ast.Module,
-    *,
     all_nodes: tuple[ast.AST, ...] | None = None,
 ) -> list[dict]:
     """Flag functions that accept + invoke logging callback parameters."""

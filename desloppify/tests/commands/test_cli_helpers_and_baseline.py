@@ -6,7 +6,11 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from desloppify.app.commands.helpers.query import write_query
+from desloppify.app.commands.helpers.query import (
+    load_query,
+    load_query_result,
+    write_query,
+)
 from desloppify.base.config import (
     coerce_target_score,
     target_strict_score_from_config,
@@ -74,6 +78,37 @@ class TestWriteQuery:
 
         # Should not raise
         write_query({"data": 1})
+
+    def test_load_query_result_returns_parse_error_contract(self, tmp_path, monkeypatch):
+        query_file = tmp_path / ".desloppify" / "query.json"
+        query_file.parent.mkdir(parents=True, exist_ok=True)
+        query_file.write_text("{bad json", encoding="utf-8")
+        monkeypatch.setattr(
+            "desloppify.app.commands.helpers.query.query_file_path",
+            lambda: query_file,
+        )
+
+        result = load_query_result()
+        assert result.ok is False
+        assert result.payload is None
+        assert result.error_kind == "query_parse_error"
+        assert result.message
+        assert load_query() is None
+
+    def test_load_query_result_success_payload(self, tmp_path, monkeypatch):
+        query_file = tmp_path / ".desloppify" / "query.json"
+        query_file.parent.mkdir(parents=True, exist_ok=True)
+        query_file.write_text(json.dumps({"command": "review"}), encoding="utf-8")
+        monkeypatch.setattr(
+            "desloppify.app.commands.helpers.query.query_file_path",
+            lambda: query_file,
+        )
+
+        result = load_query_result()
+        assert result.ok is True
+        assert result.error_kind is None
+        assert result.payload == {"command": "review"}
+        assert load_query() == {"command": "review"}
 
 
 # ===========================================================================

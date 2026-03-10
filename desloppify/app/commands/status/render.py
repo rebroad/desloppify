@@ -30,6 +30,7 @@ from .render_dimensions import (
     scorecard_subjective_entries_for_status as _scorecard_subjective_entries,
 )
 from .render_io import (
+    StatusQueryRequest,
     show_ignore_summary,
     show_tier_progress_table,
     write_status_query,
@@ -348,6 +349,7 @@ def show_review_summary(state: StateModel) -> None:
 
 
 __all__ = [
+    "StatusQueryRequest",
     "print_open_scope_breakdown",
     "print_scan_completeness",
     "print_scan_metrics",

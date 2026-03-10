@@ -23,7 +23,7 @@ from desloppify.base.discovery.paths import get_default_path, get_project_root
 from desloppify.base.registry import detector_names, on_detector_registered
 from desloppify.base.runtime_state import runtime_scope
 from desloppify.languages import available_langs
-from desloppify.state import load_state
+from desloppify.state_io import load_state
 
 logger = logging.getLogger(__name__)
 

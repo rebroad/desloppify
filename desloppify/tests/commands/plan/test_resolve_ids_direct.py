@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from desloppify.app.commands.plan import _resolve as resolve_mod
+from desloppify.app.commands.plan.shared import patterns as resolve_mod
 
 
 def test_resolve_ids_from_patterns_matches_literal_synthetic_queue_id(

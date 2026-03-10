@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
@@ -44,6 +45,57 @@ if TYPE_CHECKING:
     from .execution import BatchRunDeps
 
 
+@dataclass(frozen=True)
+class PreparedBatchRunContext:
+    """Typed handoff from prepare phase into execution/import phases."""
+
+    stamp: str
+    args: Any
+    config: dict[str, Any]
+    runner: str
+    allow_partial: bool
+    run_parallel: bool
+    max_parallel_batches: int
+    heartbeat_seconds: float
+    batch_timeout_seconds: float
+    batch_max_retries: int
+    batch_retry_backoff_seconds: float
+    stall_warning_seconds: float
+    stall_kill_seconds: float
+    state: dict[str, Any]
+    lang: Any
+    packet: dict[str, Any]
+    immutable_packet_path: Path
+    prompt_packet_path: Path
+    scan_path: str
+    packet_dimensions: list[str]
+    scored_dimensions: list[str]
+    batches: list[dict[str, Any]]
+    selected_indexes: list[int]
+    project_root: Path
+    run_dir: Path
+    logs_dir: Path
+    prompt_files: dict[int, Path]
+    output_files: dict[int, Path]
+    log_files: dict[int, Path]
+    run_log_path: Path
+    append_run_log: Any
+    batch_positions: dict[int, int]
+    batch_status: dict[str, dict[str, object]]
+    report_progress: Any
+    record_issue: Any
+    write_run_summary: Any
+
+
+@dataclass(frozen=True)
+class ExecutedBatchRunContext:
+    """Typed handoff from execution phase into merge/import phase."""
+
+    batch_results: list[dict[str, Any]]
+    successful_indexes: list[int]
+    failure_set: set[int]
+
+
 def prepare_batch_run(
     *,
     args,
@@ -53,7 +105,7 @@ def prepare_batch_run(
     deps: BatchRunDeps,
     project_root: Path,
     subagent_runs_dir: Path,
-) -> dict[str, Any] | None:
+) -> PreparedBatchRunContext | None:
     """Prepare packet/artifacts and return execution context; None for dry-run."""
     runner = getattr(args, "runner", "codex")
     validate_runner(runner, colorize_fn=deps.colorize_fn)
@@ -226,106 +278,106 @@ def prepare_batch_run(
         append_run_log_fn=append_run_log,
     )
 
-    return {
-        "stamp": stamp,
-        "args": args,
-        "config": config,
-        "runner": runner,
-        "allow_partial": allow_partial,
-        "run_parallel": run_parallel,
-        "max_parallel_batches": max_parallel_batches,
-        "heartbeat_seconds": heartbeat_seconds,
-        "batch_timeout_seconds": batch_timeout_seconds,
-        "batch_max_retries": batch_max_retries,
-        "batch_retry_backoff_seconds": batch_retry_backoff_seconds,
-        "stall_warning_seconds": stall_warning_seconds,
-        "stall_kill_seconds": stall_kill_seconds,
-        "state": state,
-        "lang": lang,
-        "packet": packet,
-        "immutable_packet_path": immutable_packet_path,
-        "prompt_packet_path": prompt_packet_path,
-        "scan_path": scan_path,
-        "packet_dimensions": packet_dimensions,
-        "scored_dimensions": scored_dimensions,
-        "batches": batches,
-        "selected_indexes": selected_indexes,
-        "project_root": project_root,
-        "run_dir": run_dir,
-        "logs_dir": logs_dir,
-        "prompt_files": prompt_files,
-        "output_files": output_files,
-        "log_files": log_files,
-        "run_log_path": run_log_path,
-        "append_run_log": append_run_log,
-        "batch_positions": batch_positions,
-        "batch_status": batch_status,
-        "report_progress": report_progress,
-        "record_issue": record_issue,
-        "write_run_summary": write_run_summary,
-    }
+    return PreparedBatchRunContext(
+        stamp=stamp,
+        args=args,
+        config=config,
+        runner=runner,
+        allow_partial=allow_partial,
+        run_parallel=run_parallel,
+        max_parallel_batches=max_parallel_batches,
+        heartbeat_seconds=heartbeat_seconds,
+        batch_timeout_seconds=batch_timeout_seconds,
+        batch_max_retries=batch_max_retries,
+        batch_retry_backoff_seconds=batch_retry_backoff_seconds,
+        stall_warning_seconds=stall_warning_seconds,
+        stall_kill_seconds=stall_kill_seconds,
+        state=state,
+        lang=lang,
+        packet=packet,
+        immutable_packet_path=immutable_packet_path,
+        prompt_packet_path=prompt_packet_path,
+        scan_path=scan_path,
+        packet_dimensions=packet_dimensions,
+        scored_dimensions=scored_dimensions,
+        batches=batches,
+        selected_indexes=selected_indexes,
+        project_root=project_root,
+        run_dir=run_dir,
+        logs_dir=logs_dir,
+        prompt_files=prompt_files,
+        output_files=output_files,
+        log_files=log_files,
+        run_log_path=run_log_path,
+        append_run_log=append_run_log,
+        batch_positions=batch_positions,
+        batch_status=batch_status,
+        report_progress=report_progress,
+        record_issue=record_issue,
+        write_run_summary=write_run_summary,
+    )
 
 
-def execute_batch_run(*, prepared: dict[str, Any], deps: BatchRunDeps) -> dict[str, Any]:
+def execute_batch_run(*, prepared: PreparedBatchRunContext, deps: BatchRunDeps) -> ExecutedBatchRunContext:
     """Execute prepared tasks and return reconciliation outputs."""
-    selected_indexes = prepared["selected_indexes"]
+    selected_indexes = prepared.selected_indexes
     tasks = build_batch_tasks(
         selected_indexes=selected_indexes,
-        prompt_files=prepared["prompt_files"],
-        output_files=prepared["output_files"],
-        log_files=prepared["log_files"],
-        project_root=prepared["project_root"],
+        prompt_files=prepared.prompt_files,
+        output_files=prepared.output_files,
+        log_files=prepared.log_files,
+        project_root=prepared.project_root,
         run_codex_batch_fn=deps.run_codex_batch_fn,
     )
     try:
         execution_failures = deps.execute_batches_fn(
             tasks=tasks,
             options=BatchExecutionOptions(
-                run_parallel=prepared["run_parallel"],
-                max_parallel_workers=prepared["max_parallel_batches"],
-                heartbeat_seconds=prepared["heartbeat_seconds"],
+                run_parallel=prepared.run_parallel,
+                max_parallel_workers=prepared.max_parallel_batches,
+                heartbeat_seconds=prepared.heartbeat_seconds,
             ),
-            progress_fn=prepared["report_progress"],
-            error_log_fn=prepared["record_issue"],
+            progress_fn=prepared.report_progress,
+            error_log_fn=prepared.record_issue,
         )
     except KeyboardInterrupt:
         mark_interrupted_batches(
             selected_indexes=selected_indexes,
-            batch_status=prepared["batch_status"],
-            batch_positions=prepared["batch_positions"],
+            batch_status=prepared.batch_status,
+            batch_positions=prepared.batch_positions,
         )
-        prepared["write_run_summary"](
+        prepared.write_run_summary(
             successful_batches=[],
             failed_batches=[],
             interrupted=True,
             interruption_reason="keyboard_interrupt",
         )
-        prepared["append_run_log"]("run-interrupted reason=keyboard_interrupt")
+        prepared.append_run_log("run-interrupted reason=keyboard_interrupt")
         raise SystemExit(130) from None
 
     batch_results, successful_indexes, failures, failure_set = collect_and_reconcile_results(
         collect_batch_results_fn=deps.collect_batch_results_fn,
         selected_indexes=selected_indexes,
         execution_failures=execution_failures,
-        output_files=prepared["output_files"],
-        packet=prepared["packet"],
-        batch_positions=prepared["batch_positions"],
-        batch_status=prepared["batch_status"],
+        output_files=prepared.output_files,
+        packet=prepared.packet,
+        batch_positions=prepared.batch_positions,
+        batch_status=prepared.batch_status,
         colorize_fn=deps.colorize_fn,
     )
-    prepared["write_run_summary"](
+    prepared.write_run_summary(
         successful_batches=[idx + 1 for idx in successful_indexes],
         failed_batches=[idx + 1 for idx in sorted(failure_set)],
     )
 
-    if failures and (not prepared["allow_partial"] or not batch_results):
-        prepared["append_run_log"](
+    if failures and (not prepared.allow_partial or not batch_results):
+        prepared.append_run_log(
             f"run-finished failures={[idx + 1 for idx in sorted(failure_set)]} mode=exit"
         )
         deps.print_failures_and_raise_fn(
             failures=failures,
-            packet_path=prepared["immutable_packet_path"],
-            logs_dir=prepared["logs_dir"],
+            packet_path=prepared.immutable_packet_path,
+            logs_dir=prepared.logs_dir,
             colorize_fn=deps.colorize_fn,
         )
     elif failures:
@@ -337,27 +389,27 @@ def execute_batch_run(*, prepared: dict[str, Any], deps: BatchRunDeps) -> dict[s
         )
         deps.print_failures_fn(
             failures=failures,
-            packet_path=prepared["immutable_packet_path"],
-            logs_dir=prepared["logs_dir"],
+            packet_path=prepared.immutable_packet_path,
+            logs_dir=prepared.logs_dir,
             colorize_fn=deps.colorize_fn,
         )
-        prepared["append_run_log"](
+        prepared.append_run_log(
             "run-partial "
             f"successful={[idx + 1 for idx in successful_indexes]} "
             f"failed={[idx + 1 for idx in sorted(failure_set)]}"
         )
 
-    return {
-        "batch_results": batch_results,
-        "successful_indexes": successful_indexes,
-        "failure_set": failure_set,
-    }
+    return ExecutedBatchRunContext(
+        batch_results=batch_results,
+        successful_indexes=successful_indexes,
+        failure_set=failure_set,
+    )
 
 
 def merge_and_import_batch_run(
     *,
-    prepared: dict[str, Any],
-    executed: dict[str, Any],
+    prepared: PreparedBatchRunContext,
+    executed: ExecutedBatchRunContext,
     state_file,
     deps: BatchRunDeps,
 ) -> None:
@@ -365,41 +417,47 @@ def merge_and_import_batch_run(
     merged_path, missing_after_import = merge_and_write_results(
         merge_batch_results_fn=deps.merge_batch_results_fn,
         build_import_provenance_fn=deps.build_import_provenance_fn,
-        batch_results=executed["batch_results"],
-        batches=prepared["batches"],
-        successful_indexes=executed["successful_indexes"],
-        packet=prepared["packet"],
-        packet_dimensions=prepared["packet_dimensions"],
-        scored_dimensions=prepared["scored_dimensions"],
-        scan_path=prepared["scan_path"],
-        runner=prepared["runner"],
-        prompt_packet_path=prepared["prompt_packet_path"],
-        stamp=prepared["stamp"],
-        run_dir=prepared["run_dir"],
+        batch_results=executed.batch_results,
+        batches=prepared.batches,
+        successful_indexes=executed.successful_indexes,
+        packet=prepared.packet,
+        packet_dimensions=prepared.packet_dimensions,
+        scored_dimensions=prepared.scored_dimensions,
+        scan_path=prepared.scan_path,
+        runner=prepared.runner,
+        prompt_packet_path=prepared.prompt_packet_path,
+        stamp=prepared.stamp,
+        run_dir=prepared.run_dir,
         safe_write_text_fn=deps.safe_write_text_fn,
         colorize_fn=deps.colorize_fn,
     )
     enforce_import_coverage(
         missing_after_import=missing_after_import,
-        packet_dimensions=prepared["packet_dimensions"],
-        allow_partial=prepared["allow_partial"],
-        scan_path=prepared["scan_path"],
+        packet_dimensions=prepared.packet_dimensions,
+        allow_partial=prepared.allow_partial,
+        scan_path=prepared.scan_path,
         colorize_fn=deps.colorize_fn,
     )
     import_and_finalize(
         do_import_fn=deps.do_import_fn,
         run_followup_scan_fn=deps.run_followup_scan_fn,
         merged_path=merged_path,
-        state=prepared["state"],
-        lang=prepared["lang"],
+        state=prepared.state,
+        lang=prepared.lang,
         state_file=state_file,
-        config=prepared["config"],
-        allow_partial=prepared["allow_partial"],
-        successful_indexes=executed["successful_indexes"],
-        failure_set=executed["failure_set"],
-        append_run_log=prepared["append_run_log"],
-        args=prepared["args"],
+        config=prepared.config,
+        allow_partial=prepared.allow_partial,
+        successful_indexes=executed.successful_indexes,
+        failure_set=executed.failure_set,
+        append_run_log=prepared.append_run_log,
+        args=prepared.args,
     )
 
 
-__all__ = ["execute_batch_run", "merge_and_import_batch_run", "prepare_batch_run"]
+__all__ = [
+    "ExecutedBatchRunContext",
+    "PreparedBatchRunContext",
+    "execute_batch_run",
+    "merge_and_import_batch_run",
+    "prepare_batch_run",
+]

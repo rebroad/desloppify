@@ -20,9 +20,9 @@ from desloppify.languages._framework.issue_factories import (
     make_orphaned_issues,
     make_single_use_issues,
 )
-from desloppify.languages.typescript.detectors import deps as deps_detector_mod
-from desloppify.languages.typescript.detectors import facade as facade_detector_mod
-from desloppify.languages.typescript.detectors import patterns_analysis as patterns_detector_mod
+import desloppify.languages.typescript.detectors.deps as deps_detector_mod
+import desloppify.languages.typescript.detectors.facade as facade_detector_mod
+import desloppify.languages.typescript.detectors.patterns_analysis as patterns_detector_mod
 from desloppify.languages.typescript.phases_config import TS_SKIP_DIRS, TS_SKIP_NAMES
 from desloppify.state import Issue, make_issue
 
@@ -144,7 +144,7 @@ def detect_facades(graph: dict, lang: LangRuntimeContract) -> list[Issue]:
 
 def detect_pattern_anomalies(path: Path) -> tuple[list[Issue], int]:
     """Detect pattern consistency anomalies across areas."""
-    pattern_result = patterns_detector_mod.detect_pattern_anomalies_result(path)
+    pattern_result = patterns_detector_mod.detect_pattern_anomalies(path)
     pattern_entries = pattern_result.entries
     total_areas = pattern_result.population_size
     results: list[Issue] = []

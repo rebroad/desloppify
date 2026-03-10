@@ -40,6 +40,33 @@ EXCLUDED_ZONES = {Zone.TEST, Zone.CONFIG, Zone.GENERATED, Zone.VENDOR}
 # String values for quick lookup in scoring (issues store zone as string)
 EXCLUDED_ZONE_VALUES = {z.value for z in EXCLUDED_ZONES}
 
+# Shared review filtering sets (enum-backed to keep comparisons type-safe).
+REVIEW_SELECTION_EXCLUDED_ZONES = frozenset({Zone.TEST, Zone.GENERATED, Zone.VENDOR})
+REVIEW_COVERAGE_EXCLUDED_ZONES = frozenset(
+    {Zone.TEST, Zone.GENERATED, Zone.VENDOR, Zone.CONFIG, Zone.SCRIPT}
+)
+
+
+def normalize_zone(zone: object) -> Zone | None:
+    """Normalize enum/string/duck-typed zone objects to a ``Zone`` member."""
+    if isinstance(zone, Zone):
+        return zone
+    raw = getattr(zone, "value", zone)
+    if isinstance(raw, Zone):
+        return raw
+    if isinstance(raw, str):
+        try:
+            return Zone(raw)
+        except ValueError:
+            return None
+    return None
+
+
+def zone_in(zone: object, zones: frozenset[Zone] | set[Zone]) -> bool:
+    """Return ``True`` when *zone* resolves to a member of *zones*."""
+    normalized = normalize_zone(zone)
+    return normalized in zones if normalized is not None else False
+
 
 @dataclass
 class ZoneRule:

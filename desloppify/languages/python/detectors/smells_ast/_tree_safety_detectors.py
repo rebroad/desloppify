@@ -30,7 +30,6 @@ __all__ = [
 def _detect_subprocess_no_timeout(
     filepath: str,
     tree: ast.Module,
-    *,
     all_nodes: tuple[ast.AST, ...] | None = None,
 ) -> list[dict]:
     """Flag subprocess.run/Popen/call/check_call/check_output without timeout=."""
@@ -57,7 +56,6 @@ def _detect_subprocess_no_timeout(
 def _detect_unsafe_file_write(
     filepath: str,
     tree: ast.Module,
-    *,
     all_nodes: tuple[ast.AST, ...] | None = None,
 ) -> list[dict]:
     """Flag Path.write_text/write_bytes and open(..., 'w') without atomic pattern.
@@ -110,7 +108,6 @@ def _detect_unsafe_file_write(
 def _detect_regex_backtrack(
     filepath: str,
     tree: ast.Module,
-    *,
     all_nodes: tuple[ast.AST, ...] | None = None,
 ) -> list[dict]:
     """Flag regex patterns vulnerable to catastrophic backtracking (ReDoS).
@@ -191,7 +188,6 @@ def _detect_regex_backtrack(
 def _detect_naive_comment_strip(
     filepath: str,
     tree: ast.Module,
-    *,
     all_nodes: tuple[ast.AST, ...] | None = None,
 ) -> list[dict]:
     """Flag re.sub() calls that strip comments without string awareness.

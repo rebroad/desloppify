@@ -23,6 +23,59 @@ def _policy(**overrides):
     return SimpleNamespace(**base)
 
 
+def _prepared_context(**overrides):
+    base = {
+        "stamp": "stamp",
+        "args": SimpleNamespace(),
+        "config": {},
+        "runner": "codex",
+        "allow_partial": True,
+        "run_parallel": True,
+        "max_parallel_batches": 2,
+        "heartbeat_seconds": 1.0,
+        "batch_timeout_seconds": 60.0,
+        "batch_max_retries": 1,
+        "batch_retry_backoff_seconds": 1.0,
+        "stall_warning_seconds": 10.0,
+        "stall_kill_seconds": 30.0,
+        "state": {},
+        "lang": SimpleNamespace(name="python"),
+        "packet": {"dimensions": ["d"]},
+        "immutable_packet_path": Path("packet"),
+        "prompt_packet_path": Path("prompt"),
+        "scan_path": ".",
+        "packet_dimensions": ["d"],
+        "scored_dimensions": ["d"],
+        "batches": [{"dimensions": ["d"]}],
+        "selected_indexes": [0, 1],
+        "project_root": Path("."),
+        "run_dir": Path("run"),
+        "logs_dir": Path("logs"),
+        "prompt_files": {0: Path("p0"), 1: Path("p1")},
+        "output_files": {0: Path("o0"), 1: Path("o1")},
+        "log_files": {0: Path("l0"), 1: Path("l1")},
+        "run_log_path": Path("run.log"),
+        "append_run_log": lambda *_a, **_k: None,
+        "batch_positions": {0: 1, 1: 2},
+        "batch_status": {},
+        "report_progress": lambda *_a, **_k: None,
+        "record_issue": lambda *_a, **_k: None,
+        "write_run_summary": lambda **_k: None,
+    }
+    base.update(overrides)
+    return phases_mod.PreparedBatchRunContext(**base)
+
+
+def _executed_context(**overrides):
+    base = {
+        "batch_results": [{"issues": []}],
+        "successful_indexes": [0],
+        "failure_set": set(),
+    }
+    base.update(overrides)
+    return phases_mod.ExecutedBatchRunContext(**base)
+
+
 def test_prepare_batch_run_returns_none_for_dry_run(monkeypatch, tmp_path: Path) -> None:
     deps = SimpleNamespace(
         colorize_fn=lambda text, _tone=None: text,
@@ -77,26 +130,7 @@ def test_prepare_batch_run_returns_none_for_dry_run(monkeypatch, tmp_path: Path)
 def test_execute_batch_run_partial_path_records_failures(monkeypatch) -> None:
     logs: list[str] = []
     printed_failures: list[list[int]] = []
-    prepared = {
-        "selected_indexes": [0, 1],
-        "prompt_files": {0: Path("p0"), 1: Path("p1")},
-        "output_files": {0: Path("o0"), 1: Path("o1")},
-        "log_files": {0: Path("l0"), 1: Path("l1")},
-        "project_root": Path("."),
-        "run_parallel": True,
-        "max_parallel_batches": 2,
-        "heartbeat_seconds": 1.0,
-        "report_progress": lambda *_a, **_k: None,
-        "record_issue": lambda *_a, **_k: None,
-        "batch_status": {},
-        "batch_positions": {0: 1, 1: 2},
-        "write_run_summary": lambda **_k: None,
-        "allow_partial": True,
-        "append_run_log": logs.append,
-        "immutable_packet_path": Path("packet"),
-        "logs_dir": Path("logs"),
-        "packet": {"dimensions": ["d"]},
-    }
+    prepared = _prepared_context(append_run_log=logs.append)
     deps = SimpleNamespace(
         run_codex_batch_fn=lambda *_a, **_k: 0,
         execute_batches_fn=lambda **_k: [1],
@@ -119,8 +153,8 @@ def test_execute_batch_run_partial_path_records_failures(monkeypatch) -> None:
 
     result = phases_mod.execute_batch_run(prepared=prepared, deps=deps)
 
-    assert result["successful_indexes"] == [0]
-    assert result["failure_set"] == {1}
+    assert result.successful_indexes == [0]
+    assert result.failure_set == {1}
     assert printed_failures == [[1]]
     assert any("run-partial" in line for line in logs)
 
@@ -143,28 +177,12 @@ def test_merge_and_import_batch_run_calls_all_pipeline_steps(monkeypatch) -> Non
         lambda **_k: calls.append("import"),
     )
     phases_mod.merge_and_import_batch_run(
-        prepared={
-            "batches": [{"dimensions": ["d"]}],
-            "packet": {"dimensions": ["d"]},
-            "packet_dimensions": ["d"],
-            "scored_dimensions": ["d"],
-            "scan_path": ".",
-            "runner": "codex",
-            "prompt_packet_path": Path("prompt"),
-            "stamp": "stamp",
-            "run_dir": Path("run"),
-            "state": {},
-            "lang": SimpleNamespace(name="python"),
-            "config": {},
-            "allow_partial": False,
-            "append_run_log": lambda *_a, **_k: None,
-            "args": SimpleNamespace(),
-        },
-        executed={
-            "batch_results": [{"issues": []}],
-            "successful_indexes": [0],
-            "failure_set": set(),
-        },
+        prepared=_prepared_context(
+            allow_partial=False,
+            append_run_log=lambda *_a, **_k: None,
+            args=SimpleNamespace(),
+        ),
+        executed=_executed_context(),
         state_file=Path("state.json"),
         deps=SimpleNamespace(
             merge_batch_results_fn=lambda *_a, **_k: {"issues": []},

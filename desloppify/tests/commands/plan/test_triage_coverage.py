@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from desloppify.app.commands.plan.triage_handlers import _triage_coverage
-from desloppify.app.commands.plan.triage.stage_helpers import (
-    triage_coverage as stage_helper_triage_coverage,
-)
+from desloppify.app.commands.plan.triage.command import _triage_coverage
 from desloppify.engine._plan.schema import empty_plan
 from desloppify.engine._plan.constants import TRIAGE_STAGE_IDS
 
@@ -128,16 +125,5 @@ class TestTriageCoverage:
         )
         # No open_review_ids — uses queue_order
         organized, total, _ = _triage_coverage(plan)
-        assert total == 1
-        assert organized == 1
-
-    def test_stage_helpers_coverage_uses_same_filtering(self):
-        """Stage helper coverage excludes non-review items like canonical helper."""
-        plan = _plan_with_queue(
-            "review::test.py::issue1",
-            "unused-import::test.py",
-            clustered=["review::test.py::issue1"],
-        )
-        organized, total, _ = stage_helper_triage_coverage(plan)
         assert total == 1
         assert organized == 1

@@ -2,15 +2,38 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import desloppify.app.commands.detect as detect_cmd_mod
+import desloppify.app.commands.review.runtime.setup as review_runtime_setup_mod
+import desloppify.app.commands.scan.contracts as scan_contracts_mod
+import desloppify.app.commands.scan.coverage as scan_coverage_mod
+import desloppify.app.commands.scan.workflow as scan_workflow_mod
+import desloppify.app.commands.langs.cmd as langs_cmd_mod
+import desloppify.engine._scoring.state_coverage as state_coverage_mod
+import desloppify.engine._state.schema_types as state_schema_types_mod
+import desloppify.engine.planning.scan as planning_scan_mod
+import desloppify.languages as languages_mod
+import desloppify.languages.framework as public_framework_mod
+import desloppify.languages._framework as framework_root_mod
 import desloppify.languages._framework.commands_base_registry as registry_cmd_mod
 import desloppify.languages._framework.commands_base_scaffold as scaffold_mod
 import desloppify.languages._framework.generic_capabilities as capabilities_mod
 import desloppify.languages._framework.generic_registration as registration_mod
+import desloppify.languages._framework.registration as framework_registration_mod
 import desloppify.languages._framework.runtime_accessors as accessors_mod
+import desloppify.languages._framework.treesitter._specs as treesitter_specs_legacy_mod
+import desloppify.languages._framework.treesitter.analysis.cohesion as treesitter_cohesion_mod
+import desloppify.languages._framework.treesitter.imports.cache as treesitter_cache_mod
+import desloppify.languages._framework.treesitter.specs.specs as treesitter_specs_mod
+import desloppify.languages.dart.commands as dart_commands_mod
+import desloppify.languages.go.commands as go_commands_mod
+import desloppify.languages.python.commands as python_commands_mod
+import desloppify.languages.typescript.detectors.cli as ts_commands_mod
+import desloppify.languages.typescript.detectors.cli as ts_detector_cli_mod
 from desloppify.languages._framework.base.types import DetectorPhase
 
 
@@ -35,6 +58,139 @@ def test_scaffold_defaults_and_registry_builder() -> None:
     assert scaffold_mod.scaffold_find_replacements("a", "b", {}) == {}
     assert scaffold_mod.scaffold_find_self_replacements("a", "b", {}) == []
     assert scaffold_mod.scaffold_verify_hint() == "desloppify detect deps"
+
+
+def test_framework_root_contract_is_types_only_and_explicit() -> None:
+    src = inspect.getsource(framework_root_mod)
+    assert "Top-level role" in src
+    assert "Non-role" in src
+    assert "types only" in src.lower()
+    assert "catch-all entrypoint" in src
+    assert framework_root_mod.__all__ == [
+        "BoundaryRule",
+        "DetectorPhase",
+        "FixerConfig",
+        "FixResult",
+        "LangConfig",
+        "LangValueSpec",
+    ]
+
+
+def test_public_framework_facade_exposes_operational_accessors() -> None:
+    source = inspect.getsource(public_framework_mod)
+    assert "Public framework facade" in source
+    assert callable(public_framework_mod.load_all)
+    assert callable(public_framework_mod.make_lang_config)
+    assert hasattr(public_framework_mod, "registry_state")
+
+
+def test_languages_registry_surface_keeps_legacy_exports_compat_only() -> None:
+    source = inspect.getsource(languages_mod)
+    assert "registration api plus compatibility exports" in source.lower()
+    assert "compatibility owner" in source.lower()
+    assert "removal target" in source.lower()
+    assert "desloppify.languages.framework" in source
+    assert "registry_state" not in languages_mod.__all__
+    assert hasattr(languages_mod, "registry_state")
+
+
+def test_langs_command_uses_public_framework_facade() -> None:
+    source = inspect.getsource(langs_cmd_mod)
+    assert "from desloppify.languages.framework import" in source
+    assert "desloppify.languages._framework" not in source
+
+
+def test_app_and_engine_runtime_paths_use_public_framework_facade() -> None:
+    for module in (
+        detect_cmd_mod,
+        review_runtime_setup_mod,
+        scan_contracts_mod,
+        scan_coverage_mod,
+        scan_workflow_mod,
+        planning_scan_mod,
+        state_coverage_mod,
+        state_schema_types_mod,
+    ):
+        source = inspect.getsource(module)
+        assert "from desloppify.languages.framework import" in source
+        assert "desloppify.languages._framework" not in source
+
+
+def test_languages_readme_documents_current_runtime_boundary() -> None:
+    repo_root = Path(__file__).resolve().parents[3]
+    readme_path = repo_root / "languages/README.md"
+    source = readme_path.read_text(encoding="utf-8")
+    assert "register_full_plugin(...)" in source
+    assert "`desloppify.languages.framework`" in source
+
+
+def test_treesitter_grouped_namespaces_are_canonical() -> None:
+    for module in (treesitter_cohesion_mod, treesitter_cache_mod, treesitter_specs_mod):
+        source = inspect.getsource(module)
+        assert "Compatibility bridge" not in source
+        assert "__getattr__" not in source
+
+    source = inspect.getsource(treesitter_specs_legacy_mod)
+    assert "Compatibility bridge to grouped tree-sitter namespace module." in source
+    assert "import_module" in source
+
+    package_root = Path(__file__).resolve().parents[3] / "languages/_framework/treesitter"
+    assert not (package_root / "_cache.py").exists()
+    assert not (package_root / "_cohesion.py").exists()
+    assert not (package_root / "compat").exists()
+
+
+def test_treesitter_grouped_modules_avoid_legacy_module_path_imports() -> None:
+    package_root = Path(__file__).resolve().parents[3] / "languages/_framework/treesitter"
+    for group in ("analysis", "imports", "specs"):
+        for module_path in (package_root / group).rglob("*.py"):
+            source = module_path.read_text(encoding="utf-8")
+            assert "from .._" not in source
+            assert "from ._" not in source
+            assert "desloppify.languages._framework.treesitter._" not in source
+
+
+def test_dart_go_commands_use_one_factory_composition_pattern() -> None:
+    for module in (dart_commands_mod, go_commands_mod):
+        source = inspect.getsource(module)
+        assert "_cmd_large_impl" not in source
+        assert "_cmd_complexity_impl" not in source
+        assert "_cmd_deps_impl" not in source
+        assert "_cmd_cycles_impl" not in source
+        assert "_cmd_orphaned_impl" not in source
+        assert "_cmd_dupes_impl" not in source
+        for cmd_name in (
+            "cmd_large",
+            "cmd_complexity",
+            "cmd_deps",
+            "cmd_cycles",
+            "cmd_orphaned",
+            "cmd_dupes",
+        ):
+            cmd = getattr(module, cmd_name)
+            assert callable(cmd)
+            assert cmd.__module__ == module.__name__
+
+
+def test_major_language_command_registries_share_base_composition_pattern() -> None:
+    for module in (go_commands_mod, python_commands_mod):
+        source = inspect.getsource(module)
+        assert "build_standard_detect_registry(" in source
+        assert "compose_detect_registry(" in source
+
+    ts_source = inspect.getsource(ts_detector_cli_mod)
+    assert "build_standard_detect_registry(" in ts_source
+    assert "compose_detect_registry(" in ts_source
+
+    ts_commands_source = inspect.getsource(ts_commands_mod)
+    assert "build_standard_detect_registry(" in ts_commands_source
+    assert "compose_detect_registry(" in ts_commands_source
+
+
+def test_framework_registration_owns_lang_class_registration_flow() -> None:
+    source = inspect.getsource(framework_registration_mod)
+    assert "def register_lang_class(" in source
+    assert "from desloppify.languages import register_lang" not in source
 
 
 def test_make_cmd_deps_json_and_text_paths(monkeypatch, tmp_path) -> None:
@@ -222,11 +378,11 @@ def test_generic_registration_helpers(monkeypatch) -> None:
     )
     monkeypatch.setattr("desloppify.languages._framework.treesitter.is_available", lambda: True)
     monkeypatch.setattr(
-        "desloppify.languages._framework.treesitter._extractors.make_ts_extractor",
+        "desloppify.languages._framework.treesitter.analysis.extractors.make_ts_extractor",
         lambda _spec, _finder: "ts-extractor",
     )
     monkeypatch.setattr(
-        "desloppify.languages._framework.treesitter._import_graph.make_ts_dep_builder",
+        "desloppify.languages._framework.treesitter.imports.graph.make_ts_dep_builder",
         lambda _spec, _finder: "ts-dep-builder",
     )
 

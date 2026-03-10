@@ -14,7 +14,7 @@ from desloppify.app.commands.scan.artifacts import emit_scorecard_badge
 from desloppify.base.exception_sets import CommandError, PacketValidationError
 from desloppify.base.output.terminal import colorize
 from desloppify.intelligence import integrity as subjective_integrity_mod
-from desloppify.intelligence import review as review_mod
+from desloppify.intelligence.review.importing.holistic import import_holistic_issues
 from desloppify.intelligence.review.importing.contracts_models import (
     AssessmentImportPolicyModel,
 )
@@ -165,12 +165,43 @@ def _persist_import_state(
     state_file,
     diff: dict,
     assessment_mode: str,
+    config: dict | None,
 ) -> None:
     """Persist imported state and synchronize the work plan."""
     state.clear()
     state.update(working_state)
     state_mod.save_state(state, state_file)
-    sync_plan_after_import(state, diff, assessment_mode)
+    sync_plan_after_import(state, diff, assessment_mode, config=config)
+
+
+def _has_refreshable_scorecard_context(state: dict) -> bool:
+    """Return True when state has scan-backed scorecard context.
+
+    Review imports can run against minimal/synthetic states (for example test
+    fixtures or pre-scan workflows). Refreshing the badge from those states can
+    overwrite scorecard.png with a misleading partial card.
+    """
+    if not isinstance(state, dict):
+        return False
+    if not state.get("last_scan"):
+        return False
+
+    dim_scores = state.get("dimension_scores")
+    if not isinstance(dim_scores, dict) or not dim_scores:
+        return False
+
+    for data in dim_scores.values():
+        if not isinstance(data, dict):
+            continue
+        detectors = data.get("detectors", {})
+        if not isinstance(detectors, dict):
+            continue
+        if "subjective_assessment" in detectors:
+            continue
+        if int(data.get("checks", 0) or 0) <= 0:
+            continue
+        return True
+    return False
 
 
 def _refresh_scorecard_after_import(
@@ -181,6 +212,8 @@ def _refresh_scorecard_after_import(
 ) -> bool:
     """Refresh the scorecard badge when a trusted import updates live scores."""
     if not assessment_policy.assessments_present or not assessment_policy.trusted:
+        return False
+    if not _has_refreshable_scorecard_context(state):
         return False
     emit_scorecard_badge(
         SimpleNamespace(no_badge=False, badge_path=None),
@@ -223,7 +256,7 @@ def do_import(
     prev = state_mod.score_snapshot(state)
     working_state = _build_working_state(state, state_file)
 
-    diff = review_mod.import_holistic_issues(issues_data, working_state, lang.name)
+    diff = import_holistic_issues(issues_data, working_state, lang.name)
     label = "Holistic review"
     provisional_count = _apply_assessment_policy(
         working_state=working_state,
@@ -246,6 +279,7 @@ def do_import(
             state_file=state_file,
             diff=diff,
             assessment_mode=assessment_policy.mode,
+            config=resolved_import_config.config,
         )
 
     display_state = state if not dry_run else working_state

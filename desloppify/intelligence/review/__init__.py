@@ -4,7 +4,12 @@ Desloppify prepares structured review data (context + file batches + prompts)
 for an AI agent to evaluate. The agent returns structured issues that are
 imported back into state like any other detector.
 
-No LLM calls happen here — this module is pure Python.
+Ownership boundary:
+- ``app.commands.review`` owns workflow orchestration and CLI policy.
+- ``intelligence.review`` owns domain helpers (context, selection, prepare,
+  import, remediation) with no command orchestration.
+
+No LLM calls happen here — this package is pure Python domain logic.
 """
 
 from pathlib import Path

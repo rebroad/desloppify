@@ -12,6 +12,7 @@ import desloppify.app.commands.plan.override_io as override_io_mod
 import desloppify.app.commands.plan.override_misc as override_misc_mod
 import desloppify.app.commands.plan.override_resolve_cmd as override_resolve_cmd_mod
 import desloppify.app.commands.plan.override_resolve_helpers as resolve_helpers_mod
+import desloppify.app.commands.plan.override_resolve_workflow as resolve_workflow_mod
 import desloppify.app.commands.plan.override_skip as override_skip_mod
 from desloppify.base.exception_sets import CommandError
 
@@ -39,11 +40,14 @@ def test_override_io_snapshot_restore_and_plan_file_resolution(monkeypatch, tmp_
 
 
 def test_override_resolve_helpers_cover_synthetic_split_and_blocked_stages(capsys) -> None:
-    synthetic, remaining = resolve_helpers_mod.resolve_synthetic_ids(
+    synthetic, remaining = resolve_helpers_mod.split_synthetic_patterns(
         ["triage::reflect", "workflow::create-plan", "unused::src/a.py::X"]
     )
     assert synthetic == ["triage::reflect", "workflow::create-plan"]
     assert remaining == ["unused::src/a.py::X"]
+    assert resolve_helpers_mod.resolve_synthetic_ids(
+        ["triage::reflect", "unused::src/a.py::X"]
+    ) == (["triage::reflect"], ["unused::src/a.py::X"])
 
     plan = {
         "queue_order": ["triage::observe", "triage::reflect", "triage::organize"],
@@ -89,24 +93,24 @@ def test_override_resolve_cmd_handles_synthetic_only_resolution(monkeypatch, cap
     plan = {"queue_order": ["triage::observe"], "clusters": {}}
     calls: list[tuple[str, list[str]]] = []
 
-    monkeypatch.setattr(override_resolve_cmd_mod, "load_plan", lambda: plan)
-    monkeypatch.setattr(override_resolve_cmd_mod, "blocked_triage_stages", lambda _plan: {})
+    monkeypatch.setattr(resolve_workflow_mod, "load_plan", lambda: plan)
+    monkeypatch.setattr(resolve_workflow_mod, "blocked_triage_stages", lambda _plan: {})
     monkeypatch.setattr(
-        override_resolve_cmd_mod,
+        resolve_workflow_mod,
         "purge_ids",
         lambda _plan, ids: calls.append(("purge", list(ids))),
     )
     monkeypatch.setattr(
-        override_resolve_cmd_mod,
+        resolve_workflow_mod,
         "auto_complete_steps",
         lambda _plan: ["step complete"],
     )
     monkeypatch.setattr(
-        override_resolve_cmd_mod,
+        resolve_workflow_mod,
         "append_log_entry",
         lambda *_a, **_k: calls.append(("log", [])),
     )
-    monkeypatch.setattr(override_resolve_cmd_mod, "save_plan", lambda *_a, **_k: None)
+    monkeypatch.setattr(resolve_workflow_mod, "save_plan", lambda *_a, **_k: None)
 
     args = argparse.Namespace(
         patterns=["triage::observe"],
@@ -123,6 +127,196 @@ def test_override_resolve_cmd_handles_synthetic_only_resolution(monkeypatch, cap
     out = capsys.readouterr().out
     assert "Resolved: triage::observe" in out
     assert ("purge", ["triage::observe"]) in calls
+
+
+def test_resolve_workflow_patterns_triage_gate_blocks_and_logs(monkeypatch, capsys) -> None:
+    plan = {
+        "queue_order": [resolve_workflow_mod.WORKFLOW_CREATE_PLAN_ID],
+        "epic_triage_meta": {"triage_stages": {}},
+    }
+    logs: list[tuple[str, dict]] = []
+    injected: list[bool] = []
+
+    monkeypatch.setattr(resolve_workflow_mod, "load_plan", lambda: plan)
+    monkeypatch.setattr(resolve_workflow_mod, "blocked_triage_stages", lambda _plan: {})
+    monkeypatch.setattr(resolve_workflow_mod, "has_triage_in_queue", lambda _plan: False)
+    monkeypatch.setattr(
+        resolve_workflow_mod,
+        "inject_triage_stages",
+        lambda _plan: injected.append(True),
+    )
+    monkeypatch.setattr(resolve_workflow_mod, "save_plan", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        resolve_workflow_mod,
+        "append_log_entry",
+        lambda _plan, action, **kwargs: logs.append((action, kwargs)),
+    )
+
+    args = argparse.Namespace(force_resolve=False, state=None, lang=None, path=".", exclude=None)
+    outcome = resolve_workflow_mod.resolve_workflow_patterns(
+        args,
+        synthetic_ids=[resolve_workflow_mod.WORKFLOW_CREATE_PLAN_ID],
+        real_patterns=[],
+        note=None,
+    )
+    out = capsys.readouterr().out
+
+    assert outcome.status == "blocked"
+    assert outcome.remaining_patterns == []
+    assert "triage not complete" in out
+    assert "Remaining stages:" in out
+    assert injected == [True]
+    assert any(action == "workflow_blocked" for action, _ in logs)
+
+
+def test_resolve_workflow_patterns_force_resolve_requires_long_note(monkeypatch, capsys) -> None:
+    plan = {
+        "queue_order": [resolve_workflow_mod.WORKFLOW_CREATE_PLAN_ID],
+        "epic_triage_meta": {"triage_stages": {}},
+    }
+    monkeypatch.setattr(resolve_workflow_mod, "load_plan", lambda: plan)
+    monkeypatch.setattr(resolve_workflow_mod, "blocked_triage_stages", lambda _plan: {})
+    monkeypatch.setattr(resolve_workflow_mod, "has_triage_in_queue", lambda _plan: True)
+    monkeypatch.setattr(resolve_workflow_mod, "save_plan", lambda *_a, **_k: None)
+    monkeypatch.setattr(resolve_workflow_mod, "append_log_entry", lambda *_a, **_k: None)
+
+    args = argparse.Namespace(force_resolve=True, state=None, lang=None, path=".", exclude=None)
+    outcome = resolve_workflow_mod.resolve_workflow_patterns(
+        args,
+        synthetic_ids=[resolve_workflow_mod.WORKFLOW_CREATE_PLAN_ID],
+        real_patterns=[],
+        note="too short",
+    )
+    out = capsys.readouterr().out
+
+    assert outcome.status == "blocked"
+    assert "--force-resolve still requires --note (min 50 chars)" in out
+
+
+def test_resolve_workflow_patterns_scan_gate_blocks_without_new_scan(monkeypatch, capsys) -> None:
+    plan = {
+        "queue_order": [resolve_workflow_mod.WORKFLOW_SCORE_CHECKPOINT_ID],
+        "epic_triage_meta": {
+            "triage_stages": {},
+            "last_completed_at": "2026-03-09T00:00:00+00:00",
+        },
+        "scan_count_at_plan_start": 9,
+        "scan_gate_skipped": False,
+    }
+    logs: list[tuple[str, dict]] = []
+
+    monkeypatch.setattr(resolve_workflow_mod, "load_plan", lambda: plan)
+    monkeypatch.setattr(resolve_workflow_mod, "blocked_triage_stages", lambda _plan: {})
+    monkeypatch.setattr(resolve_workflow_mod, "save_plan", lambda *_a, **_k: None)
+    monkeypatch.setattr(resolve_workflow_mod, "state_path", lambda _args: Path("state.json"))
+    monkeypatch.setattr(resolve_workflow_mod.state_mod, "load_state", lambda _path: {"scan_count": 9})
+    monkeypatch.setattr(
+        resolve_workflow_mod,
+        "append_log_entry",
+        lambda _plan, action, **kwargs: logs.append((action, kwargs)),
+    )
+
+    args = argparse.Namespace(force_resolve=False, state=None, lang=None, path=".", exclude=None)
+    outcome = resolve_workflow_mod.resolve_workflow_patterns(
+        args,
+        synthetic_ids=[resolve_workflow_mod.WORKFLOW_SCORE_CHECKPOINT_ID],
+        real_patterns=[],
+        note=None,
+    )
+    out = capsys.readouterr().out
+
+    assert outcome.status == "blocked"
+    assert "no scan has run this cycle" in out
+    assert "desloppify scan" in out
+    assert any(action == "scan_gate_blocked" for action, _ in logs)
+
+
+def test_cmd_plan_resolve_workflow_gate_integration_paths(monkeypatch, capsys) -> None:
+    """Command-level workflow gating smoke: triage block, short forced note, scan gate."""
+    current_plan: dict = {}
+    state = {"scan_count": 0}
+    resolve_calls: list[argparse.Namespace] = []
+
+    monkeypatch.setattr(resolve_workflow_mod, "load_plan", lambda: current_plan)
+    monkeypatch.setattr(resolve_workflow_mod, "blocked_triage_stages", lambda _plan: {})
+    monkeypatch.setattr(resolve_workflow_mod, "has_triage_in_queue", lambda _plan: True)
+    monkeypatch.setattr(resolve_workflow_mod, "save_plan", lambda *_a, **_k: None)
+    monkeypatch.setattr(resolve_workflow_mod, "append_log_entry", lambda *_a, **_k: None)
+    monkeypatch.setattr(resolve_workflow_mod, "state_path", lambda _args: Path("state.json"))
+    monkeypatch.setattr(resolve_workflow_mod.state_mod, "load_state", lambda _path: state)
+    monkeypatch.setattr(
+        override_resolve_cmd_mod,
+        "cmd_resolve",
+        lambda resolve_args: resolve_calls.append(resolve_args),
+    )
+
+    current_plan = {
+        "queue_order": [resolve_workflow_mod.WORKFLOW_CREATE_PLAN_ID],
+        "epic_triage_meta": {"triage_stages": {}},
+    }
+    override_resolve_cmd_mod.cmd_plan_resolve(
+        argparse.Namespace(
+            patterns=[resolve_workflow_mod.WORKFLOW_CREATE_PLAN_ID],
+            attest=None,
+            note=None,
+            confirm=False,
+            force_resolve=False,
+            state=None,
+            lang=None,
+            path=".",
+            exclude=None,
+        )
+    )
+    out_triage = capsys.readouterr().out
+
+    current_plan = {
+        "queue_order": [resolve_workflow_mod.WORKFLOW_CREATE_PLAN_ID],
+        "epic_triage_meta": {"triage_stages": {}},
+    }
+    override_resolve_cmd_mod.cmd_plan_resolve(
+        argparse.Namespace(
+            patterns=[resolve_workflow_mod.WORKFLOW_CREATE_PLAN_ID],
+            attest=None,
+            note="too short",
+            confirm=False,
+            force_resolve=True,
+            state=None,
+            lang=None,
+            path=".",
+            exclude=None,
+        )
+    )
+    out_short = capsys.readouterr().out
+
+    current_plan = {
+        "queue_order": [resolve_workflow_mod.WORKFLOW_SCORE_CHECKPOINT_ID],
+        "epic_triage_meta": {
+            "triage_stages": {},
+            "last_completed_at": "2026-03-09T00:00:00+00:00",
+        },
+        "scan_count_at_plan_start": 4,
+        "scan_gate_skipped": False,
+    }
+    state["scan_count"] = 4
+    override_resolve_cmd_mod.cmd_plan_resolve(
+        argparse.Namespace(
+            patterns=[resolve_workflow_mod.WORKFLOW_SCORE_CHECKPOINT_ID],
+            attest=None,
+            note=None,
+            confirm=False,
+            force_resolve=False,
+            state=None,
+            lang=None,
+            path=".",
+            exclude=None,
+        )
+    )
+    out_scan = capsys.readouterr().out
+
+    assert "triage not complete" in out_triage
+    assert "--force-resolve still requires --note (min 50 chars)" in out_short
+    assert "no scan has run this cycle" in out_scan
+    assert resolve_calls == []
 
 
 def test_override_misc_focus_and_scan_gate_paths(monkeypatch, capsys) -> None:

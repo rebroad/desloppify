@@ -64,12 +64,7 @@ def _build_census(
     }
 
 
-def detect_pattern_anomalies(path: Path) -> tuple[list[dict], int]:
-    """Anomaly detector entrypoint."""
-    return detect_pattern_anomalies_result(path).as_tuple()
-
-
-def detect_pattern_anomalies_result(path: Path) -> DetectorResult[dict]:
+def detect_pattern_anomalies(path: Path) -> DetectorResult[dict]:
     """Detect areas with competing pattern fragmentation."""
     census, evidence = _build_census(path)
     if not census:
@@ -153,5 +148,4 @@ def detect_pattern_anomalies_result(path: Path) -> DetectorResult[dict]:
 __all__ = [
     "_build_census",
     "detect_pattern_anomalies",
-    "detect_pattern_anomalies_result",
 ]

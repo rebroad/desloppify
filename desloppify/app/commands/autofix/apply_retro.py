@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING
 
 from desloppify.base.discovery.file_paths import rel
 from desloppify.base.output.terminal import colorize
-from desloppify.languages._framework.base.types import FixResult
+from desloppify.languages.framework import FixResult
 
 if TYPE_CHECKING:
-    from desloppify.languages._framework.runtime import LangRun
+    from desloppify.languages.framework import LangRun
 
 
 def _resolve_fixer_results(

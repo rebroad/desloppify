@@ -12,7 +12,7 @@ from desloppify.engine._plan.constants import (
     WORKFLOW_SCORE_CHECKPOINT_ID,
 )
 from desloppify.engine._plan.schema import empty_plan
-from desloppify.engine._plan.stale_policy import is_triage_stale
+from desloppify.engine._plan.policy.stale import is_triage_stale
 
 
 def _state_with_review_issues(*ids: str) -> dict:

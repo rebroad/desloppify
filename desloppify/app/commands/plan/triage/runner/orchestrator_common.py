@@ -5,10 +5,14 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from desloppify.base.output.terminal import colorize
-from desloppify.engine._plan.constants import TRIAGE_STAGE_IDS
+from desloppify.engine.plan_triage import TRIAGE_STAGE_IDS
 
 from ..helpers import has_triage_in_queue, inject_triage_stages
+from ..lifecycle import (
+    TriageLifecycleDeps,
+    TriageStartRequest,
+    ensure_triage_started as ensure_triage_started_with_lifecycle,
+)
 from ..services import TriageServices
 
 STAGES: tuple[str, ...] = ("observe", "reflect", "organize", "enrich", "sense-check")
@@ -34,22 +38,28 @@ def ensure_triage_started(
     services: TriageServices,
     *,
     runner: str | None = None,
+    state: dict[str, Any] | None = None,
+    attestation: str | None = None,
 ) -> dict[str, Any]:
     """Auto-start triage if not started. Returns updated plan."""
-    if not has_triage_in_queue(plan):
-        inject_triage_stages(plan)
-        meta = plan.setdefault("epic_triage_meta", {})
-        meta.setdefault("triage_stages", {})
-        services.append_log_entry(
-            plan,
-            "triage_auto_start",
-            actor="system",
-            detail={
+    ensure_triage_started_with_lifecycle(
+        plan,
+        services=services,
+        request=TriageStartRequest(
+            state=state,
+            attestation=attestation,
+            log_action="triage_auto_start",
+            log_actor="system",
+            log_detail={
                 "source": "runner_auto_start",
                 "runner": runner,
                 "injected_stage_ids": list(TRIAGE_STAGE_IDS),
             },
-        )
-        services.save_plan(plan)
-        print(colorize("  Planning mode auto-started.", "cyan"))
+            start_message="  Planning mode auto-started.",
+        ),
+        deps=TriageLifecycleDeps(
+            has_triage_in_queue=has_triage_in_queue,
+            inject_triage_stages=inject_triage_stages,
+        ),
+    )
     return plan

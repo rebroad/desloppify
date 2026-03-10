@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import desloppify.app.commands.helpers.guardrails as guardrails_mod
-import desloppify.app.commands.plan.triage.progress_render as plan_progress_render_mod
-import desloppify.app.commands.plan.triage.stage_flow_commands as triage_flow_mod
-import desloppify.app.commands.plan.triage_handlers as triage_handlers_mod
+import desloppify.app.commands.plan.triage.display.progress as plan_progress_render_mod
+import desloppify.app.commands.plan.triage.stages.commands as triage_flow_mod
+import desloppify.app.commands.plan.triage.command as triage_handlers_mod
 import desloppify.app.commands.review.batch.merge as batch_merge_mod
 import desloppify.app.commands.review.batch.scope as batches_scope_mod
 import desloppify.app.commands.review.batches_runtime as batches_runtime_mod
@@ -34,9 +34,11 @@ def test_direct_coverage_split_queue_batch_modules_smoke():
     assert callable(batch_merge_mod.merge_batch_results)
     assert callable(batches_runtime_mod.build_batch_tasks)
     assert callable(batches_scope_mod.validate_runner)
-    assert callable(coordinator_mod.build_review_packet_payload)
-    assert callable(coordinator_mod.write_review_packet_snapshot)
+    assert callable(coordinator_mod.build_review_session_baseline)
+    assert callable(coordinator_mod.evaluate_session_baseline_drift)
     assert callable(packet_build_mod.build_holistic_packet)
+    assert callable(packet_build_mod.build_review_packet_payload)
+    assert callable(packet_build_mod.write_review_packet_snapshot)
     assert callable(runner_failures_mod.print_failures)
     assert callable(runner_packets_mod.prepare_run_artifacts)
     assert callable(runner_parallel_mod.execute_batches)

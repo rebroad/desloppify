@@ -12,7 +12,7 @@ from desloppify.app.commands.scan.workflow import (
     prepare_scan_runtime,
 )
 from desloppify.base.discovery.file_paths import rel
-from desloppify.engine.plan import empty_plan, load_plan, save_plan
+from desloppify.engine.plan_state import empty_plan, load_plan, save_plan
 
 
 def test_prepare_scan_runtime_uses_real_runtime_and_resets_subjective(tmp_path):

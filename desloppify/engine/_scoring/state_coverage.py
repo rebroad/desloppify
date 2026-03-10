@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from desloppify.base.coercions import coerce_confidence
 from desloppify.engine._state.schema import StateModel
-from desloppify.languages._framework.base.types import ScanCoverageRecord
+from desloppify.languages.framework import ScanCoverageRecord
 
 
 def _active_scan_coverage(state: StateModel) -> ScanCoverageRecord:

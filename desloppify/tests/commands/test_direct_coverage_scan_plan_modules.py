@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import desloppify.app.commands.exclude as exclude_cmd_mod
-import desloppify.app.commands.plan._resolve as plan_resolve_mod
-import desloppify.app.commands.plan.cluster_handlers as plan_cluster_handlers_mod
+import desloppify.app.commands.plan.shared.patterns as plan_resolve_mod
+import desloppify.app.commands.plan.cluster.dispatch as plan_cluster_handlers_mod
 import desloppify.app.commands.plan.cmd as plan_cmd_mod
 import desloppify.app.commands.plan.queue_render as plan_queue_render_mod
 import desloppify.app.commands.plan.reorder_handlers as plan_reorder_handlers_mod
@@ -23,7 +23,7 @@ import desloppify.base.coercions as coercions_api_mod
 import desloppify.base.enums as enums_mod
 import desloppify.base.search.query_paths as query_paths_mod
 import desloppify.engine.planning.scorecard_policy as scorecard_policy_mod
-import desloppify.engine._plan.epic_triage as planning_triage_mod
+import desloppify.engine._plan.triage.core as planning_triage_mod
 import desloppify.languages._framework.scaffold_move as scaffold_move_mod
 import desloppify.languages.go.commands as go_commands_mod
 import desloppify.languages.go.detectors.deps as go_deps_mod

@@ -510,10 +510,9 @@ class TestDetectorNames:
 
     def test_runtime_detector_registration_invalidates_cached_detector_names(self):
         from desloppify.base.registry import (
-            _DISPLAY_ORDER,
-            DETECTORS,
             DetectorMeta,
             register_detector,
+            unregister_detector,
         )
 
         test_detector = "_test_cli_cache_refresh"
@@ -531,9 +530,7 @@ class TestDetectorNames:
         assert test_detector in _get_detector_names()
 
         # Cleanup dynamic detector mutation for test isolation.
-        DETECTORS.pop(test_detector, None)
-        if test_detector in _DISPLAY_ORDER:
-            _DISPLAY_ORDER.remove(test_detector)
+        unregister_detector(test_detector)
 
 
 # ===========================================================================
@@ -835,5 +832,4 @@ class TestResolveLang:
         args = SimpleNamespace(path=str(target_src))
         resolved = lang_helpers_mod.resolve_detection_root(args)
         assert resolved == target_root
-
 

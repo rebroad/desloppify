@@ -14,12 +14,8 @@ from desloppify.base.discovery.file_paths import matches_exclusion
 from desloppify.base.exception_sets import PLAN_LOAD_EXCEPTIONS, CommandError
 from desloppify.base.output.terminal import colorize
 from desloppify.base.tooling import check_config_staleness
-from desloppify.engine.plan import (
-    load_plan,
-    plan_path_for_state,
-    purge_ids,
-    save_plan,
-)
+from desloppify.engine.plan_ops import purge_ids
+from desloppify.engine.plan_state import load_plan, plan_path_for_state, save_plan
 
 logger = logging.getLogger(__name__)
 

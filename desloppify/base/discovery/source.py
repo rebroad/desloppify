@@ -14,8 +14,13 @@ from desloppify.base.discovery.file_paths import (
 from desloppify.base.discovery.file_paths import (
     safe_relpath as _safe_relpath,
 )
-from desloppify.base.runtime_state import FileTextReadResult, current_runtime_context
 from desloppify.base.discovery.paths import get_project_root
+from desloppify.base.runtime_state import (
+    FileTextReadResult,
+    RuntimeContext,
+    SourceFileCache,
+    resolve_runtime_context,
+)
 
 # Directories that are never useful to scan — always pruned during traversal.
 DEFAULT_EXCLUSIONS = frozenset(
@@ -44,77 +49,95 @@ DEFAULT_EXCLUSIONS = frozenset(
 )
 
 
-def set_exclusions(patterns: list[str]) -> None:
+def set_exclusions(
+    patterns: list[str],
+    *,
+    runtime: RuntimeContext | None = None,
+) -> None:
     """Set global exclusion patterns (called once from CLI at startup)."""
-    runtime = current_runtime_context()
-    runtime.exclusions = tuple(patterns)
-    runtime.source_file_cache.clear()
+    resolved_runtime = resolve_runtime_context(runtime)
+    resolved_runtime.exclusions = tuple(patterns)
+    resolved_runtime.source_file_cache.clear()
 
 
-def get_exclusions() -> tuple[str, ...]:
+def get_exclusions(*, runtime: RuntimeContext | None = None) -> tuple[str, ...]:
     """Return current extra exclusion patterns."""
-    return current_runtime_context().exclusions
+    return resolve_runtime_context(runtime).exclusions
 
 
-def enable_file_cache() -> None:
+def enable_file_cache(*, runtime: RuntimeContext | None = None) -> None:
     """Enable scan-scoped file content cache."""
-    runtime = current_runtime_context()
-    runtime.file_text_cache.enable()
-    runtime.cache_enabled = True
+    resolved_runtime = resolve_runtime_context(runtime)
+    resolved_runtime.file_text_cache.enable()
+    resolved_runtime.cache_enabled = True
 
 
-def disable_file_cache() -> None:
+def disable_file_cache(*, runtime: RuntimeContext | None = None) -> None:
     """Disable file content cache and free memory."""
-    runtime = current_runtime_context()
-    runtime.file_text_cache.disable()
-    runtime.cache_enabled = False
+    resolved_runtime = resolve_runtime_context(runtime)
+    resolved_runtime.file_text_cache.disable()
+    resolved_runtime.cache_enabled = False
 
 
 @contextmanager
-def file_cache_scope() -> Iterator[None]:
+def file_cache_scope(*, runtime: RuntimeContext | None = None) -> Iterator[None]:
     """Temporarily enable file cache within a context, with nested safety."""
-    runtime = current_runtime_context()
-    was_enabled = runtime.cache_enabled
+    resolved_runtime = resolve_runtime_context(runtime)
+    was_enabled = resolved_runtime.cache_enabled
     if not was_enabled:
-        enable_file_cache()
+        enable_file_cache(runtime=resolved_runtime)
     try:
         yield
     finally:
         if not was_enabled:
-            disable_file_cache()
+            disable_file_cache(runtime=resolved_runtime)
 
 
-def is_file_cache_enabled() -> bool:
+def is_file_cache_enabled(*, runtime: RuntimeContext | None = None) -> bool:
     """Return whether scan-scoped file cache is currently enabled."""
-    return current_runtime_context().cache_enabled
+    return resolve_runtime_context(runtime).cache_enabled
 
 
-def read_file_text(filepath: str) -> str | None:
+def read_file_text(filepath: str, *, runtime: RuntimeContext | None = None) -> str | None:
     """Read a file as text, with optional caching."""
-    return current_runtime_context().file_text_cache.read(filepath)
+    return resolve_runtime_context(runtime).file_text_cache.read(filepath)
 
 
-def read_file_text_result(filepath: str) -> FileTextReadResult:
+def read_file_text_result(
+    filepath: str,
+    *,
+    runtime: RuntimeContext | None = None,
+) -> FileTextReadResult:
     """Read a file as text and include read-status metadata."""
-    return current_runtime_context().file_text_cache.read_result(filepath)
+    return resolve_runtime_context(runtime).file_text_cache.read_result(filepath)
 
 
-def clear_source_file_cache_for_tests() -> None:
-    current_runtime_context().source_file_cache.clear()
+def clear_source_file_cache_for_tests(*, runtime: RuntimeContext | None = None) -> None:
+    resolve_runtime_context(runtime).source_file_cache.clear()
 
 
-def collect_exclude_dirs(scan_root: Path) -> list[str]:
+def collect_exclude_dirs(
+    scan_root: Path,
+    *,
+    extra_exclusions: tuple[str, ...] | None = None,
+    runtime: RuntimeContext | None = None,
+) -> list[str]:
     """All exclusion directories as absolute paths, for passing to external tools.
 
     Combines DEFAULT_EXCLUSIONS (non-glob entries) + get_exclusions() (runtime/config),
     resolves each against *scan_root*. Filters out glob patterns (``*`` in name)
     since most CLI tools want plain directory paths.
     """
+    resolved_exclusions = (
+        extra_exclusions
+        if extra_exclusions is not None
+        else get_exclusions(runtime=runtime)
+    )
     patterns = set()
     for pat in DEFAULT_EXCLUSIONS:
         if "*" not in pat:
             patterns.add(pat)
-    patterns.update(p for p in get_exclusions() if p and "*" not in p)
+    patterns.update(p for p in resolved_exclusions if p and "*" not in p)
     return [str(scan_root / p) for p in sorted(patterns) if p]
 
 
@@ -139,23 +162,40 @@ def _find_source_files_cached(
     extensions: tuple[str, ...],
     exclusions: tuple[str, ...] | None = None,
     extra_exclusions: tuple[str, ...] = (),
+    *,
+    project_root: Path | None = None,
+    source_file_cache: SourceFileCache | None = None,
+    runtime: RuntimeContext | None = None,
 ) -> tuple[str, ...]:
     """Cached file discovery using os.walk with traversal-time pruning."""
-    cache_key = (path, extensions, exclusions, extra_exclusions)
-    cache = current_runtime_context().source_file_cache
+    resolved_runtime = resolve_runtime_context(runtime)
+    resolved_project_root = (
+        project_root.resolve()
+        if project_root is not None
+        else get_project_root(runtime=resolved_runtime)
+    )
+    cache = source_file_cache or resolved_runtime.source_file_cache
+    cache_key = (
+        path,
+        extensions,
+        exclusions,
+        extra_exclusions,
+        str(resolved_project_root),
+    )
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
 
-    project_root = get_project_root()
     root = Path(path)
     if not root.is_absolute():
-        root = project_root / root
+        root = resolved_project_root / root
     all_exclusions = (exclusions or ()) + extra_exclusions
     ext_set = set(extensions)
     files: list[str] = []
     for dirpath, dirnames, filenames in os.walk(root):
-        rel_dir = _normalize_path_separators(_safe_relpath(dirpath, project_root))
+        rel_dir = _normalize_path_separators(
+            _safe_relpath(dirpath, resolved_project_root)
+        )
         dirnames[:] = sorted(
             d
             for d in dirnames
@@ -164,7 +204,9 @@ def _find_source_files_cached(
         for fname in filenames:
             if any(fname.endswith(ext) for ext in ext_set):
                 full = os.path.join(dirpath, fname)
-                rel_file = _normalize_path_separators(_safe_relpath(full, project_root))
+                rel_file = _normalize_path_separators(
+                    _safe_relpath(full, resolved_project_root)
+                )
                 if all_exclusions and any(
                     matches_exclusion(rel_file, ex) for ex in all_exclusions
                 ):
@@ -176,35 +218,67 @@ def _find_source_files_cached(
 
 
 def find_source_files(
-    path: str | Path, extensions: list[str], exclusions: list[str] | None = None
+    path: str | Path,
+    extensions: list[str],
+    exclusions: list[str] | None = None,
+    *,
+    project_root: str | Path | None = None,
+    extra_exclusions: list[str] | tuple[str, ...] | None = None,
+    source_file_cache: SourceFileCache | None = None,
+    runtime: RuntimeContext | None = None,
 ) -> list[str]:
     """Find all files with given extensions under a path, excluding patterns."""
+    resolved_runtime = resolve_runtime_context(runtime)
+    resolved_project_root = get_project_root(
+        project_root=project_root,
+        runtime=resolved_runtime,
+    )
+    resolved_extra_exclusions = (
+        tuple(extra_exclusions)
+        if extra_exclusions is not None
+        else get_exclusions(runtime=resolved_runtime)
+    )
     return list(
         _find_source_files_cached(
             str(path),
             tuple(extensions),
             tuple(exclusions) if exclusions else None,
-            get_exclusions(),
+            resolved_extra_exclusions,
+            project_root=resolved_project_root,
+            source_file_cache=source_file_cache,
+            runtime=resolved_runtime,
         )
     )
 
 
-def find_ts_files(path: str | Path) -> list[str]:
+def find_ts_files(path: str | Path, *, runtime: RuntimeContext | None = None) -> list[str]:
     """Find TypeScript ``.ts`` source files (excluding ``.tsx``)."""
-    return find_source_files(path, [".ts"])
+    if runtime is None:
+        return find_source_files(path, [".ts"])
+    return find_source_files(path, [".ts"], runtime=runtime)
 
 
-def find_ts_and_tsx_files(path: str | Path) -> list[str]:
+def find_ts_and_tsx_files(
+    path: str | Path,
+    *,
+    runtime: RuntimeContext | None = None,
+) -> list[str]:
     """Find TypeScript source files across ``.ts`` and ``.tsx`` extensions."""
-    return find_source_files(path, [".ts", ".tsx"])
+    if runtime is None:
+        return find_source_files(path, [".ts", ".tsx"])
+    return find_source_files(path, [".ts", ".tsx"], runtime=runtime)
 
 
-def find_tsx_files(path: str | Path) -> list[str]:
-    return find_source_files(path, [".tsx"])
+def find_tsx_files(path: str | Path, *, runtime: RuntimeContext | None = None) -> list[str]:
+    if runtime is None:
+        return find_source_files(path, [".tsx"])
+    return find_source_files(path, [".tsx"], runtime=runtime)
 
 
-def find_py_files(path: str | Path) -> list[str]:
-    return find_source_files(path, [".py"])
+def find_py_files(path: str | Path, *, runtime: RuntimeContext | None = None) -> list[str]:
+    if runtime is None:
+        return find_source_files(path, [".py"])
+    return find_source_files(path, [".py"], runtime=runtime)
 
 
 __all__ = [

@@ -1,104 +1,16 @@
-"""Per-language TreeSitterLangSpec instances.
+"""Compatibility bridge to grouped tree-sitter namespace module.
 
-Compatibility facade that aggregates specs from grouped modules.
+Canonical implementation now lives in desloppify.languages._framework.treesitter.specs.specs.
 """
 
 from __future__ import annotations
 
-from ._specs_compiled import (
-    CPP_SPEC,
-    CSHARP_SPEC,
-    C_SPEC,
-    DART_SPEC,
-    GO_SPEC,
-    JAVA_SPEC,
-    KOTLIN_SPEC,
-    PHP_SPEC,
-    RUST_SPEC,
-    SCALA_SPEC,
-    SWIFT_SPEC,
-)
-from ._specs_functional import (
-    CLOJURE_SPEC,
-    ELIXIR_SPEC,
-    ERLANG_SPEC,
-    FSHARP_SPEC,
-    HASKELL_SPEC,
-    OCAML_SPEC,
-)
-from ._specs_scripting import (
-    BASH_SPEC,
-    GDSCRIPT_SPEC,
-    JS_SPEC,
-    LUA_SPEC,
-    NIM_SPEC,
-    PERL_SPEC,
-    POWERSHELL_SPEC,
-    R_SPEC,
-    RUBY_SPEC,
-    TYPESCRIPT_SPEC,
-    ZIG_SPEC,
-)
+from importlib import import_module
 
-TREESITTER_SPECS = {
-    "go": GO_SPEC,
-    "rust": RUST_SPEC,
-    "ruby": RUBY_SPEC,
-    "java": JAVA_SPEC,
-    "kotlin": KOTLIN_SPEC,
-    "csharp": CSHARP_SPEC,
-    "swift": SWIFT_SPEC,
-    "php": PHP_SPEC,
-    "dart": DART_SPEC,
-    "c": C_SPEC,
-    "cpp": CPP_SPEC,
-    "scala": SCALA_SPEC,
-    "elixir": ELIXIR_SPEC,
-    "erlang": ERLANG_SPEC,
-    "fsharp": FSHARP_SPEC,
-    "haskell": HASKELL_SPEC,
-    "javascript": JS_SPEC,
-    "typescript": TYPESCRIPT_SPEC,
-    "bash": BASH_SPEC,
-    "lua": LUA_SPEC,
-    "ocaml": OCAML_SPEC,
-    "perl": PERL_SPEC,
-    "clojure": CLOJURE_SPEC,
-    "zig": ZIG_SPEC,
-    "nim": NIM_SPEC,
-    "powershell": POWERSHELL_SPEC,
-    "gdscript": GDSCRIPT_SPEC,
-    "r": R_SPEC,
-}
-
-__all__ = [
-    "BASH_SPEC",
-    "CLOJURE_SPEC",
-    "CPP_SPEC",
-    "CSHARP_SPEC",
-    "C_SPEC",
-    "DART_SPEC",
-    "ELIXIR_SPEC",
-    "ERLANG_SPEC",
-    "FSHARP_SPEC",
-    "GDSCRIPT_SPEC",
-    "GO_SPEC",
-    "HASKELL_SPEC",
-    "JAVA_SPEC",
-    "JS_SPEC",
-    "KOTLIN_SPEC",
-    "LUA_SPEC",
-    "NIM_SPEC",
-    "OCAML_SPEC",
-    "PERL_SPEC",
-    "PHP_SPEC",
-    "POWERSHELL_SPEC",
-    "R_SPEC",
-    "RUBY_SPEC",
-    "RUST_SPEC",
-    "SCALA_SPEC",
-    "SWIFT_SPEC",
-    "TREESITTER_SPECS",
-    "TYPESCRIPT_SPEC",
-    "ZIG_SPEC",
-]
+_IMPL = import_module("desloppify.languages._framework.treesitter.specs.specs")
+_EXPORTS = [name for name in dir(_IMPL) if not name.startswith("__")]
+globals().update({name: getattr(_IMPL, name) for name in _EXPORTS})
+_PUBLIC = getattr(_IMPL, "__all__", None)
+if _PUBLIC is None:
+    _PUBLIC = [name for name in _EXPORTS if not name.startswith("_")]
+__all__ = list(_PUBLIC)
