@@ -78,29 +78,6 @@ def _emit_requested_output(
     return next_output_mod.emit_non_terminal_output(opts.output_format, payload, items)
 
 
-def _resolve_plan_context(load_plan_fn) -> tuple[dict, dict, dict | None]:
-    """Load the plan and derive the renderable plan payload."""
-    plan = load_plan_fn()
-    plan_data: dict | None = None
-    if plan.get("queue_order") or plan.get("overrides") or plan.get("clusters"):
-        plan_data = plan
-    return plan, plan, plan_data
-
-
-def _apply_queue_item_filters(
-    *,
-    items: list[dict],
-    plan_for_queue: dict,
-    effective_cluster: str | None,
-) -> list[dict]:
-    """Apply cluster drill-in or collapse behavior to queue items."""
-    if effective_cluster and plan_for_queue:
-        return filter_cluster_focus(items, plan_for_queue, effective_cluster)
-    if plan_for_queue and not effective_cluster and not plan_for_queue.get("active_cluster"):
-        return collapse_clusters(items, plan_for_queue)
-    return items
-
-
 def _write_next_payload(
     *,
     queue: dict,
@@ -247,7 +224,12 @@ def build_and_render_queue(
     opts = NextOptions.from_args(args)
     guardrail_warnings = triage_guardrail_messages(state=state)
     target_strict = target_strict_score_from_config(config)
-    _plan, plan_for_queue, plan_data = _resolve_plan_context(load_plan_fn)
+
+    plan = load_plan_fn()
+    plan_for_queue = plan
+    plan_data: dict | None = None
+    if plan.get("queue_order") or plan.get("overrides") or plan.get("clusters"):
+        plan_data = plan
 
     ctx = queue_context(
         state,
@@ -274,11 +256,11 @@ def build_and_render_queue(
             context=ctx,
         ),
     )
-    items = _apply_queue_item_filters(
-        items=queue.get("items", []),
-        plan_for_queue=plan_for_queue,
-        effective_cluster=effective_cluster,
-    )
+    items = queue.get("items", [])
+    if effective_cluster and plan_for_queue:
+        items = filter_cluster_focus(items, plan_for_queue, effective_cluster)
+    elif plan_for_queue and not effective_cluster and not plan_for_queue.get("active_cluster"):
+        items = collapse_clusters(items, plan_for_queue)
 
     if opts.count:
         items = items[: opts.count]

@@ -132,7 +132,7 @@ def test_treesitter_grouped_namespaces_are_canonical() -> None:
 
     source = inspect.getsource(treesitter_specs_legacy_mod)
     assert "Compatibility bridge to grouped tree-sitter namespace module." in source
-    assert "import_module" in source
+    assert "load_compat_exports" in source
 
     package_root = Path(__file__).resolve().parents[3] / "languages/_framework/treesitter"
     assert not (package_root / "_cache.py").exists()

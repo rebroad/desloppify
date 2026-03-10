@@ -71,8 +71,7 @@ def _read_composer_psr4(scan_path: str) -> dict[str, str]:
                 elif isinstance(dirs, list) and dirs:
                     mappings[prefix] = dirs[0]
     except (OSError, ValueError, KeyError):
-        _PHP_COMPOSER_CACHE[scan_path] = mappings
-        return mappings
+        pass
     _PHP_COMPOSER_CACHE[scan_path] = mappings
     return mappings
 

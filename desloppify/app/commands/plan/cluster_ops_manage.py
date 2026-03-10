@@ -47,17 +47,6 @@ def _load_steps_from_file(steps_file: str) -> list[dict] | None:
     return parse_steps_file(path.read_text())
 
 
-def _cluster_export_payload(cluster_name: str, cluster: dict, steps: list[dict]) -> dict[str, object]:
-    payload: dict[str, object] = {
-        "name": cluster_name,
-        "description": cluster.get("description") or "",
-        "steps": [normalize_step(step) for step in steps],
-    }
-    if "priority" in cluster:
-        payload["priority"] = cluster["priority"]
-    return {"clusters": [payload]}
-
-
 def _load_cluster_import_entries(file_path: str, *, yaml_module) -> list[dict] | None:
     path = Path(file_path)
     if not path.is_file():
@@ -72,16 +61,6 @@ def _load_cluster_import_entries(file_path: str, *, yaml_module) -> list[dict] |
         print(colorize("  Invalid YAML: 'clusters' must be a list.", "red"))
         return None
     return entries
-
-
-def _print_cluster_import_dry_run(entries: list[dict]) -> None:
-    for entry in entries:
-        if not isinstance(entry, dict) or "name" not in entry:
-            print(colorize(f"  Skipping entry without 'name': {entry!r}", "yellow"))
-            continue
-        action = "CREATE" if entry.get("__is_new__") else "UPDATE"
-        step_count = len(entry.get("steps", []))
-        print(colorize(f"  [{action}] {entry['name']}: {step_count} step(s)", "cyan"))
 
 
 def _imported_cluster_steps(entry: dict) -> list[dict]:
@@ -101,39 +80,6 @@ def _imported_cluster_steps(entry: dict) -> list[dict]:
             imported["issue_refs"] = step["issue_refs"]
         imported_steps.append(imported)
     return imported_steps
-
-
-def _upsert_cluster_from_entry(
-    plan: dict,
-    clusters: dict,
-    entry: dict,
-) -> str | None:
-    if not isinstance(entry, dict) or "name" not in entry:
-        print(colorize(f"  Skipping entry without 'name': {entry!r}", "yellow"))
-        return None
-    name = entry["name"]
-    is_new = name not in clusters
-
-    if is_new:
-        try:
-            cluster = create_cluster(plan, name, entry.get("description"))
-        except ValueError as ex:
-            print(colorize(f"  {ex}", "red"))
-            return None
-        action = "created"
-    else:
-        cluster = clusters[name]
-        action = "updated"
-
-    if "description" in entry:
-        cluster["description"] = entry["description"]
-    if "priority" in entry:
-        cluster["priority"] = entry["priority"]
-    if "steps" in entry:
-        cluster["action_steps"] = _imported_cluster_steps(entry)
-    cluster["user_modified"] = True
-    cluster["updated_at"] = utc_now()
-    return action
 
 
 def _cmd_cluster_create(args: argparse.Namespace) -> None:
@@ -210,8 +156,14 @@ def _cmd_cluster_export(args: argparse.Namespace) -> None:
         if yaml is None:
             return
 
-        data = _cluster_export_payload(cluster_name, cluster, steps)
-        print(yaml.dump(data, default_flow_style=False, sort_keys=False))
+        payload: dict[str, object] = {
+            "name": cluster_name,
+            "description": cluster.get("description") or "",
+            "steps": [normalize_step(step) for step in steps],
+        }
+        if "priority" in cluster:
+            payload["priority"] = cluster["priority"]
+        print(yaml.dump({"clusters": [payload]}, default_flow_style=False, sort_keys=False))
     else:
         print(format_steps(steps))
 
@@ -231,25 +183,46 @@ def _cmd_cluster_import(args: argparse.Namespace) -> None:
 
     plan = load_plan()
     clusters = plan.get("clusters", {})
-    annotated_entries = [
-        {**entry, "__is_new__": entry.get("name") not in clusters}
-        if isinstance(entry, dict) and "name" in entry else entry
-        for entry in entries
-    ]
+
     if dry_run:
-        _print_cluster_import_dry_run(annotated_entries)
+        for entry in entries:
+            if not isinstance(entry, dict) or "name" not in entry:
+                print(colorize(f"  Skipping entry without 'name': {entry!r}", "yellow"))
+                continue
+            action = "CREATE" if entry.get("name") not in clusters else "UPDATE"
+            step_count = len(entry.get("steps", []))
+            print(colorize(f"  [{action}] {entry['name']}: {step_count} step(s)", "cyan"))
         print(colorize("  (dry run — no changes saved)", "dim"))
         return
 
     created = 0
     updated = 0
-    for entry in annotated_entries:
-        action = _upsert_cluster_from_entry(plan, clusters, entry)
-        if action == "created":
+    for entry in entries:
+        if not isinstance(entry, dict) or "name" not in entry:
+            print(colorize(f"  Skipping entry without 'name': {entry!r}", "yellow"))
+            continue
+        name = entry["name"]
+        is_new = name not in clusters
+
+        if is_new:
+            try:
+                cluster = create_cluster(plan, name, entry.get("description"))
+            except ValueError as ex:
+                print(colorize(f"  {ex}", "red"))
+                continue
             created += 1
-        elif action == "updated":
+        else:
+            cluster = clusters[name]
             updated += 1
 
+        if "description" in entry:
+            cluster["description"] = entry["description"]
+        if "priority" in entry:
+            cluster["priority"] = entry["priority"]
+        if "steps" in entry:
+            cluster["action_steps"] = _imported_cluster_steps(entry)
+        cluster["user_modified"] = True
+        cluster["updated_at"] = utc_now()
 
     save_plan(plan)
     print(colorize(f"  Import complete: {created} created, {updated} updated.", "green"))
