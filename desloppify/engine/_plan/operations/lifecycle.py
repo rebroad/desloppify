@@ -27,13 +27,21 @@ def clear_focus(plan: PlanModel) -> None:
 
 
 def clear_focus_if_cluster_empty(plan: PlanModel) -> None:
-    """Clear focus when the active cluster no longer exists or has no members."""
+    """Clear focus when the active cluster no longer has actionable queue members."""
     ensure_plan_defaults(plan)
     active = plan.get("active_cluster")
     if not active:
         return
     cluster = plan.get("clusters", {}).get(active)
-    if cluster is None or not cluster.get("issue_ids"):
+    if cluster is None:
+        plan["active_cluster"] = None
+        return
+    issue_ids = cluster.get("issue_ids") or []
+    if not issue_ids:
+        plan["active_cluster"] = None
+        return
+    queue_order = set(plan.get("queue_order", []))
+    if not any(issue_id in queue_order for issue_id in issue_ids):
         plan["active_cluster"] = None
 
 

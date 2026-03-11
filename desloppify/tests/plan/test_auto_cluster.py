@@ -231,6 +231,21 @@ def test_auto_cluster_user_modified_merges():
     assert "u3" in ids  # new issue added
 
 
+def test_remove_from_cluster_clears_focus_when_cluster_becomes_non_actionable():
+    plan = empty_plan()
+    ensure_plan_defaults(plan)
+    create_cluster(plan, "manual/cleanup")
+    add_to_cluster(plan, "manual/cleanup", ["u1"])
+    plan["queue_order"] = ["u1"]
+    plan["active_cluster"] = "manual/cleanup"
+
+    removed = remove_from_cluster(plan, "manual/cleanup", ["u1"])
+
+    assert removed == 1
+    assert plan["clusters"]["manual/cleanup"]["issue_ids"] == []
+    assert plan["active_cluster"] is None
+
+
 def test_auto_cluster_deletes_stale():
     plan = empty_plan()
     state = _state_with(
