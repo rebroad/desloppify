@@ -11,6 +11,7 @@ from desloppify.app.commands.helpers.queue_progress import (
 )
 from desloppify.app.commands.helpers.runtime import command_runtime
 from desloppify.app.commands.helpers.state import require_completed_scan
+from desloppify.app.commands.next.render_support import CLUSTER_TYPE_LABELS
 from desloppify.base.output.terminal import colorize, print_table
 from desloppify.engine._work_queue.core import (
     QueueBuildOptions,
@@ -85,24 +86,10 @@ def _queue_display_items(items: list[dict], *, top: int) -> list[dict]:
     return items
 
 
-_CLUSTER_TYPE_LABELS = {
-    "auto/initial-review": "Initial subjective review",
-    "auto/stale-review": "Stale subjective review",
-    "auto/under-target-review": "Optional re-review",
-}
-
-_ACTION_TYPE_LABELS = {
-    "auto_fix": "Auto-fixable batch",
-    "reorganize": "Reorganize batch",
-    "refactor": "Refactor batch",
-    "manual_fix": "Grouped task",
-}
-
-
 def _cluster_type_label(cluster_name: str, action_type: str) -> str:
-    if cluster_name in _CLUSTER_TYPE_LABELS:
-        return _CLUSTER_TYPE_LABELS[cluster_name]
-    return _ACTION_TYPE_LABELS.get(action_type, "Grouped task")
+    if cluster_name in CLUSTER_TYPE_LABELS.cluster_names:
+        return CLUSTER_TYPE_LABELS.cluster_names[cluster_name]
+    return CLUSTER_TYPE_LABELS.action_types.get(action_type, "Grouped task")
 
 
 def _render_cluster_banner(item: dict, position: int, new_ids: set[str]) -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import dataclass
 
 from desloppify.app.commands.helpers.queue_progress import format_plan_delta
 from desloppify.base.output.terminal import colorize
@@ -23,6 +24,18 @@ _CLUSTER_NAME_LABELS = {
     "auto/stale-review": "Stale subjective review",
     "auto/under-target-review": "Optional re-review",
 }
+
+
+@dataclass(frozen=True)
+class ClusterTypeLabels:
+    action_types: dict[str, str]
+    cluster_names: dict[str, str]
+
+
+CLUSTER_TYPE_LABELS = ClusterTypeLabels(
+    action_types=_ACTION_TYPE_LABELS,
+    cluster_names=_CLUSTER_NAME_LABELS,
+)
 
 
 def scorecard_subjective(
@@ -73,9 +86,9 @@ def render_grouped(items: list[dict], group: str) -> None:
 
 
 def _cluster_type_label(cluster_name: str, action_type: str) -> str:
-    if cluster_name in _CLUSTER_NAME_LABELS:
-        return _CLUSTER_NAME_LABELS[cluster_name]
-    return _ACTION_TYPE_LABELS.get(action_type, "Grouped task")
+    if cluster_name in CLUSTER_TYPE_LABELS.cluster_names:
+        return CLUSTER_TYPE_LABELS.cluster_names[cluster_name]
+    return CLUSTER_TYPE_LABELS.action_types.get(action_type, "Grouped task")
 
 
 def _render_cluster_files(members: list[dict]) -> None:
@@ -255,6 +268,8 @@ def render_compact_item(item: dict, idx: int, total: int) -> None:
 
 
 __all__ = [
+    "CLUSTER_TYPE_LABELS",
+    "ClusterTypeLabels",
     "cluster_action_commands",
     "effort_tag",
     "is_auto_fix_command",
