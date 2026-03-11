@@ -65,6 +65,29 @@ def test_steps_with_bad_paths_no_paths(tmp_path: Path) -> None:
     assert result == []
 
 
+def test_steps_with_bad_paths_monorepo_prefix(tmp_path: Path) -> None:
+    """Monorepo paths like packages/backend/src/foo.ts should be validated correctly."""
+    (tmp_path / "packages" / "backend" / "src").mkdir(parents=True)
+    (tmp_path / "packages" / "backend" / "src" / "middleware" / "auth.ts").parent.mkdir(parents=True)
+    (tmp_path / "packages" / "backend" / "src" / "middleware" / "auth.ts").write_text("export {}")
+    plan = _plan_with_steps([
+        {"title": "fix", "detail": "Update packages/backend/src/middleware/auth.ts to fix auth"},
+    ])
+    result = _steps_with_bad_paths(plan, tmp_path)
+    assert result == [], f"Valid monorepo path was flagged as bad: {result}"
+
+
+def test_steps_with_bad_paths_monorepo_invalid(tmp_path: Path) -> None:
+    """Monorepo paths that don't exist should still be flagged."""
+    (tmp_path / "packages" / "backend" / "src").mkdir(parents=True)
+    plan = _plan_with_steps([
+        {"title": "fix", "detail": "Update packages/backend/src/nonexistent.ts"},
+    ])
+    result = _steps_with_bad_paths(plan, tmp_path)
+    assert len(result) == 1
+    assert "packages/backend/src/nonexistent.ts" in result[0][2]
+
+
 def test_steps_with_bad_paths_auto_cluster_skipped(tmp_path: Path) -> None:
     """Auto clusters should be skipped."""
     plan = {

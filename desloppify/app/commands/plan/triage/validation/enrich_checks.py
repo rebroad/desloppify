@@ -9,7 +9,7 @@ from desloppify.base.output.terminal import colorize
 
 from ..helpers import cluster_issue_ids
 
-_PATH_RE = re.compile(r"(?:src|supabase)/[\w./-]+\.\w+")
+_PATH_RE = re.compile(r"(?:[\w./-]+/)?(?:src|supabase)/[\w./-]+\.\w+")
 _EXT_SWAPS = {".ts": ".tsx", ".tsx": ".ts", ".js": ".jsx", ".jsx": ".js"}
 _VALID_EFFORTS = {"trivial", "small", "medium", "large"}
 
