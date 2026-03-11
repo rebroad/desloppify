@@ -38,7 +38,7 @@ desloppify review --prepare    # then follow your runner's review workflow
 
 ### Phase 2: Plan — decide what to work on
 
-After reviews, triage stages and plan creation appear in the execution queue surfaced by `next`. Complete them in order:
+After reviews, triage stages and plan creation appear in the execution queue surfaced by `next`. Complete them in order — `next` tells you what each stage expects in the `--report`:
 ```bash
 desloppify next                                        # shows the next execution workflow step
 desloppify plan triage --stage observe --report "themes and root causes..."
@@ -46,6 +46,8 @@ desloppify plan triage --stage reflect --report "comparison against completed wo
 desloppify plan triage --stage organize --report "summary of priorities..."
 desloppify plan triage --complete --strategy "execution plan..."
 ```
+
+For automated triage: `desloppify plan triage --run-stages --runner codex` (Codex) or `--runner claude` (Claude). Options: `--only-stages`, `--dry-run`, `--stage-timeout-seconds`.
 
 Then shape the queue. **The plan shapes everything `next` gives you** — `next` is the execution queue, not the full backlog. Don't skip this step.
 
@@ -100,7 +102,6 @@ If `next` suggests an auto-fixer, run `desloppify autofix <fixer> --dry-run` to 
 - **Auto-clusters**: related findings are auto-grouped in `next`. Drill in with `next --cluster <name>`.
 - **Zones**: production/script (scored), test/config/generated/vendor (not scored). Fix with `zone set`.
 - **Wontfix cost**: widens the lenient↔strict gap. Challenge past decisions when the gap grows.
-- Score can temporarily drop after fixes (cascade effects are normal).
 
 ### Scoring
 
@@ -120,7 +121,10 @@ Four paths to get subjective scores:
 - **Cloud/external**: `desloppify review --external-start --external-runner claude` → follow session template → `--external-submit`.
 - **Manual path**: `desloppify review --prepare` → review per dimension → `desloppify review --import file.json`.
 
-Import first, fix after — import creates tracked state entries for correlation. Target-matching scores trigger auto-reset to prevent gaming. Even moderate scores (60-80) dramatically improve overall health. Stale dimensions auto-surface in `next` — just follow the queue.
+- Import first, fix after — import creates tracked state entries for correlation.
+- Target-matching scores trigger auto-reset to prevent gaming.
+- Even moderate scores (60-80) dramatically improve overall health.
+- Stale dimensions auto-surface in `next` — just follow the queue.
 
 **Integrity rules:** Score from evidence only — no prior chat context, score history, or target-threshold anchoring. When evidence is mixed, score lower and explain uncertainty. Assess every requested dimension; never drop one.
 
@@ -172,13 +176,6 @@ explain uncertainty.
 ```
 
 See your editor's overlay section below for the agent config format.
-
-### Automated triage
-
-For Codex: `desloppify plan triage --run-stages --runner codex`
-For Claude: `desloppify plan triage --run-stages --runner claude` — then follow orchestrator instructions per stage
-
-Options: `--only-stages observe,reflect` (subset), `--dry-run` (prompts only), `--stage-timeout-seconds N` (per-stage).
 
 ### Plan commands
 
