@@ -29,11 +29,6 @@ class TriageInput:
     resolved_issues: dict[str, dict]   # full issue objects for resolved IDs
     completed_clusters: list[dict]       # clusters completed since last triage
 
-    @property
-    def existing_epics(self) -> dict[str, Cluster]:
-        """Compatibility alias kept for older callers and fixtures."""
-        return self.existing_clusters
-
 @dataclass
 class DismissedIssue:
     """A issue the LLM says doesn't make sense."""

@@ -558,7 +558,7 @@ class TestCollectTriageInput:
         assert len(si.mechanical_issues) == 1
         assert "u1" in si.mechanical_issues
 
-    def test_includes_existing_epics(self):
+    def test_includes_existing_clusters(self):
         plan = empty_plan()
         plan["clusters"]["epic/test"] = {
             "name": "epic/test", "thesis": "test", "direction": "delete",
@@ -566,7 +566,7 @@ class TestCollectTriageInput:
         }
         state = _state_with_review_issues("r1")
         si = collect_triage_input(plan, state)
-        assert "epic/test" in si.existing_epics
+        assert "epic/test" in si.existing_clusters
 
     def test_tracks_new_since_last(self):
         plan = empty_plan()
