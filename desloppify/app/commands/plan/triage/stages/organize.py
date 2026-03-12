@@ -15,14 +15,14 @@ from ..validation.stage_policy import (
     ReflectAutoConfirmDeps,
     auto_confirm_reflect_for_organize,
 )
-from ..validation.core import (
+from ..validation.organize_policy import (
     _clusters_enriched_or_error,
     _manual_clusters_or_error,
     _organize_report_or_error,
-    _require_reflect_stage_for_organize,
     _unclustered_review_issues_or_error,
     _validate_organize_against_ledger_or_error,
 )
+from ..validation.core import _require_reflect_stage_for_organize
 from .records import record_organize_stage
 
 

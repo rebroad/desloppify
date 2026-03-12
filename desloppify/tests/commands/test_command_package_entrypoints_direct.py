@@ -33,6 +33,7 @@ def _assert_entrypoint_delegation(
 
     assert entrypoint_name in package_mod.__all__
     assert callable(entrypoint)
+    assert getattr(command_mod, entrypoint_name).__name__ == "<lambda>"
     assert entrypoint.__module__ == package_mod.__name__
     assert entrypoint.__name__ == entrypoint_name
     assert "stable package-root entrypoint" in (package_mod.__doc__ or "")

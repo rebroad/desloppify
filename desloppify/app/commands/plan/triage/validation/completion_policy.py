@@ -15,6 +15,49 @@ from ..review_coverage import (
 from ..stages.helpers import unclustered_review_issues, unenriched_clusters
 
 
+def _resolve_strategy_input(
+    strategy: str | None,
+    *,
+    meta: dict,
+    has_only_additions: bool = False,
+) -> str | None:
+    if strategy:
+        return strategy
+    if has_only_additions:
+        return "same"
+    print(colorize("  --strategy is required.", "red"))
+    existing = meta.get("strategy_summary", "")
+    if existing:
+        print(colorize(f"  Current strategy: {existing}", "dim"))
+        print(colorize('  Use --strategy "same" to keep it, or provide a new summary.', "dim"))
+    else:
+        print(
+            colorize(
+                '  Provide --strategy "execution plan describing priorities, ordering, and verification approach"',
+                "dim",
+            )
+        )
+    return None
+
+
+def _strategy_valid_or_error(
+    strategy: str,
+    *,
+    include_guidance: bool,
+) -> bool:
+    if strategy.strip().lower() == "same":
+        return True
+    if len(strategy.strip()) >= 200:
+        return True
+    print(colorize(f"  Strategy too short: {len(strategy.strip())} chars (minimum 200).", "red"))
+    if include_guidance:
+        print(colorize("  The strategy should describe:", "dim"))
+        print(colorize("    - Execution order and priorities", "dim"))
+        print(colorize("    - What each cluster accomplishes", "dim"))
+        print(colorize("    - How to verify the work is correct", "dim"))
+    return False
+
+
 def _completion_clusters_valid(plan: dict, state: dict | None = None) -> bool:
     if state is not None and not open_review_ids_from_state(state):
         return True
@@ -54,29 +97,11 @@ def _completion_clusters_valid(plan: dict, state: dict | None = None) -> bool:
 
 
 def _resolve_completion_strategy(strategy: str | None, *, meta: dict) -> str | None:
-    if strategy:
-        return strategy
-    print(colorize("  --strategy is required.", "red"))
-    existing = meta.get("strategy_summary", "")
-    if existing:
-        print(colorize(f"  Current strategy: {existing}", "dim"))
-        print(colorize('  Use --strategy "same" to keep it, or provide a new summary.', "dim"))
-    else:
-        print(colorize('  Provide --strategy "execution plan describing priorities, ordering, and verification approach"', "dim"))
-    return None
+    return _resolve_strategy_input(strategy, meta=meta)
 
 
 def _completion_strategy_valid(strategy: str) -> bool:
-    if strategy.strip().lower() == "same":
-        return True
-    if len(strategy.strip()) >= 200:
-        return True
-    print(colorize(f"  Strategy too short: {len(strategy.strip())} chars (minimum 200).", "red"))
-    print(colorize("  The strategy should describe:", "dim"))
-    print(colorize("    - Execution order and priorities", "dim"))
-    print(colorize("    - What each cluster accomplishes", "dim"))
-    print(colorize("    - How to verify the work is correct", "dim"))
-    return False
+    return _strategy_valid_or_error(strategy, include_guidance=True)
 
 
 def _require_prior_strategy_for_confirm(meta: dict) -> bool:
@@ -124,24 +149,15 @@ def _resolve_confirm_existing_strategy(
     has_only_additions: bool,
     meta: dict,
 ) -> str | None:
-    if strategy:
-        return strategy
-    if has_only_additions:
-        return "same"
-    print(colorize("  --strategy is required.", "red"))
-    existing = meta.get("strategy_summary", "")
-    if existing:
-        print(colorize('  Use --strategy "same" to keep it, or provide a new summary.', "dim"))
-    return None
+    return _resolve_strategy_input(
+        strategy,
+        meta=meta,
+        has_only_additions=has_only_additions,
+    )
 
 
 def _confirm_strategy_valid(strategy: str) -> bool:
-    if strategy.strip().lower() == "same":
-        return True
-    if len(strategy.strip()) >= 200:
-        return True
-    print(colorize(f"  Strategy too short: {len(strategy.strip())} chars (minimum 200).", "red"))
-    return False
+    return _strategy_valid_or_error(strategy, include_guidance=False)
 
 
 def _confirmed_text_or_error(*, plan: dict, state: dict, confirmed: str | None) -> str | None:

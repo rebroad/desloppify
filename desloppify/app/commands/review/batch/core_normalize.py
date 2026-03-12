@@ -522,6 +522,94 @@ def _normalize_dimension_judgments(
     return dimension_judgment
 
 
+_CONTEXT_HEADER_MAX_LENGTH = 80
+_CONTEXT_DESCRIPTION_MAX_LENGTH = 500
+_CONTEXT_MAX_INSIGHTS_PER_DIMENSION = 10
+
+
+def _normalize_context_additions(
+    updates: dict[str, object],
+) -> list[dict[str, object]]:
+    """Normalize one dimension's ``add`` list for ``context_updates``."""
+    add_raw = updates.get("add")
+    if not isinstance(add_raw, list):
+        return []
+
+    validated: list[dict[str, object]] = []
+    for item in add_raw[:_CONTEXT_MAX_INSIGHTS_PER_DIMENSION]:
+        if not isinstance(item, dict):
+            continue
+        header = item.get("header")
+        description = item.get("description")
+        if not isinstance(header, str) or not header.strip():
+            continue
+        if not isinstance(description, str) or not description.strip():
+            continue
+        validated.append(
+            {
+                "header": header.strip()[:_CONTEXT_HEADER_MAX_LENGTH],
+                "description": description.strip()[:_CONTEXT_DESCRIPTION_MAX_LENGTH],
+                "settled": bool(item.get("settled", False)),
+            }
+        )
+    return validated
+
+
+def _normalize_context_header_list(
+    updates: dict[str, object],
+    *,
+    key: str,
+) -> list[str]:
+    """Normalize one header-list operation from ``context_updates``."""
+    raw_list = updates.get(key)
+    if not isinstance(raw_list, list):
+        return []
+    return [header.strip() for header in raw_list if isinstance(header, str) and header.strip()]
+
+
+def _normalize_dimension_context_updates(
+    updates: dict[str, object],
+) -> dict[str, object]:
+    """Normalize one dimension's context update payload."""
+    result: dict[str, object] = {}
+
+    additions = _normalize_context_additions(updates)
+    if additions:
+        result["add"] = additions
+
+    for key in ("remove", "settle", "unsettle"):
+        headers = _normalize_context_header_list(updates, key=key)
+        if headers:
+            result[key] = headers
+
+    return result
+
+
+def _normalize_context_updates(
+    payload: dict[str, object],
+    allowed_dims: set[str],
+) -> dict[str, dict[str, object]]:
+    """Extract and validate context_updates from a batch payload.
+
+    Silently drops malformed entries rather than failing the whole batch.
+    """
+    raw = payload.get("context_updates")
+    if not isinstance(raw, dict):
+        return {}
+
+    result: dict[str, dict[str, object]] = {}
+    for dim, updates in raw.items():
+        if not isinstance(dim, str) or dim not in allowed_dims:
+            continue
+        if not isinstance(updates, dict):
+            continue
+        dim_result = _normalize_dimension_context_updates(updates)
+        if dim_result:
+            result[dim] = dim_result
+
+    return result
+
+
 def normalize_batch_result(
     payload: dict[str, object],
     allowed_dims: set[str],
@@ -535,6 +623,7 @@ def normalize_batch_result(
     dict[str, BatchDimensionNotePayload],
     dict[str, BatchDimensionJudgmentPayload],
     BatchQualityPayload,
+    dict[str, dict[str, object]],
 ]:
     """Validate and normalize one batch payload."""
     if "assessments" not in payload:
@@ -588,12 +677,14 @@ def normalize_batch_result(
         high_score_missing_issue_note,
         expected_dimensions=len(allowed_dims),
     )
+    context_updates = _normalize_context_updates(payload, allowed_dims)
     return (
         assessments,
         [issue.to_payload() for issue in issues] + list(dismissed_concerns),
         dimension_notes,
         dimension_judgment,
         quality,
+        context_updates,
     )
 
 

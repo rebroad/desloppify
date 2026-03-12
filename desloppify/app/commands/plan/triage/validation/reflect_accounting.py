@@ -30,10 +30,13 @@ class ReflectDisposition:
         """Deserialize from persisted plan data, or pass through unchanged."""
         if isinstance(data, cls):
             return data
+        issue_id = data.get("issue_id", "")
+        target = data.get("target", "")
+        decision = _decision_kind_or_none(data.get("decision")) or "cluster"
         return cls(
-            issue_id=data.get("issue_id", ""),
-            decision=data.get("decision", "cluster"),  # type: ignore[arg-type]
-            target=data.get("target", ""),
+            issue_id=issue_id if isinstance(issue_id, str) else "",
+            decision=decision,
+            target=target if isinstance(target, str) else "",
         )
 
 
@@ -169,6 +172,17 @@ def _normalize_decision(raw: str) -> str:
     return lower
 
 
+def _decision_kind_or_none(raw: object) -> DecisionKind | None:
+    if not isinstance(raw, str):
+        return None
+    normalized = _normalize_decision(raw)
+    if normalized == "cluster":
+        return "cluster"
+    if normalized == "permanent_skip":
+        return "permanent_skip"
+    return None
+
+
 @dataclass
 class _LedgerParseResult:
     """Combined output of a single pass over the Coverage Ledger section."""
@@ -220,17 +234,16 @@ def _append_disposition_if_supported(
     decision: str | None,
     target: str | None,
 ) -> None:
-    if not decision or not target:
+    parsed_decision = _decision_kind_or_none(decision)
+    if parsed_decision is None or not target:
         return
-    normalized = _normalize_decision(decision)
-    if normalized in {"cluster", "permanent_skip"}:
-        dispositions.append(
-            ReflectDisposition(
-                issue_id=issue_id,
-                decision=normalized,  # type: ignore[arg-type]
-                target=target,
-            )
+    dispositions.append(
+        ReflectDisposition(
+            issue_id=issue_id,
+            decision=parsed_decision,
+            target=target,
         )
+    )
 
 
 def _walk_coverage_ledger(

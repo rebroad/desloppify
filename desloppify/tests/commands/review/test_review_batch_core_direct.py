@@ -289,7 +289,7 @@ def test_normalize_batch_result_rejects_low_score_without_same_dimension_issue()
 
 
 def test_normalize_batch_result_accepts_low_score_with_same_dimension_issue():
-    assessments, issues, _notes, _judgment, _quality = normalize_batch_result(
+    assessments, issues, _notes, _judgment, _quality, _ctx = normalize_batch_result(
         payload={
             "assessments": {"logic_clarity": LOW_SCORE_ISSUE_THRESHOLD - 10.0},
             "dimension_notes": {
@@ -335,7 +335,7 @@ def test_normalize_batch_result_accepts_low_score_with_same_dimension_issue():
 
 
 def test_normalize_batch_result_accepts_dismissed_concern_entries() -> None:
-    assessments, issues, _notes, _judgment, _quality = normalize_batch_result(
+    assessments, issues, _notes, _judgment, _quality, _ctx = normalize_batch_result(
         payload={
             "assessments": {"logic_clarity": 80.0},
             "dimension_notes": {
@@ -389,7 +389,7 @@ def test_normalize_batch_result_accepts_dismissed_concern_entries() -> None:
 
 
 def test_normalize_batch_result_accepts_legacy_findings_alias():
-    assessments, issues, _notes, _judgment, _quality = normalize_batch_result(
+    assessments, issues, _notes, _judgment, _quality, _ctx = normalize_batch_result(
         payload={
             "assessments": {"logic_clarity": 80.0},
             "dimension_notes": {
@@ -512,7 +512,7 @@ def test_normalize_batch_result_rejects_incomplete_dimension_judgment_entry():
 
 
 def test_normalize_batch_result_accepts_legacy_unreported_risk_key():
-    _assessments, _issues, notes, _judgment, _quality = normalize_batch_result(
+    _assessments, _issues, notes, _judgment, _quality, _ctx = normalize_batch_result(
         payload={
             "assessments": {"logic_clarity": 90.0},
             "dimension_notes": {
@@ -557,6 +557,74 @@ def test_normalize_batch_result_accepts_legacy_unreported_risk_key():
         notes["logic_clarity"]["issues_preventing_higher_score"]
         == "legacy note still provided"
     )
+
+
+def test_normalize_batch_result_normalizes_context_updates() -> None:
+    _assessments, _issues, _notes, _judgment, _quality, context_updates = normalize_batch_result(
+        {
+            "assessments": {"logic_clarity": 72},
+            "dimension_notes": {
+                "logic_clarity": {
+                    "evidence": ["context update normalization"],
+                    "impact_scope": "module",
+                    "fix_scope": "single_edit",
+                }
+            },
+            "dimension_judgment": {
+                "logic_clarity": {
+                    "strengths": ["keeps valid updates"],
+                    "issue_character": "context updates are accepted when structured",
+                    "score_rationale": (
+                        "The payload should preserve valid additions and header-based mutations "
+                        "while dropping malformed entries."
+                    ),
+                }
+            },
+            "issues": [
+                {
+                    "dimension": "logic_clarity",
+                    "identifier": "context_update_path",
+                    "summary": "Normalize context updates",
+                    "related_files": ["src/a.ts"],
+                    "evidence": ["context_updates payload included"],
+                    "suggestion": "keep only valid context update entries",
+                    "confidence": "medium",
+                    "impact_scope": "module",
+                    "fix_scope": "single_edit",
+                }
+            ],
+            "context_updates": {
+                "logic_clarity": {
+                    "add": [
+                        {"header": "  Useful header  ", "description": "  Useful description  "},
+                        {"header": "", "description": "ignored"},
+                    ],
+                    "remove": [" stale header ", "", 123],
+                    "settle": ["confirmed"],
+                    "unsettle": [" revisit "],
+                },
+                "unknown_dim": {"add": [{"header": "skip", "description": "skip"}]},
+            },
+        },
+        allowed_dims={"logic_clarity"},
+        max_batch_issues=max_batch_issues_for_dimension_count(1),
+        abstraction_sub_axes=_ABSTRACTION_SUB_AXES,
+    )
+
+    assert context_updates == {
+        "logic_clarity": {
+            "add": [
+                {
+                    "header": "Useful header",
+                    "description": "Useful description",
+                    "settled": False,
+                }
+            ],
+            "remove": ["stale header"],
+            "settle": ["confirmed"],
+            "unsettle": ["revisit"],
+        }
+    }
 
 
 # --- _percentile_floor tests ---
