@@ -26,8 +26,19 @@ def _load_tweet_release_module(monkeypatch: pytest.MonkeyPatch):
         Client=lambda **kwargs: None,
         errors=SimpleNamespace(TwitterServerError=RuntimeError),
     )
+    _RequestException = type("RequestException", (OSError,), {})
+    requests_stub = SimpleNamespace(
+        get=lambda *args, **kwargs: None,
+        post=lambda *args, **kwargs: None,
+        RequestException=_RequestException,
+        ConnectionError=type("ConnectionError", (_RequestException,), {}),
+        Timeout=type("Timeout", (_RequestException,), {}),
+        HTTPError=type("HTTPError", (_RequestException,), {}),
+        exceptions=SimpleNamespace(RequestException=_RequestException),
+    )
     monkeypatch.setitem(sys.modules, "anthropic", anthropic_stub)
     monkeypatch.setitem(sys.modules, "tweepy", tweepy_stub)
+    monkeypatch.setitem(sys.modules, "requests", requests_stub)
 
     module_name = f"tweet_release_test_{uuid4().hex}"
     spec = importlib.util.spec_from_file_location(module_name, SCRIPT_PATH)
