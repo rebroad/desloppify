@@ -15,6 +15,7 @@ from desloppify.app.skill_docs import (
     SkillInstall,
     find_installed_skill,
 )
+from desloppify.base.config import load_config
 from desloppify.base.discovery.file_paths import safe_write_text
 from desloppify.base.discovery.paths import get_project_root
 from desloppify.base.output.terminal import colorize
@@ -35,6 +36,25 @@ def _build_section(skill_content: str, overlay_content: str | None) -> str:
     if overlay_content:
         parts.append(overlay_content.rstrip())
     return "\n\n".join(parts) + "\n"
+
+
+def _scan_args_from_config(config: dict) -> list[str]:
+    raw_args = config.get("scan_args")
+    if not isinstance(raw_args, list):
+        return []
+    return [str(arg).strip() for arg in raw_args if str(arg).strip()]
+
+
+def _apply_scan_args_to_section(section: str, scan_args: list[str]) -> str:
+    """Inject scan args into the Phase 1 scan command."""
+    if not scan_args:
+        return section
+    args_str = " ".join(scan_args)
+    before = "desloppify scan --path ."
+    after = f"{before} {args_str}"
+    if before not in section:
+        return section
+    return section.replace(before, after, 1)
 
 
 # Interfaces whose skill systems parse YAML frontmatter and require ``---``
@@ -152,6 +172,9 @@ def _update_installed_skill_with_deps(
         return False
 
     new_section = _build_section(skill_content, overlay_content)
+    scan_args = _scan_args_from_config(load_config())
+    if scan_args:
+        new_section = _apply_scan_args_to_section(new_section, scan_args)
     if interface in _FRONTMATTER_FIRST_INTERFACES:
         new_section = _ensure_frontmatter_first(new_section)
 
