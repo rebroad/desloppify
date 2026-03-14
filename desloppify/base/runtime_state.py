@@ -91,6 +91,7 @@ class RuntimeContext:
     """Mutable runtime container for exclusion and cache state."""
 
     exclusions: tuple[str, ...] = ()
+    file_allowlist: tuple[str, ...] | None = None
     project_root: Path | None = None
     query_file: Path | None = None
     file_text_cache: FileTextCache = field(default_factory=FileTextCache)

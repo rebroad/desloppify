@@ -32,6 +32,7 @@ from desloppify.app.commands.scan.focus import (
     parse_diff_stat_file,
     show_focus_summary,
 )
+from desloppify.base.discovery.source import set_file_allowlist
 from desloppify.app.commands.scan.reporting.integrity_report import (
     show_post_scan_analysis,
 )
@@ -123,6 +124,7 @@ def cmd_scan(args: argparse.Namespace) -> None:
     if diff_stat_path:
         try:
             focus_files = parse_diff_stat_file(diff_stat_path)
+            set_file_allowlist(focus_files)
         except ValueError as exc:
             raise CommandError(str(exc), exit_code=2) from exc
     try:

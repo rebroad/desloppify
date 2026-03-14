@@ -76,6 +76,33 @@ def get_exclusions(*, runtime: RuntimeContext | None = None) -> tuple[str, ...]:
     return resolve_runtime_context(runtime).exclusions
 
 
+def set_file_allowlist(
+    files: list[str] | tuple[str, ...] | None,
+    *,
+    runtime: RuntimeContext | None = None,
+) -> None:
+    """Set a global allowlist of files (project-relative paths) to scan."""
+    resolved_runtime = resolve_runtime_context(runtime)
+    if not files:
+        resolved_runtime.file_allowlist = None
+        resolved_runtime.source_file_cache.clear()
+        return
+    normalized = []
+    for entry in files:
+        if not isinstance(entry, str):
+            continue
+        text = _normalize_path_separators(entry.strip()).lstrip("./")
+        if text:
+            normalized.append(text)
+    resolved_runtime.file_allowlist = tuple(sorted(set(normalized))) or None
+    resolved_runtime.source_file_cache.clear()
+
+
+def get_file_allowlist(*, runtime: RuntimeContext | None = None) -> tuple[str, ...] | None:
+    """Return the current file allowlist, if any."""
+    return resolve_runtime_context(runtime).file_allowlist
+
+
 def enable_file_cache(*, runtime: RuntimeContext | None = None) -> None:
     """Enable scan-scoped file content cache."""
     resolved_runtime = resolve_runtime_context(runtime)
@@ -183,6 +210,7 @@ def _find_source_files_cached(
         if resolved_options.project_root is not None
         else get_project_root(runtime=resolved_runtime)
     )
+    allowlist = resolved_runtime.file_allowlist
     cache = resolved_options.source_file_cache or resolved_runtime.source_file_cache
     cache_key = (
         path,
@@ -190,6 +218,7 @@ def _find_source_files_cached(
         resolved_options.exclusions,
         resolved_options.extra_exclusions,
         str(resolved_project_root),
+        allowlist,
     )
     cached = cache.get(cache_key)
     if cached is not None:
@@ -224,6 +253,9 @@ def _find_source_files_cached(
                     continue
                 files.append(rel_file)
     result = tuple(sorted(files))
+    if allowlist:
+        allow = set(allowlist)
+        result = tuple(sorted(f for f in result if f in allow))
     cache.put(cache_key, result)
     return result
 
@@ -310,4 +342,6 @@ __all__ = [
     "find_ts_and_tsx_files",
     "find_tsx_files",
     "find_py_files",
+    "get_file_allowlist",
+    "set_file_allowlist",
 ]
