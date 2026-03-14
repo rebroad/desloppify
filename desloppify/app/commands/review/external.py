@@ -39,6 +39,7 @@ from .prompt_sections import (
     render_historical_focus,
     render_judgment_findings_section,
     render_mechanical_concern_signals,
+    render_review_scope,
     render_scan_evidence_note,
     render_scope_enums,
     render_scoring_frame,
@@ -223,6 +224,12 @@ def _build_claude_launch_prompt(
     all_dims: set[str] = set()
     combined_cap = 0
     batch_sections: list[str] = []
+    review_scope = packet.get("review_scope") if isinstance(packet, dict) else None
+    restrict_to_scope = (
+        isinstance(review_scope, dict)
+        and isinstance(review_scope.get("allowed_files"), list)
+        and bool(review_scope.get("allowed_files"))
+    )
     for i, batch in enumerate(batches):
         ctx = build_batch_context(batch, i)
         all_dims.update(ctx.dimension_set)
@@ -320,12 +327,17 @@ def _build_claude_launch_prompt(
 
     return join_non_empty_sections(
         header,
+        render_review_scope(review_scope),
         *batch_sections,
         policy_text,
         constraints_text,
         render_scoring_frame(),
         render_scan_evidence_note(),
-        render_task_requirements(issues_cap=combined_cap, dim_set=all_dims),
+        render_task_requirements(
+            issues_cap=combined_cap,
+            dim_set=all_dims,
+            restrict_to_scope=restrict_to_scope,
+        ),
         render_scope_enums(),
         output_schema,
         session_requirements,

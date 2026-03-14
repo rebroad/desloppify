@@ -21,6 +21,7 @@ from ..prompt_sections import (
     render_historical_focus,
     render_judgment_findings_section,
     render_mechanical_concern_signals,
+    render_review_scope,
     render_scan_evidence_note,
     render_scope_enums,
     render_scoring_frame,
@@ -141,6 +142,12 @@ def render_batch_prompt(
     context = build_batch_context(batch, batch_index)
     dim_prompts = context.dimension_prompts or batch_dimension_prompts(batch)
     dimension_contexts = batch.get("dimension_contexts") if isinstance(batch, dict) else None
+    review_scope = batch.get("review_scope") if isinstance(batch, dict) else None
+    restrict_to_scope = (
+        isinstance(review_scope, dict)
+        and isinstance(review_scope.get("allowed_files"), list)
+        and bool(review_scope.get("allowed_files"))
+    )
     return join_non_empty_sections(
         _render_metadata_block(
             repo_root=repo_root,
@@ -148,6 +155,7 @@ def render_batch_prompt(
             batch_index=batch_index,
             context=context,
         ),
+        render_review_scope(review_scope),
         render_dimension_prompts_block(context.dimensions, dim_prompts),
         policy_block,
         render_scoring_frame(),
@@ -160,7 +168,11 @@ def render_batch_prompt(
         render_dimension_deferral_context(batch),
         render_mechanical_concern_signals(batch),
         render_judgment_findings_section(batch),
-        render_task_requirements(issues_cap=context.issues_cap, dim_set=context.dimension_set),
+        render_task_requirements(
+            issues_cap=context.issues_cap,
+            dim_set=context.dimension_set,
+            restrict_to_scope=restrict_to_scope,
+        ),
         render_scope_enums(),
         _render_output_schema(context, batch_index),
     )

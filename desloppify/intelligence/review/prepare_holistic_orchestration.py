@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from desloppify.base.discovery.file_paths import rel
 from desloppify.intelligence.review._context.models import HolisticContext
 from desloppify.intelligence.review._prepare.helpers import HOLISTIC_WORKFLOW
 
@@ -38,6 +39,38 @@ def _resolve_review_files(
         if file_in_allowed_scope(filepath, allowed)
     ]
     return scoped_files, allowed
+
+
+def _build_review_scope_payload(
+    *,
+    repo_root: Path,
+    scoped_files: list[str],
+    max_listed_files: int = 50,
+) -> dict[str, Any]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for filepath in scoped_files:
+        if not isinstance(filepath, str):
+            continue
+        candidate = filepath.strip()
+        if not candidate:
+            continue
+        try:
+            candidate = rel(candidate, project_root=repo_root)
+        except OSError:
+            candidate = candidate.replace("\\", "/")
+        candidate = candidate.strip()
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        normalized.append(candidate)
+    normalized.sort()
+    truncated = len(normalized) > max_listed_files
+    return {
+        "allowed_files": normalized[:max_listed_files],
+        "allowed_files_count": len(normalized),
+        "allowed_files_truncated": truncated,
+    }
 
 
 def _build_review_contexts(
@@ -182,6 +215,10 @@ def prepare_holistic_review_payload(
         dim_ctx.per_file_prompts,
     )
 
+    review_scope = _build_review_scope_payload(
+        repo_root=path,
+        scoped_files=scoped_files,
+    )
     payload: dict[str, Any] = {
         "command": "review",
         "mode": "holistic",
@@ -193,6 +230,7 @@ def prepare_holistic_review_payload(
         "review_context": deps.serialize_context_fn(review_ctx),
         "system_prompt": dim_ctx.system_prompt,
         "total_files": context.codebase_stats.get("total_files", 0),
+        "review_scope": review_scope,
         "workflow": HOLISTIC_WORKFLOW,
         "invalid_dimensions": {
             "requested": dim_ctx.invalid_requested,
@@ -220,6 +258,10 @@ def prepare_holistic_review_payload(
                 batch_item["dimension_contexts"] = {
                     d: dim_contexts[d] for d in batch_dims if d in dim_contexts
                 }
+
+    for batch_item in batches:
+        if isinstance(batch_item, dict):
+            batch_item["review_scope"] = review_scope
 
     payload["investigation_batches"] = batches
     return payload

@@ -556,18 +556,61 @@ def render_scan_evidence_note() -> str:
     )
 
 
-def render_task_requirements(*, issues_cap: int, dim_set: set[str]) -> str:
+def render_review_scope(review_scope: object) -> str:
+    if not isinstance(review_scope, dict):
+        return ""
+    allowed_raw = review_scope.get("allowed_files", [])
+    if not isinstance(allowed_raw, list):
+        return ""
+    allowed_files = [
+        str(path).strip()
+        for path in allowed_raw
+        if isinstance(path, str) and path.strip()
+    ]
+    if not allowed_files:
+        return ""
+    total = review_scope.get("allowed_files_count")
+    truncated = review_scope.get("allowed_files_truncated")
+    header = "## Review Scope (Hard Constraint)\n"
+    summary = "You MUST limit all reading and reasoning to the files listed below."
+    if isinstance(total, int) and total > 0:
+        summary += f" Total allowed files: {total}."
+    if truncated is True:
+        summary += (
+            " The list below is truncated; treat it as an allowlist, not a sample."
+        )
+    lines = [header, summary, "Allowed files:"]
+    lines.extend(f"- {path}" for path in allowed_files)
+    return "\n".join(lines) + "\n\n"
+
+
+def render_task_requirements(
+    *,
+    issues_cap: int,
+    dim_set: set[str],
+    restrict_to_scope: bool = False,
+) -> str:
     dim_focus = render_dimension_focus(dim_set)
+    scope_step = (
+        "4. Explore ONLY in-scope files. Do NOT open or reference any file outside the Review Scope."
+        if restrict_to_scope
+        else "4. Explore the codebase freely. Use scan evidence, historical issues, and mechanical findings as navigation aids."
+    )
+    scope_control = (
+        "8. Respect scope controls: exclude files/directories marked by `exclude`, `suppress`, non-production zone overrides, AND the explicit Review Scope."
+        if restrict_to_scope
+        else "8. Respect scope controls: exclude files/directories marked by `exclude`, `suppress`, or non-production zone overrides."
+    )
     lines = [
         "Phase 1 — Observe:",
         "1. Read the blind packet's `system_prompt` — scoring rules and calibration.",
         "2. Study the dimension rubric (description, look_for, skip).",
         "3. Review the existing characteristics list — which are settled? Which are positive? What needs updating?",
-        "4. Explore the codebase freely. Use scan evidence, historical issues, and mechanical findings as navigation aids.",
+        scope_step,
         "5. Adjudicate mechanical concern signals (confirm/dismiss with fingerprint).",
         "6. Augment the characteristics list via context_updates: positive patterns (positive: true), neutral characteristics, design insights.",
         "7. Collect defects for issues[].",
-        "8. Respect scope controls: exclude files/directories marked by `exclude`, `suppress`, or non-production zone overrides.",
+        scope_control,
         "9. Output a Phase 1 summary: list ALL characteristics for this dimension (existing + new, mark [+] for positive) and all defects collected. This is your consolidated reference for Phase 2.",
         "",
         "Phase 2 — Judge (after Phase 1 is complete):",
@@ -634,6 +677,7 @@ __all__ = [
     "render_dimension_focus",
     "render_scoring_frame",
     "render_scan_evidence_note",
+    "render_review_scope",
     "render_task_requirements",
     "render_scope_enums",
     "join_non_empty_sections",
