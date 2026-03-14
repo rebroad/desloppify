@@ -28,6 +28,10 @@ from desloppify.app.commands.scan.reporting.dimensions import (
     show_score_model_breakdown,
     show_scorecard_subjective_measures,
 )
+from desloppify.app.commands.scan.focus import (
+    parse_diff_stat_file,
+    show_focus_summary,
+)
 from desloppify.app.commands.scan.reporting.integrity_report import (
     show_post_scan_analysis,
 )
@@ -114,6 +118,13 @@ def _print_plan_workflow_nudge(state: dict) -> None:
 def cmd_scan(args: argparse.Namespace) -> None:
     """Run all detectors, update persistent state, show diff."""
     scan_preflight_mod.scan_queue_preflight(args)
+    focus_files: list[str] | None = None
+    diff_stat_path = getattr(args, "diff_stat", None)
+    if diff_stat_path:
+        try:
+            focus_files = parse_diff_stat_file(diff_stat_path)
+        except ValueError as exc:
+            raise CommandError(str(exc), exit_code=2) from exc
     try:
         runtime = prepare_scan_runtime(args)
     except LangRuntimeOptionsError as exc:
@@ -161,6 +172,8 @@ def cmd_scan(args: argparse.Namespace) -> None:
     # Nudge: if plan_start_scores was just seeded, tell the agent about the lifecycle.
     _print_plan_workflow_nudge(runtime.state)
     _show_scan_visibility(noise, runtime.effective_include_slow)
+    if focus_files:
+        show_focus_summary(runtime.state, focus_files)
     show_scorecard_subjective_measures(runtime.state)
     show_score_model_breakdown(runtime.state)
 

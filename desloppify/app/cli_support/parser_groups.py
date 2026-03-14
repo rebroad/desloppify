@@ -108,6 +108,13 @@ examples:
         metavar="TEXT",
         help="Attestation for --force-rescan",
     )
+    p_scan.add_argument(
+        "--diff-stat",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help="Path to a git diff --stat file to focus scan output on changed files",
+    )
 
 
 def _add_status_parser(sub) -> None:
