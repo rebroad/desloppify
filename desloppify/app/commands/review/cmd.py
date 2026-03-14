@@ -5,10 +5,14 @@ from __future__ import annotations
 import argparse
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 
 from desloppify.app.commands.helpers.lang import resolve_lang
 from desloppify.app.commands.helpers.command_runtime import command_runtime
 from desloppify.app.commands.helpers.state import require_scan_metrics
+from desloppify.app.commands.scan.focus import parse_diff_stat_file
+from desloppify.base.discovery.paths import get_project_root
+from desloppify.base.discovery.source import set_file_allowlist
 from desloppify.base.exception_sets import CommandError
 
 from .batch.orchestrator import do_import_run, do_run_batches
@@ -120,6 +124,27 @@ def _validate_mode_selection(
 def _is_default_prepare_mode(opts: ReviewOptions, mode_flags: list[bool]) -> bool:
     """True when the command will run the default prepare flow (no explicit mode)."""
     return not any(mode_flags) and not opts.import_file
+
+
+def _apply_scan_args_allowlist(config: dict) -> None:
+    """Apply --diff-stat file allowlist from config.scan_args when present."""
+    raw_args = config.get("scan_args")
+    if not isinstance(raw_args, list):
+        return
+    args = [str(arg).strip() for arg in raw_args if str(arg).strip()]
+    if "--diff-stat" not in args:
+        return
+    idx = args.index("--diff-stat")
+    if idx + 1 >= len(args):
+        return
+    diff_path = Path(args[idx + 1])
+    if not diff_path.is_absolute():
+        diff_path = get_project_root() / diff_path
+    try:
+        files = parse_diff_stat_file(diff_path)
+    except ValueError:
+        return
+    set_file_allowlist(files)
 
 
 def _run_review_mode(
@@ -234,6 +259,13 @@ def cmd_review(args: argparse.Namespace) -> None:
     if _is_default_prepare_mode(opts, mode_flags) or opts.run_batches:
         if not require_scan_metrics(state):
             return
+
+    if (
+        _is_default_prepare_mode(opts, mode_flags)
+        or opts.run_batches
+        or opts.external_start
+    ):
+        _apply_scan_args_allowlist(runtime.config or {})
 
     _run_review_mode(
         args,
