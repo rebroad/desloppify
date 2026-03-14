@@ -139,10 +139,12 @@ def _scan_file(
             }
         )
 
-    try:
-        tree = ast.parse(content)
-    except SyntaxError:
-        tree = None
+    tree = None
+    if Path(filepath).suffix == ".py":
+        try:
+            tree = ast.parse(content, filename=filepath)
+        except SyntaxError:
+            tree = None
 
     if tree is not None:
         col.parsed_trees[filepath] = tree
